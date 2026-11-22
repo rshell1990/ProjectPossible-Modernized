@@ -1,29 +1,27 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import renpy.display
+import renpy.display.image
+import renpy.display.core
+import renpy.display.predict
 import renpy.text
+import renpy.text.extras
+import renpy.text.font
+import renpy.character
+import renpy.style  # type: ignore[import-not-found]
+import renpy.parser
+import renpy.config
+import renpy.python
+import renpy.store  # type: ignore[import-not-found]
+import renpy.loader
+import renpy.ast
+import renpy.exports
+import renpy.arguments
+import renpy.styledata
+import renpy.display.image
+import renpy.game
 import codecs
 import time
 import re
@@ -35,7 +33,7 @@ import builtins
 python_builtins = set(dir(builtins))
 renpy_builtins = set()
 
-image_prefixes = None
+image_prefixes = { }
 
 # Things to check in lint.
 #
@@ -58,6 +56,14 @@ all_default_statements = {}
 
 # True if at east one error was reported, false otherwise.
 error_reported = False
+
+
+def _get_script():
+    script = renpy.game.script
+    if script is None:
+        raise Exception("The Ren'Py script is not initialized.")
+    return script
+
 
 # Reports a message to the user.
 
@@ -250,7 +256,7 @@ def image_exists_precise(name):
 
             try:
                 da = renpy.display.core.DisplayableArguments()
-                da.name = (im[0],) + tuple(i for i in name[1:] if i in attrs)
+                setattr(da, "name", (im[0],) + tuple(i for i in name[1:] if i in attrs))
                 da.args = tuple(i for i in name[1:] if i in rest)
                 da.lint = True
                 d._duplicate(da)
@@ -345,11 +351,10 @@ def check_image(node):
 
 def imspec(t):
     if len(t) == 3:
-        return t[0], None, None, t[1], t[2], 0
+        return t[0], None, None, t[1], t[2], 0, None
     if len(t) == 6:
         return t[0], t[1], t[2], t[3], t[4], t[5], None
-    else:
-        return t
+    return t[0], t[1], t[2], t[3], t[4], t[5], t[6]
 
 
 # Lints ast.Show and ast.Scene nodes.
@@ -536,7 +541,7 @@ def check_jump(node):
     if node.expression:
         return
 
-    if not renpy.game.script.has_label(node.target):
+    if not _get_script().has_label(node.target):
         report("The jump is to nonexistent label '%s'.", node.target)
 
 
@@ -545,7 +550,7 @@ def check_call(node):
     if node.expression:
         return
 
-    if not renpy.game.script.has_label(node.label):
+    if not _get_script().has_label(node.label):
         report("The call is to nonexistent label '%s'.", node.label)
 
 
@@ -791,7 +796,7 @@ def lint():
     # Iterate through every statement in the program, processing
     # them. We sort them in filename, linenumber order.
 
-    all_stmts = list(renpy.game.script.all_stmts)
+    all_stmts = list(_get_script().all_stmts)
     all_stmts.sort(key=lambda n : n.filename)
 
     # The current count.

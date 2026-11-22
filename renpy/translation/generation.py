@@ -1,28 +1,15 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
+from typing import Any
 
 import renpy.translation
+import renpy.arguments
+import renpy.config
+import renpy.game as game
+game: Any
+import renpy.loader
+import renpy.parser
 
 import re
 import os
@@ -128,8 +115,12 @@ def shorten_filename(filename):
     if the filename is in the common directory.
     """
 
-    commondir = os.path.normpath(renpy.config.commondir)
-    gamedir = os.path.normpath(renpy.config.gamedir)
+    commondir = renpy.config.commondir
+    gamedir = renpy.config.gamedir
+    assert commondir is not None
+    assert gamedir is not None
+    commondir = os.path.normpath(commondir)
+    gamedir = os.path.normpath(gamedir)
 
     if filename.startswith(commondir):
         fn = os.path.relpath(filename, commondir)
@@ -154,7 +145,9 @@ def write_translates(filename, language, filter): # @ReservedAssignment
     if common:
         return
 
-    tl_filename = os.path.join(renpy.config.gamedir, renpy.config.tl_directory, language, fn)
+    gamedir = renpy.config.gamedir
+    assert gamedir is not None
+    tl_filename = os.path.join(gamedir, renpy.config.tl_directory, language, fn)
 
     if tl_filename[-1] == "m":
         tl_filename = tl_filename[:-1]
@@ -162,7 +155,7 @@ def write_translates(filename, language, filter): # @ReservedAssignment
     if language == "None":
         language = None
 
-    translator = renpy.game.script.translator
+    translator = game.script.translator
 
     for label, t in translator.file_translates[filename]:
 
@@ -213,14 +206,16 @@ def write_strings(language, filter, min_priority, max_priority, common_only): # 
     """
 
     if language == "None":
-        stl = renpy.game.script.translator.strings[None] # @UndefinedVariable
+        stl = game.script.translator.strings[None] # @UndefinedVariable
     else:
-        stl = renpy.game.script.translator.strings[language] # @UndefinedVariable
+        stl = game.script.translator.strings[language] # @UndefinedVariable
 
     # If this function changes, count_missing may also need to
     # change.
 
-    strings = renpy.translation.scanstrings.scan(min_priority, max_priority, common_only)
+    from renpy.translation import scanstrings
+
+    strings = scanstrings.scan(min_priority, max_priority, common_only)
 
     stringfiles = collections.defaultdict(list)
 
@@ -244,7 +239,9 @@ def write_strings(language, filter, min_priority, max_priority, common_only): # 
 
         # sl.sort(key=lambda s : (s.filename, s.line))
 
-        tlfn = os.path.join(renpy.config.gamedir, renpy.config.tl_directory, language, tlfn)
+        gamedir = renpy.config.gamedir
+        assert gamedir is not None
+        tlfn = os.path.join(gamedir, renpy.config.tl_directory, language, tlfn)
         f = open_tl_file(tlfn)
 
         f.write(u"translate {} strings:\n".format(language))
@@ -420,7 +417,7 @@ def count_missing(language, min_priority, max_priority, common_only):
     Prints a count of missing translations for `language`.
     """
 
-    translator = renpy.game.script.translator
+    translator = game.script.translator
 
     missing_translates = 0
 
@@ -431,9 +428,11 @@ def count_missing(language, min_priority, max_priority, common_only):
 
     missing_strings = 0
 
-    stl = renpy.game.script.translator.strings[language] # @UndefinedVariable
+    stl = game.script.translator.strings[language] # @UndefinedVariable
 
-    strings = renpy.translation.scanstrings.scan(min_priority, max_priority, common_only)
+    from renpy.translation import scanstrings
+
+    strings = scanstrings.scan(min_priority, max_priority, common_only)
 
     for s in strings:
 
@@ -504,8 +503,12 @@ def translate_command():
     close_tl_files()
 
     if renpy.config.translate_launcher and (not args.strings_only):
-        src = os.path.join(renpy.config.renpy_base, "gui", "game", "script.rpy")
-        dst = os.path.join(renpy.config.gamedir, "tl", args.language, "script.rpym")
+        renpy_base = renpy.config.renpy_base
+        gamedir = renpy.config.gamedir
+        assert renpy_base is not None
+        assert gamedir is not None
+        src = os.path.join(renpy_base, "gui", "game", "script.rpy")
+        dst = os.path.join(gamedir, "tl", args.language, "script.rpym")
 
         if os.path.exists(src) and not os.path.exists(dst):
             shutil.copy(src, dst)

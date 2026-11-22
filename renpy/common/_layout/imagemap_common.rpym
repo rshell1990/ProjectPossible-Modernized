@@ -1,145 +1,123 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+﻿# Clean modern imagemap screen for Ren'Py 7 / 8+
 
 init python:
+    def _mm_resolve_variant(val, variant):
+        if isinstance(val, dict):
+            return val.get(variant, val.get(None))
+        return val
 
-    class _ImageMapper(object):
+    def _mm_eval_bool(expr, default=True):
+        if isinstance(expr, bool):
+            return expr
+        if isinstance(expr, basestring):
+            return bool(renpy.python.py_eval(expr))
+        return bool(expr) if expr is not None else default
 
-        def __init__(self, screen, ground, idle, hover, selected_idle, selected_hover, hotspots, navigation=True, variant=None):
+    def _mm_normalize_buttons(buttons):
+        # Returns {name: (action, selected, sensitive)}
+        result = {}
+        if isinstance(buttons, dict):
+            for name, action in buttons.items():
+                if action is not None:
+                    result[name] = (action, False, True)
+        elif buttons:
+            for item in buttons:
+                name = item[0]
+                action = item[1]
+                selected = item[2] if len(item) > 2 else False
+                sensitive = item[3] if len(item) > 3 else True
+                if action is not None:
+                    result[name] = (action, selected, sensitive)
+        return result
 
-            # If the argument is a dict, look up the screen in that dict, and
-            # return the result. Otherwise, just return the result.
-            def maybe_variant(a):
-                if isinstance(a, dict):
-                    if variant in a:
-                        return a[variant]
-                    else:
-                        return a[None]
-                return a
+screen mapped_menu(
+    current_screen=None,
+    ground=None,
+    idle=None,
+    hover=None,
+    selected_idle=None,
+    selected_hover=None,
+    hotspots=(),
+    buttons=None,
+    bars=None,
+    use_navigation=True,
+    variant=None,
+):
+    $ ground_img = _mm_resolve_variant(ground, variant)
+    $ idle_img = _mm_resolve_variant(idle, variant) or ground_img
+    $ hover_img = _mm_resolve_variant(hover, variant) or idle_img
+    $ sel_idle_img = _mm_resolve_variant(selected_idle, variant) or idle_img
+    $ sel_hover_img = _mm_resolve_variant(selected_hover, variant) or hover_img
 
-            ground = maybe_variant(ground)
+    $ hotspot_list = list(_mm_resolve_variant(hotspots, variant) or ())
+    $ hotspot_rects = {name: (x1, y1, x2 - x1, y2 - y1) for x1, y1, x2, y2, name in hotspot_list}
 
-            self.idle = maybe_variant(idle) or ground
-            self.hover = maybe_variant(hover) or self.idle
-            self.selected_idle = maybe_variant(selected_idle) or self.idle
-            self.selected_hover = maybe_variant(selected_hover) or self.hover
+    # Collect actions by hotspot name so each hotspot renders once
+    $ hotspot_actions = {}
 
-            self.hotspots = { }
-            for (x1, y1, x2, y2, name) in maybe_variant(hotspots):
-                self.hotspots[name] = (x1, y1, x2, y2)
+    if use_navigation:
+        for entry in config.game_menu:
+            $ nav_screen = entry[0]
+            $ nav_name = entry[1]
+            $ nav_action = entry[2]
+            $ nav_enabled = entry[3] if len(entry) > 3 else True
 
-            self.remaining_hotspots = set(self.hotspots.keys())
+            if nav_name in hotspot_rects and _mm_eval_bool(nav_enabled, True):
+                $ hotspot_actions[nav_name] = (nav_action, current_screen == nav_screen, True)
 
-            if navigation:
+    $ custom_buttons = _mm_normalize_buttons(buttons)
+    for btn_name, btn_cfg in custom_buttons.items():
+        if btn_name in hotspot_rects:
+            $ hotspot_actions[btn_name] = btn_cfg
 
-                # Display the layout navigation only if there are no
-                # game menu buttons defined.
-                for i in config.game_menu:
-                    if i[1] in self.hotspots:
-                        break
+    $ has_menu_hotspot = any(entry[1] in hotspot_rects for entry in config.game_menu)
+    if use_navigation and not has_menu_hotspot:
+        use game_menu_navigation(current_screen=current_screen)
+
+    imagemap:
+        style "imagemap"
+        ground ground_img
+        idle idle_img
+        hover hover_img
+        selected_idle sel_idle_img
+        selected_hover sel_hover_img
+
+        for x1, y1, x2, y2, hs_name in hotspot_list:
+            $ w = x2 - x1
+            $ h = y2 - y1
+            $ cfg = hotspot_actions.get(hs_name)
+
+            hotspot:
+                style "imagemap_button"
+                area (x1, y1, w, h)
+                if cfg is not None:
+                    selected cfg[1]
+                    sensitive cfg[2]
+                    action cfg[0]
                 else:
-                    layout.navigation(screen)
+                    action NullAction()
 
-            ui.fixed(style='imagemap')
-            ui.image(ground)
+        if bars:
+            for b in bars:
+                $ b_name = b["name"] if isinstance(b, dict) else b[0]
+                $ b_range = b["range"] if isinstance(b, dict) else b[1]
+                $ b_value = b["value"] if isinstance(b, dict) else b[2]
+                $ b_changed = b["changed"] if isinstance(b, dict) else b[3]
 
-            if navigation:
-
-                # Display any navigation buttons that exist.
-                for e in config.game_menu:
-                    screen_ = e[0]
-                    name = e[1]
-                    act = e[2]
-                    enable = e[3]
-
-                    if not eval(enable):
-                        continue
-
-                    self.button(name, act, screen == screen_)
-
-        def button(self, name, clicked, selected, keymap={}):
-
-            if name not in self.hotspots:
-                return None
-
-            self.remaining_hotspots.discard(name)
-
-            x1, y1, x2, y2 = self.hotspots[name]
-
-            if clicked is None:
-                return (x1, y1, x2, y2)
-
-            if selected:
-                idle = self.selected_idle
-                hover = self.selected_hover
-            else:
-                idle = self.idle
-                hover = self.hover
-
-            ui.imagebutton(
-                LiveCrop((x1, y1, (x2 - x1), (y2 - y1)), idle),
-                LiveCrop((x1, y1, (x2 - x1), (y2 - y1)), hover),
-                xpos=x1,
-                ypos=y1,
-                xanchor=0,
-                yanchor=0,
-                clicked=clicked,
-                focus_mask=True,
-                style='imagemap_button',
-                keymap=keymap,
-                )
-
-            return (x1, y1, x2, y2)
-
-
-        def bar(self, name, range, value, changed):
-
-            if name not in self.hotspots:
-                return
-
-            self.remaining_hotspots.discard(name)
-
-            x1, y1, x2, y2 = self.hotspots[name]
-
-            ui.bar(
-                range,
-                value,
-                changed=changed,
-                left_gutter=0,
-                right_gutter=0,
-                left_bar=LiveCrop((x1, y1, (x2 - x1), (y2 - y1)), self.selected_idle),
-                right_bar=LiveCrop((x1, y1, (x2 - x1), (y2 - y1)), self.idle),
-                hover_left_bar=LiveCrop((x1, y1, (x2 - x1), (y2 - y1)), self.selected_hover),
-                hover_right_bar=LiveCrop((x1, y1, (x2 - x1), (y2 - y1)), self.hover),
-                bar_resizing=False,
-                xpos=x1,
-                ypos=y1,
-                xmaximum=(x2-x1),
-                ymaximum=(y2-y1),
-                thumb=None,
-                thumb_shadow=None,
-                thumb_offset=0)
-
-        def nothing(self, name):
-            self.remaining_hotspots.discard(name)
-
-        def close(self):
-            ui.close()
+                if b_name in hotspot_rects:
+                    $ bx, by, bw, bh = hotspot_rects[b_name]
+                    bar:
+                        pos (bx, by)
+                        xysize (bw, bh)
+                        range b_range
+                        value b_value
+                        changed b_changed
+                        left_gutter 0
+                        right_gutter 0
+                        thumb None
+                        thumb_shadow None
+                        thumb_offset 0
+                        left_bar Crop((bx, by, bw, bh), sel_idle_img)
+                        right_bar Crop((bx, by, bw, bh), idle_img)
+                        hover_left_bar Crop((bx, by, bw, bh), sel_hover_img)
+                        hover_right_bar Crop((bx, by, bw, bh), hover_img)

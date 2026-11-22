@@ -1,28 +1,12 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import renpy # @UnusedImport
+import renpy.ast
+import renpy.game
+import renpy.scriptedit
+import renpy.loader
 from renpy.python import py_compile
 
 # Import the Python AST module, instead of the Ren'Py ast module.
@@ -379,7 +363,8 @@ class Analysis(object):
 
         def check_slice(slice): # @ReservedAssignment
 
-            if isinstance(slice, ast.Index):
+            index_type = getattr(ast, "Index", ())
+            if isinstance(slice, index_type):
                 return check_node(slice.value)
 
             elif isinstance(slice, ast.Slice):
@@ -456,7 +441,11 @@ class Analysis(object):
 
             # PY3: see if there are new node types.
 
-            if isinstance(node, (ast.Num, ast.Str)):
+            constant_types = (
+                getattr(ast, "Num", ()) ,
+                getattr(ast, "Str", ()) ,
+            )
+            if isinstance(node, constant_types):
                 return GLOBAL_CONST
 
             elif isinstance(node, (ast.List, ast.Tuple)):
@@ -490,11 +479,13 @@ class Analysis(object):
                 consts.append(check_nodes(node.args))
                 consts.append(check_nodes(i.value for i in node.keywords))
 
-                if node.starargs is not None:
-                    consts.append(check_node(node.starargs))
+                starargs = getattr(node, "starargs", None)
+                if starargs is not None:
+                    consts.append(check_node(starargs))
 
-                if node.kwargs is not None:
-                    consts.append(check_node(node.kwargs))
+                kwargs = getattr(node, "kwargs", None)
+                if kwargs is not None:
+                    consts.append(check_node(kwargs))
 
                 return min(consts)
 
@@ -520,7 +511,7 @@ class Analysis(object):
                     check_nodes(node.comparators),
                     )
 
-            elif isinstance(node, ast.Repr):
+            elif isinstance(node, getattr(ast, "Repr", ())):
                 return check_node(node.value)
 
             elif isinstance(node, ast.Subscript):
@@ -589,7 +580,7 @@ class PyAnalysis(ast.NodeVisitor):
 
     def visit_Name(self, node):
 
-        if isinstance(node, ast.AugStore):
+        if isinstance(node, getattr(ast, "AugStore", ())):
             self.analysis.mark_not_constant(node.id)
 
         elif isinstance(node.ctx, ast.Store):
@@ -742,7 +733,7 @@ CACHE_FILENAME = "cache/pyanalysis.rpyb"
 
 
 def load_cache():
-    if renpy.game.args.compile: # @UndefinedVariable
+    if getattr(getattr(renpy.game, "args", None), "compile", False):
         return
 
     try:

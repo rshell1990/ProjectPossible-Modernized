@@ -1,23 +1,3 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1600 python:
 
@@ -451,7 +431,7 @@ label _hide_windows:
         return
 
     if renpy.has_label("hide_windows"):
-        call hide_windows
+        call expression "hide_windows"
         if _return:
             return
 
@@ -478,18 +458,18 @@ label _save_reload_game:
 
         renpy.take_screenshot((config.thumbnail_width, config.thumbnail_height))
 
-        ui.add(Solid((0, 0, 0, 255)))
-        ui.text("Saving game...",
-                size=32, xalign=0.5, yalign=0.5, color="#fff", style="_text")
+        renpy.add(Solid((0, 0, 0, 255)))
+        renpy.add(Text("Saving game...",
+                size=32, xalign=0.5, yalign=0.5, color="#fff", style="_text"))
 
         ui.pausebehavior(0)
         ui.interact(suppress_overlay=True, suppress_underlay=True)
 
         renpy.save("_reload-1", "reload save game")
 
-        ui.add(Solid((0, 0, 0, 255)))
-        ui.text("Reloading script...",
-                size=32, xalign=0.5, yalign=0.5, color="#fff", style="_text")
+        renpy.add(Solid((0, 0, 0, 255)))
+        renpy.add(Text("Reloading script...",
+                size=32, xalign=0.5, yalign=0.5, color="#fff", style="_text"))
 
         ui.pausebehavior(0)
         ui.interact(suppress_overlay=True, suppress_underlay=True)
@@ -504,9 +484,9 @@ label _load_reload_game:
     python hide:
         renpy.rename_save("_reload-1", "_reload-2")
 
-        ui.add(Solid((0, 0, 0, 255)))
-        ui.text("Reloading game...",
-                size=32, xalign=0.5, yalign=0.5, color="#fff", style="_text")
+        renpy.add(Solid((0, 0, 0, 255)))
+        renpy.add(Text("Reloading game...",
+                size=32, xalign=0.5, yalign=0.5, color="#fff", style="_text"))
 
         ui.pausebehavior(0)
         ui.interact(suppress_underlay=True, suppress_overlay=True)

@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #########################################################################
 # WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
@@ -36,8 +16,21 @@ import zlib
 import weakref
 
 import renpy.display
+import renpy.display.focus
+import renpy.display.layout
+import renpy.display.predict
+import renpy.display.screen
+import renpy.display.transform
 import renpy.pyanalysis
 import renpy.sl2
+import renpy.ast
+import renpy.config
+import renpy.game
+import renpy.loader
+import renpy.log
+import renpy.object
+import renpy.python
+import renpy.ui
 
 from renpy.display.transform import Transform, ATLTransform
 from renpy.display.layout import Fixed
@@ -48,6 +41,7 @@ from renpy.pyanalysis import Analysis, NOT_CONST, LOCAL_CONST, GLOBAL_CONST, cca
 
 import hashlib
 import time
+from typing import Any
 
 # This file contains the abstract syntax tree for a screen language
 # screen.
@@ -79,7 +73,7 @@ def compile_expr(loc, node):
 
     expr = ast.Expression(body=node)
     ast.fix_missing_locations(expr)
-    return compile(expr, filename, "eval", flags, 1)
+    return compile(expr, filename, "eval", flags, dont_inherit=True)
 
 
 class SLContext(renpy.ui.Addable):
@@ -107,7 +101,7 @@ class SLContext(renpy.ui.Addable):
         self.children = [ ]
 
         # A map from keyword arguments to their values.
-        self.keywords = { }
+        self.keywords = { } # type: Any
 
         # The style prefix that is given to children of this displayable.
         self.style_prefix = None
@@ -131,11 +125,11 @@ class SLContext(renpy.ui.Addable):
 
         # When a constant node uses the scope, we add it to this list, so
         # it may be reused. (If None, no list is used.)
-        self.uses_scope = None
+        self.uses_scope = None # type: Any
 
         # When a constant node has an id, we added it to this dict, so it
         # may be reused. (If None, no dict is used.)
-        self.widgets = None
+        self.widgets = None # type: Any
 
         # True if we should dump debug information to the profile log.
         self.debug = False
@@ -152,7 +146,7 @@ class SLContext(renpy.ui.Addable):
 
         # True if we're in a true showif block, False if we're in a false showif
         # block, or None if we're not in a showif block.
-        self.showif = None
+        self.showif = None # type: Any
 
         # True if there was a failure in this statement or any of its children.
         # Fails can only occur when predicting, as otherwise an exception
@@ -160,7 +154,7 @@ class SLContext(renpy.ui.Addable):
         self.fail = False
 
         # The parent context of a use statement with a block.
-        self.parent = None
+        self.parent = None # type: Any
 
         # The use statement containing the transcluded block.
         self.transclude = None
@@ -213,7 +207,7 @@ class SLNode(object):
 
         cls = type(self)
 
-        rv = cls.__new__(cls)
+        rv = cls.__new__(cls) # type: Any
         rv.serial = self.serial
         rv.location = self.location
 
@@ -284,11 +278,14 @@ class SLNode(object):
         Writes information about the line we're on to the debug log.
         """
 
+        from renpy import exports
+
         filename, lineno = self.location
-        full_filename = renpy.exports.unelide_filename(filename)
+        full_filename = exports.unelide_filename(filename)
 
         line = linecache.getline(full_filename, lineno) or ""
-        line = line.decode("utf-8")
+        if isinstance(line, bytes):
+            line = line.decode("utf-8")
 
         profile_log.write("  %s:%d %s", filename, lineno, line.rstrip())
 
@@ -377,7 +374,7 @@ class SLBlock(SLNode):
             if const == GLOBAL_CONST:
                 keyword_values[k] = py_eval_bytecode(compile_expr(self.location, node))
             else:
-                keyword_keys.append(ast.Str(s=k))
+                keyword_keys.append(ast.Constant(value=k))
                 keyword_exprs.append(node) # Will be compiled as part of ast.Dict below.
 
             self.constant = min(self.constant, const)
@@ -529,36 +526,36 @@ class SLCache(object):
     def __init__(self):
 
         # The displayable object created.
-        self.displayable = None
+        self.displayable = None # type: Any
 
         # The positional arguments that were used to create the displayable.
-        self.positional = None
+        self.positional = None # type: Any
 
         # The keyword arguments that were used to created the displayable.
-        self.keywords = None
+        self.keywords = None # type: Any
 
         # A list of the children that were added to self.displayable.
-        self.children = None
+        self.children = None # type: Any
 
         # The outermost old transform.
-        self.outer_transform = None
+        self.outer_transform = None # type: Any
 
         # The innermost old transform.
-        self.inner_transform = None
+        self.inner_transform = None # type: Any
 
         # The transform (or list of transforms) that was used to create self.transform.
-        self.raw_transform = None
+        self.raw_transform = None # type: Any
 
         # The imagemap stack entry we reuse.
-        self.imagemap = None
+        self.imagemap = None # type: Any
 
         # If this can be represented as a single constant displayable,
         # do so.
-        self.constant = None
+        self.constant = None # type: Any
 
         # For a constant statement, a list of our children that use
         # the scope.
-        self.constant_uses_scope = [ ]
+        self.constant_uses_scope = [ ] # type: Any
 
         # For a constant statement, a map from children to widgets.
         self.constant_widgets = { }
@@ -568,10 +565,10 @@ class SLCache(object):
         self.copy_on_change = False
 
         # The ShowIf this statement was wrapped in the last time it was wrapped.
-        self.old_showif = None
+        self.old_showif = None # type: Any
 
         # The SLUse that was transcluded by this SLCache statement.
-        self.transclude = None
+        self.transclude = None # type: Any
 
         # The style prefix used when this statement was first created.
         self.style_prefix = None
@@ -726,7 +723,7 @@ class SLDisplayable(SLBlock):
 
             if const == GLOBAL_CONST:
                 values.append(py_eval_bytecode(compile_expr(self.location, node)))
-                exprs.append(ast.Num(n=0))
+                exprs.append(ast.Constant(value=0))
                 has_values = True
             else:
                 values.append(use_expression)
@@ -770,7 +767,7 @@ class SLDisplayable(SLBlock):
 
         debug = context.debug
 
-        screen = renpy.ui.screen
+        screen = renpy.ui.screen # type: Any
 
         cache = context.old_cache.get(self.serial, None) or context.miss_cache.get(self.serial, None)
 
@@ -830,7 +827,8 @@ class SLDisplayable(SLBlock):
         fail = False
 
         # The main displayable we're predicting.
-        main = None
+        main = None # type: Any
+        d = None # type: Any
 
         # True if we've pushed something onto the imagemap stack.
         imagemap = False
@@ -979,7 +977,7 @@ class SLDisplayable(SLBlock):
         ctx.children = [ ]
         ctx.showif = None
 
-        stack = renpy.ui.stack
+        stack = renpy.ui.stack # type: Any
         stack.append(ctx)
 
         try:
@@ -1167,7 +1165,9 @@ class SLDisplayable(SLBlock):
         Wraps `d` in a ShowIf displayable.
         """
 
-        rv = renpy.sl2.sldisplayables.ShowIf(context.showif, cache.old_showif)
+        from renpy.sl2.sldisplayables import ShowIf
+
+        rv = ShowIf(context.showif, cache.old_showif)
         rv.add(d)
 
         if not context.predicting:
@@ -1552,6 +1552,7 @@ class SLFor(SLBlock):
 
         variable = self.variable
         expr = self.expression_expr
+        value = None # type: Any
 
         try:
             if expr is not None:
@@ -1991,7 +1992,8 @@ class SLTransclude(SLNode):
         ctx.showif = context.showif
 
         try:
-            renpy.ui.stack.append(ctx)
+            stack = renpy.ui.stack # type: Any
+            stack.append(ctx)
             context.transclude.keywords(ctx)
             context.transclude.execute(ctx)
         finally:
@@ -2026,7 +2028,7 @@ class SLCustomUse(SLNode):
         self.target = target
 
         # The SL2 SLScreen node at the root of the ast for that screen.
-        self.ast = None
+        self.ast = None # type: Any
 
         # Positional argument expressions.
         self.positional = positional
@@ -2213,11 +2215,11 @@ class SLScreen(SLBlock):
     # This screen's AST when the transcluded block is entirely
     # constant (or there is no transcluded block at all). This may be
     # the actual AST, or a copy.
-    const_ast = None
+    const_ast = None # type: Any
 
     # A copy of this screen's AST when the transcluded block is not
     # constant.
-    not_const_ast = None
+    not_const_ast = None # type: Any
 
     # The analysis
     analysis = None
@@ -2405,7 +2407,7 @@ class SLScreen(SLBlock):
         if not self.prepared:
             self.prepare_screen()
 
-        current_screen = renpy.display.screen.current_screen()
+        current_screen = renpy.display.screen.current_screen() # type: Any
 
         if current_screen.screen_name[0] in renpy.config.profile_screens:
             debug = True
@@ -2464,19 +2466,21 @@ CACHE_FILENAME = "cache/screens.rpyb"
 
 
 def load_cache():
-    if renpy.game.args.compile: # @UndefinedVariable
+    game = renpy.game # type: Any
+
+    if game.args.compile: # @UndefinedVariable
         return
 
     try:
         with renpy.loader.load(CACHE_FILENAME) as f:
             digest = f.read(hashlib.md5().digest_size)
-            if digest != renpy.game.script.digest.digest():
+            if digest != game.script.digest.digest():
                 return
 
             s = loads(zlib.decompress(f.read()))
 
         if s.version == scache.version:
-            renpy.game.script.update_bytecode()
+            game.script.update_bytecode()
             scache.const_analyzed.update(s.const_analyzed)
             scache.not_const_analyzed.update(s.not_const_analyzed)
 
@@ -2491,11 +2495,13 @@ def save_cache():
     if renpy.macapp:
         return
 
+    game = renpy.game # type: Any
+
     try:
         data = zlib.compress(dumps(scache, 2), 3)
 
         with open(renpy.loader.get_path(CACHE_FILENAME), "wb") as f:
-            f.write(renpy.game.script.digest.digest())
+            f.write(game.script.digest.digest())
             f.write(data)
     except:
         pass

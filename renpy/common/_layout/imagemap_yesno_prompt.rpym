@@ -1,71 +1,54 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+﻿# Modernized imagemap yes/no prompt with standard yesno(message, yes_action, no_action) signature
 
-init python hide:
+define config.yesno_prompt_ground = None
+define config.yesno_prompt_idle = None
+define config.yesno_prompt_hover = None
+define config.yesno_prompt_hotspots = None
+define config.yesno_prompt_message_images = {}
 
-    layout.provides('yesno_prompt')
+init python:
+    def _yn_img_resolve_message_image(message):
+        default_img = config.yesno_prompt_message_images.get(layout.ARE_YOU_SURE, None)
+        return config.yesno_prompt_message_images.get(message, default_img)
 
-    renpy.load_module("_layout/imagemap_common")
+screen yesno(message, yes_action, no_action):
 
-    # Define styles
-    style.yesno_prompt = Style(style.prompt, help="a yes/no prompt")
-    style.yesno_prompt_text = Style(style.prompt_text, help="a yes/no prompt (text)")
+    modal True
 
-    # Define config variables.
-    config.yesno_prompt_ground = None
-    config.yesno_prompt_idle = None
-    config.yesno_prompt_hover = None
-    config.yesno_prompt_hotspots = None
+    zorder 200
 
-    config.yesno_prompt_message_images = { }
+    on "show" action Function(renpy.transition, config.intra_transition)
+    on "hide" action Function(renpy.transition, config.intra_transition)
 
+    $ hotspot_list = list(config.yesno_prompt_hotspots or ())
+    $ hotspot_map = {name: (x1, y1, x2 - x1, y2 - y1) for x1, y1, x2, y2, name in hotspot_list}
+    $ msg_image = _yn_img_resolve_message_image(message)
 
-    def yesno_prompt(screen, message):
-        renpy.transition(config.intra_transition)
+    imagemap:
+        style "imagemap"
+        ground config.yesno_prompt_ground
+        idle config.yesno_prompt_idle
+        hover config.yesno_prompt_hover
+        selected_idle config.yesno_prompt_idle
+        selected_hover config.yesno_prompt_hover
 
-        ime = _ImageMapper(
-            screen,
-            config.yesno_prompt_ground,
-            config.yesno_prompt_idle,
-            config.yesno_prompt_hover,
-            config.yesno_prompt_idle,
-            config.yesno_prompt_hover,
-            config.yesno_prompt_hotspots)
+        if "Yes" in hotspot_map:
+            $ yx, yy, yw, yh = hotspot_map["Yes"]
+            hotspot:
+                style "imagemap_button"
+                area (yx, yy, yw, yh)
+                action yes_action
 
-        ime.button("Yes", ui.returns(True), False)
-        ime.button("No", ui.returns(False), False)
+        if "No" in hotspot_map:
+            $ nx, ny, nw, nh = hotspot_map["No"]
+            hotspot:
+                style "imagemap_button"
+                area (nx, ny, nw, nh)
+                action no_action
 
-        ime.close()
-
-        default = config.yesno_prompt_message_images.get(layout.ARE_YOU_SURE, None)
-        message_image = config.yesno_prompt_message_images.get(message, default)
-
-        if message_image:
-            ui.add(message_image)
-        else:
-            layout.prompt(message, "yesno")
-
-        rv = ui.interact(mouse="gamemenu")
-        renpy.transition(config.intra_transition)
-        return rv
-
-    layout.yesno_prompt = yesno_prompt
-
+    if msg_image:
+        add msg_image
+    else:
+        label _(message):
+            style "yesno_prompt"
+            text_style "yesno_prompt_text"

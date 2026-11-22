@@ -1,29 +1,17 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
+from typing import Any
+
 import collections
+import renpy.atl
+import renpy.ast
+import renpy.config
+import renpy.object
+import renpy.parser
 import renpy.sl2
+import renpy.sl2.slproperties
 import renpy.sl2.slast as slast
 
 from ast import literal_eval
@@ -334,6 +322,7 @@ class Parser(object):
                     if c is None:
                         l.error('Has expects a child statement.')
 
+                    assert c is not None
                     target.children.append(c)
 
                     if c.has_python():
@@ -409,11 +398,12 @@ class Parser(object):
 
 
 def add(thing):
+    assert parser is not None
     parser.add(thing)
 
 
 # A singleton value.
-many = renpy.object.Sentinel("many")
+many = renpy.object.Sentinel("many") # type: Any
 
 
 def register_sl_displayable(*args, **kwargs):
@@ -532,7 +522,7 @@ def register_sl_displayable(*args, **kwargs):
 
 class DisplayableParser(Parser):
 
-    def __init__(self, name, displayable, style, nchildren=0, scope=False,
+    def __init__(self, name, displayable, style, nchildren: Any = 0, scope=False,
                  pass_context=False, imagemap=False, replaces=False, default_keywords={},
                  hotspot=False, default_properties=True):
         """

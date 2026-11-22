@@ -4,6 +4,9 @@ import io
 import os
 
 import renpy.display
+import renpy.config
+import renpy.display.transform
+import renpy.loader
 
 # A map from shader part name to ShaderPart
 shader_part = { }
@@ -272,7 +275,7 @@ class ShaderCache(object):
         self.log_shader("vertex", sortedpartnames, vertex)
         self.log_shader("fragment", sortedpartnames, fragment)
 
-        from renpy.gl2.gl2shader import Program
+        from renpy.gl2.gl2shader import Program # type: ignore[import-not-found]
 
         rv = Program(sortedpartnames, vertex, fragment)
         rv.load()
@@ -310,7 +313,11 @@ class ShaderCache(object):
         fn = "<unknown>"
 
         try:
-            fn = os.path.join(renpy.config.gamedir, renpy.loader.get_path(self.filename))
+            gamedir = renpy.config.gamedir
+            if gamedir is None:
+                raise ValueError("Cannot save the shader cache before the game directory is set.")
+
+            fn = os.path.join(gamedir, renpy.loader.get_path(self.filename))
 
             tmp = fn + ".tmp"
 

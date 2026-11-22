@@ -1,31 +1,13 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This is kind of a catch-all file for things that are defined in the library,
 # but don't merit their own files.
 
-init 9999:
+init 9999 python:
     # Re-run the errorhandling setup, so we can adjust the styles to the new size
-    # of the screen.
-    call _errorhandling
+    # of the screen. Call it only when the label has been loaded, so this library
+    # file remains safe to analyze before _errorhandling.rpym is available.
+    if renpy.has_label("_errorhandling"):
+        renpy.call_in_new_context("_errorhandling")
 
 init -1700 python:
 
@@ -192,7 +174,7 @@ init -1700 python:
         if config.skip_indicator is True:
 
             if config.skipping:
-                ui.text(_(u"Skip Mode"), style='skip_indicator')
+                renpy.add(Text(_(u"Skip Mode"), style='skip_indicator'))
 
             return
 
@@ -202,7 +184,7 @@ init -1700 python:
         if not config.skipping:
             return
 
-        ui.add(renpy.easy.displayable(config.skip_indicator))
+        renpy.add(renpy.easy.displayable(config.skip_indicator))
 
     config.overlay_functions.append(_skip_indicator)
 
@@ -429,5 +411,8 @@ screen _ctc:
 
 
 # Creates the data structure that history is stored in.
-default _history = True
-default _history_list = [ ]
+init python:
+    _history = True
+    _history_list = [ ]
+
+default history = True

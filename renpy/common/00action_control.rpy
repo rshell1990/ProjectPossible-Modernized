@@ -1,23 +1,3 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1500 python:
 
@@ -38,17 +18,17 @@ init -1500 python:
     @renpy.pure
     class Return(Action, DictEquality):
         """
-         :doc: control_action
+        :doc: control_action
 
-         Causes the current interaction to return the supplied value, which
-         must not be None. This is often used with menus and imagemaps, to
-         select what the return value of the interaction is. If the screen
-         was called using the ``call screen`` statement, the return value
-         is placed in the `_return` variable.
+        Causes the current interaction to return the supplied value, which
+        must not be None. This is often used with menus and imagemaps, to
+        select what the return value of the interaction is. If the screen
+        was called using the ``call screen`` statement, the return value
+        is placed in the `_return` variable.
 
-         When in a menu, this returns from the menu. (The value should be
-         None in this case.)
-         """
+        When in a menu, this returns from the menu. (The value should be
+        None in this case.)
+        """
 
         def __init__(self, value=None):
             self.value = value
@@ -101,14 +81,14 @@ init -1500 python:
     @renpy.pure
     class Show(Action, DictEquality):
         """
-         :doc: control_action
+        :doc: control_action
 
-         This causes another screen to be shown. `screen` is a string
-         giving the name of the screen. The arguments are
-         passed to the screen being shown.
+        This causes another screen to be shown. `screen` is a string
+        giving the name of the screen. The arguments are
+        passed to the screen being shown.
 
-         If not None, `transition` is use to show the new screen.
-         """
+        If not None, `transition` is use to show the new screen.
+        """
 
 
         args = None
@@ -174,14 +154,14 @@ init -1500 python:
     @renpy.pure
     def ShowTransient(screen, transition=None, *args, **kwargs):
         """
-         :doc: control_action
+        :doc: control_action
 
-         Shows a transient screen. A transient screen will be hidden when
-         the current interaction completes. The arguments are
-         passed to the screen being shown.
+        Shows a transient screen. A transient screen will be hidden when
+        the current interaction completes. The arguments are
+        passed to the screen being shown.
 
-         If not None, `transition` is use to show the new screen.
-         """
+        If not None, `transition` is use to show the new screen.
+        """
 
         return Show(screen, transition, _transient=True, *args, **kwargs)
 

@@ -1,45 +1,1119 @@
-2026-11-16 01:53:23 UTC
+2026-11-22 21:27:23 UTC
 Windows-11-10.0.26300-SP0
 Ren'Py 8.5.3.26051504
 
-Early init took 48 ms
-Loading error handling took 69 ms
-Loading script took 2954 ms
-Loading save slot metadata took 74 ms
-Loading persistent took 16 ms
+Early init took 51 ms
+Loading error handling took 80 ms
+Loading script took 3348 ms
+Loading save slot metadata took 29 ms
+Loading persistent took 0 ms
 Failed to initialize steam: Exception('steamapi.InitFlat returned 1 (No appID found.  Either launch the game from Steam, or put the file steam_appid.txt containing the correct appID in your game folder.)')
 Set script version to: (7, 4, 11)
- - Init at game/events/_repeats/gallery.rpy:1 took 11107 ms.
- - Init at game/events/_repeats/menu_gallery.rpy:3 took 11207 ms.
-Running init code took 22578 ms
-Loading analysis data took 30 ms
-Analyze and compile ATL took 58 ms
-Reloading save slot metadata took 13 ms
-Dump and make backups took 0 ms
-Cleaning cache took 1 ms
+Running init code took 353 ms
+Loading analysis data took 12 ms
+Analyze and compile ATL took 59 ms
+Reloading save slot metadata took 0 ms
+{
+  "error": false,
+  "size": [
+    1920,
+    1080
+  ],
+  "name": "Project Possible",
+  "version": "Patch_28",
+  "location": {
+    "label": {},
+    "define": {},
+    "screen": {},
+    "transform": {},
+    "callable": {}
+  },
+  "build": {
+    "directory_name": "ProjectPossible-Patch_28",
+    "executable_name": "ProjectPossible",
+    "include_update": false,
+    "packages": [
+      {
+        "name": "gameonly",
+        "formats": [
+          "null"
+        ],
+        "file_lists": [
+          "all"
+        ],
+        "description": "Game-Only Update for Mobile",
+        "update": true,
+        "dlc": false,
+        "hidden": true
+      },
+      {
+        "name": "pc",
+        "formats": [
+          "zip"
+        ],
+        "file_lists": [
+          "windows",
+          "linux",
+          "renpy",
+          "all"
+        ],
+        "description": "PC: Windows and Linux",
+        "update": true,
+        "dlc": false,
+        "hidden": false
+      },
+      {
+        "name": "linux",
+        "formats": [
+          "tar.bz2"
+        ],
+        "file_lists": [
+          "linux",
+          "linux_arm",
+          "renpy",
+          "all"
+        ],
+        "description": "Linux",
+        "update": true,
+        "dlc": false,
+        "hidden": false
+      },
+      {
+        "name": "mac",
+        "formats": [
+          "app-zip",
+          "app-dmg"
+        ],
+        "file_lists": [
+          "mac",
+          "renpy",
+          "all"
+        ],
+        "description": "Macintosh",
+        "update": true,
+        "dlc": false,
+        "hidden": false
+      },
+      {
+        "name": "win",
+        "formats": [
+          "zip"
+        ],
+        "file_lists": [
+          "windows",
+          "renpy",
+          "all"
+        ],
+        "description": "Windows",
+        "update": true,
+        "dlc": false,
+        "hidden": false
+      },
+      {
+        "name": "market",
+        "formats": [
+          "bare-zip"
+        ],
+        "file_lists": [
+          "windows",
+          "linux",
+          "mac",
+          "renpy",
+          "all"
+        ],
+        "description": "Windows, Mac, Linux for Markets",
+        "update": true,
+        "dlc": false,
+        "hidden": false
+      },
+      {
+        "name": "steam",
+        "formats": [
+          "zip"
+        ],
+        "file_lists": [
+          "windows",
+          "linux",
+          "mac",
+          "renpy",
+          "all"
+        ],
+        "description": "steam",
+        "update": true,
+        "dlc": false,
+        "hidden": true
+      },
+      {
+        "name": "android",
+        "formats": [
+          "directory"
+        ],
+        "file_lists": [
+          "android",
+          "all"
+        ],
+        "description": "android",
+        "update": false,
+        "dlc": true,
+        "hidden": true
+      },
+      {
+        "name": "ios",
+        "formats": [
+          "directory"
+        ],
+        "file_lists": [
+          "ios",
+          "all"
+        ],
+        "description": "ios",
+        "update": false,
+        "dlc": true,
+        "hidden": true
+      },
+      {
+        "name": "web",
+        "formats": [
+          "zip"
+        ],
+        "file_lists": [
+          "web",
+          "renpy",
+          "all"
+        ],
+        "description": "web",
+        "update": false,
+        "dlc": true,
+        "hidden": true
+      }
+    ],
+    "archives": [
+      [
+        "archive",
+        [
+          "all"
+        ]
+      ],
+      [
+        "game",
+        [
+          "all"
+        ]
+      ]
+    ],
+    "documentation_patterns": [
+      "*.html",
+      "*.txt"
+    ],
+    "base_patterns": [
+      [
+        "*.py",
+        null
+      ],
+      [
+        "*.sh",
+        null
+      ],
+      [
+        "*.app/",
+        null
+      ],
+      [
+        "*.dll",
+        null
+      ],
+      [
+        "*.manifest",
+        null
+      ],
+      [
+        "*.keystore",
+        null
+      ],
+      [
+        "**.rpe.py",
+        null
+      ],
+      [
+        "update.pem",
+        null
+      ],
+      [
+        "lib/",
+        null
+      ],
+      [
+        "renpy/",
+        null
+      ],
+      [
+        "update/",
+        null
+      ],
+      [
+        "common/",
+        null
+      ],
+      [
+        "update/",
+        null
+      ],
+      [
+        "old-game/",
+        null
+      ],
+      [
+        "base/",
+        null
+      ],
+      [
+        "icon.ico",
+        null
+      ],
+      [
+        "icon.icns",
+        null
+      ],
+      [
+        "project.json",
+        null
+      ],
+      [
+        "log.txt",
+        null
+      ],
+      [
+        "errors.txt",
+        null
+      ],
+      [
+        "traceback.txt",
+        null
+      ],
+      [
+        "image_cache.txt",
+        null
+      ],
+      [
+        "text_overflow.txt",
+        null
+      ],
+      [
+        "dialogue.txt",
+        null
+      ],
+      [
+        "dialogue.tab",
+        null
+      ],
+      [
+        "profile_screen.txt",
+        null
+      ],
+      [
+        "files.txt",
+        null
+      ],
+      [
+        "memory.txt",
+        null
+      ],
+      [
+        "tmp/",
+        null
+      ],
+      [
+        "game/saves/",
+        null
+      ],
+      [
+        "game/bytecode.rpyb",
+        null
+      ],
+      [
+        "archived/",
+        null
+      ],
+      [
+        "launcherinfo.py",
+        null
+      ],
+      [
+        "android.txt",
+        null
+      ],
+      [
+        "game/presplash*.*",
+        [
+          "all"
+        ]
+      ],
+      [
+        "android.json",
+        [
+          "android"
+        ]
+      ],
+      [
+        ".android.json",
+        [
+          "android"
+        ]
+      ],
+      [
+        "android-*.png",
+        [
+          "android"
+        ]
+      ],
+      [
+        "android-*.jpg",
+        [
+          "android"
+        ]
+      ],
+      [
+        "ouya_icon.png",
+        null
+      ],
+      [
+        "ios-presplash.*",
+        [
+          "ios"
+        ]
+      ],
+      [
+        "ios-launchimage.png",
+        null
+      ],
+      [
+        "ios-icon.png",
+        null
+      ],
+      [
+        "web-presplash.png",
+        [
+          "web"
+        ]
+      ],
+      [
+        "web-presplash.jpg",
+        [
+          "web"
+        ]
+      ],
+      [
+        "web-presplash.webp",
+        [
+          "web"
+        ]
+      ],
+      [
+        "web-icon.png",
+        [
+          "web"
+        ]
+      ],
+      [
+        "progressive_download.txt",
+        [
+          "web"
+        ]
+      ],
+      [
+        "steam_appid.txt",
+        null
+      ],
+      [
+        "game/cache/bytecode-312.rpyb",
+        [
+          "all"
+        ]
+      ],
+      [
+        "game/cache/bytecode-*.rpyb",
+        null
+      ],
+      [
+        "game/cache/build_info.json",
+        null
+      ],
+      [
+        "game/cache/build_time.txt",
+        null
+      ],
+      [
+        "game/_mcp_bridge.rpy",
+        null
+      ],
+      [
+        "game/_mcp_bridge.rpyc",
+        null
+      ],
+      [
+        "game/_mcp/**",
+        null
+      ],
+      [
+        "**~",
+        null
+      ],
+      [
+        "**.bak",
+        null
+      ],
+      [
+        "**/.**",
+        null
+      ],
+      [
+        "**/#**",
+        null
+      ],
+      [
+        "**/thumbs.db",
+        null
+      ],
+      [
+        "game/**.png",
+        [
+          "archive"
+        ]
+      ],
+      [
+        "game/**.jpg",
+        [
+          "archive"
+        ]
+      ],
+      [
+        "game/**.rpy",
+        [
+          "archive"
+        ]
+      ],
+      [
+        "game/**.rpyc",
+        [
+          "archive"
+        ]
+      ],
+      [
+        "game/**.ttf",
+        [
+          "archive"
+        ]
+      ],
+      [
+        "game/**.otf",
+        [
+          "archive"
+        ]
+      ],
+      [
+        "game/**.mpeg",
+        [
+          "archive"
+        ]
+      ],
+      [
+        "game/**.mp3",
+        [
+          "archive"
+        ]
+      ],
+      [
+        "game/**.webp",
+        [
+          "archive"
+        ]
+      ],
+      [
+        ".*",
+        null
+      ],
+      [
+        "**/desktop.ini",
+        null
+      ],
+      [
+        "**/Thumbs.db",
+        null
+      ],
+      [
+        "**/ehthumbs.db",
+        null
+      ],
+      [
+        "**/ehthumbs_vista.db",
+        null
+      ],
+      [
+        "**/$RECYCLE.BIN",
+        null
+      ],
+      [
+        "**",
+        [
+          "all"
+        ]
+      ]
+    ],
+    "renpy_patterns": [
+      [
+        "renpy/common/_compat/**",
+        null
+      ],
+      [
+        "renpy/common/_roundrect/**",
+        null
+      ],
+      [
+        "renpy/common/_outline/**",
+        null
+      ],
+      [
+        "renpy/common/_theme**",
+        null
+      ],
+      [
+        "renpy/**__pycache__/**.cpython-312.pyc",
+        [
+          "all"
+        ]
+      ],
+      [
+        "renpy/**__pycache__",
+        [
+          "all"
+        ]
+      ],
+      [
+        "**~",
+        null
+      ],
+      [
+        "**/#*",
+        null
+      ],
+      [
+        "**/.*",
+        null
+      ],
+      [
+        "**.old",
+        null
+      ],
+      [
+        "**.new",
+        null
+      ],
+      [
+        "**.rpa",
+        null
+      ],
+      [
+        "**.rpe",
+        null
+      ],
+      [
+        "**.rpe.py",
+        null
+      ],
+      [
+        "**/steam_appid.txt",
+        null
+      ],
+      [
+        "renpy.py",
+        [
+          "all"
+        ]
+      ],
+      [
+        "renpy/",
+        [
+          "all"
+        ]
+      ],
+      [
+        "renpy/**.py",
+        [
+          "renpy"
+        ]
+      ],
+      [
+        "renpy/**.pxd",
+        null
+      ],
+      [
+        "renpy/**.pxi",
+        null
+      ],
+      [
+        "renpy/**.pyx",
+        null
+      ],
+      [
+        "renpy/**.pyc",
+        null
+      ],
+      [
+        "renpy/**.pyo",
+        null
+      ],
+      [
+        "renpy/common/",
+        [
+          "all"
+        ]
+      ],
+      [
+        "renpy/common/_compat/**",
+        [
+          "renpy"
+        ]
+      ],
+      [
+        "renpy/common/**.rpy",
+        [
+          "renpy"
+        ]
+      ],
+      [
+        "renpy/common/**.rpym",
+        [
+          "renpy"
+        ]
+      ],
+      [
+        "renpy/common/_compat/**",
+        [
+          "renpy"
+        ]
+      ],
+      [
+        "renpy/common/**",
+        [
+          "all"
+        ]
+      ],
+      [
+        "renpy/**",
+        [
+          "all"
+        ]
+      ],
+      [
+        "lib/*/renpy",
+        null
+      ],
+      [
+        "lib/*/renpy.exe",
+        null
+      ],
+      [
+        "lib/*/pythonw.exe",
+        null
+      ],
+      [
+        "lib/py2-*/",
+        null
+      ],
+      [
+        "lib/py*-windows-i686/**",
+        [
+          "windows_i686"
+        ]
+      ],
+      [
+        "lib/py*-windows-x86_64/**",
+        [
+          "windows"
+        ]
+      ],
+      [
+        "lib/py*-linux-i686/**",
+        [
+          "linux_i686"
+        ]
+      ],
+      [
+        "lib/py*-linux-aarch64/**",
+        [
+          "linux_arm"
+        ]
+      ],
+      [
+        "lib/py*-linux-armv7l/**",
+        [
+          "linux_arm"
+        ]
+      ],
+      [
+        "lib/py*-linux-*/**",
+        [
+          "linux"
+        ]
+      ],
+      [
+        "lib/py*-mac-*/**",
+        [
+          "mac"
+        ]
+      ],
+      [
+        "lib/web/**",
+        [
+          "web"
+        ]
+      ],
+      [
+        "lib/python2.*/**",
+        null
+      ],
+      [
+        "lib/**",
+        [
+          "windows",
+          "linux",
+          "mac",
+          "android",
+          "ios"
+        ]
+      ],
+      [
+        "renpy.sh",
+        [
+          "linux",
+          "mac"
+        ]
+      ]
+    ],
+    "xbit_patterns": [
+      "**.sh",
+      "lib/py*-linux-*/*",
+      "lib/py*-mac-*/*",
+      "**.app/Contents/MacOS/*"
+    ],
+    "version": "Patch_28",
+    "display_name": "Project Possible",
+    "exclude_empty_directories": true,
+    "allow_integrated_gpu": true,
+    "renpy": false,
+    "script_version": true,
+    "destination": "ProjectPossible-Patch_28-dists",
+    "itch_project": "leroy2012/ProjectPossible",
+    "itch_channels": {
+      "*-all.zip": "win-osx-linux",
+      "*-market.zip": "win-osx-linux",
+      "*-pc.zip": "win-linux",
+      "*-win.zip": "win",
+      "*-mac.zip": "osx",
+      "*-linux.tar.bz2": "linux",
+      "*-release.apk": "android"
+    },
+    "mac_info_plist": {},
+    "merge": [
+      [
+        "linux_i686",
+        "linux"
+      ],
+      [
+        "windows_i686",
+        "windows"
+      ]
+    ],
+    "include_i686": true,
+    "change_icon_i686": true,
+    "android_permissions": [],
+    "_sdk_fonts": false,
+    "update_formats": [
+      "rpu"
+    ],
+    "info": {
+      "info": {},
+      "time": 1795382847.902761,
+      "name": "Project Possible",
+      "version": "Patch_28"
+    }
+  },
+  "test": {
+    "has_default_testcase": false
+  }
+Dump and make backups took 92 ms
+Cleaning cache took 0 ms
 Making clean stores took 0 ms
-Initial gc took 101 ms
+Initial gc took 116 ms
 DPI scale factor: 1.000000
 nvdrs: Loaded, about to disable thread optimizations.
 nvdrs: b"Couldn't load nvlib." (can be ignored)
-Creating interface object took 15 ms
-Init translation took 1 ms
+Creating interface object took 9 ms
+Init translation took 2 ms
 Cleaning stores took 0 ms
-Load screen analysis took 21 ms
-Analyze screens took 1 ms
+Load screen analysis took 22 ms
+Analyze screens took 0 ms
 Save screen analysis took 0 ms
 Save pyanalysis took 0 ms
 Save bytecode took 0 ms
-Running _start took 5 ms
-Interface start took 460 ms
+}﻿Ren'Py 8.5.3.26051504 lint report, generated at: Sun Nov 22 15:27:28 2026
 
-Initializing gl2 renderer:
-primary display bounds: (0, 0, 1600, 900)
-swap interval: 1 frames
-Windowed mode.
-Vendor: 'ATI Technologies Inc.'
-Renderer: 'Radeon RX550/550 Series'
-Version: '4.6.0 Compatibility Profile Context 22.11.2.221130'
-Display Info: <Info({'bitsize': 32, 'bytesize': 4, 'masks': (16711680, 65280, 255, 0), 'shifts': (16, 8, 0, 0), 'losses': (0, 0, 0, 8), 'current_w': 1600, 'current_h': 900, 'refresh_rate': 60, 'hw': False, 'wm': True, 'video_mem': 268435456, 'blit_hw': False, 'blit_hw_CC': False, 'blit_hw_A': False, 'blit_sw': False, 'blit_sw_CC': False, 'blit_sw_A': False})>
-Screen sizes: virtual=(1920, 1080) physical=(1419, 798) drawable=(1419, 798)
-Maximum texture size: 4096x4096
+game/events/_repeats/_imageDefs.rpy:197 Image luxuryhotelballroombg uses file '/backgrounds/luxuryHotelBallroom.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:1475 Image kim3f_2 uses file 'images/CGI/kim3f_2.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:5608 Image shegofuck1 uses file 'images/CGI/shego4h_6.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:5608 Image shegofuck1 uses file 'images/CGI/shego4h_7.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:5608 Image shegofuck1 uses file 'images/CGI/shego4h_6.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:5608 Image shegofuck1 uses file 'images/CGI/shego4h_7.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:5615 Image shegofuck1fast uses file 'images/CGI/shego4h_6.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:5615 Image shegofuck1fast uses file 'images/CGI/shego4h_7.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:5622 Image shegofuck1faster uses file 'images/CGI/shego4h_6.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:5622 Image shegofuck1faster uses file 'images/CGI/shego4h_7.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:6813 Image ann4hotelzzzy uses file 'images/CGI/ann4Hotelzzzy_1.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:6814 Image ann4hotelzzzza uses file 'images/CGI/ann4Hotelzzzza_1.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:6815 Image ann4hotelzzzzb uses file 'images/CGI/ann4Hotelzzzzb_1.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:6816 Image ann4hotelzzzzc uses file 'images/CGI/ann4Hotelzzzzc_1.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:6817 Image ann4hotelzzzzd uses file 'images/CGI/ann4Hotelzzzzd_1.png', which is not loadable.
+
+game/events/_repeats/_imageDefs.rpy:6873 Image ann4hotelzzzz uses file 'images/CGI/ann4Hotelzzzz_1.png', which is not loadable.
+
+game/events/_repeats/character_def.rpy:236 The screen Kim has not been given a parameter list.
+This can be fixed by writing 'screen Kim():' instead.
+
+game/events/_repeats/character_def.rpy:246 The screen Bonnie has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:258 The screen Tara has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:268 The screen Hope has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:278 The screen Josh has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:288 The screen Monique has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:298 The screen Shego has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:308 The screen Shego2 has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:318 The screen Ann has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:328 The screen Ron has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:338 The screen Rufus has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:346 The screen Bark has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:354 The screen POld has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:364 The screen P has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:373 The screen Jr has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:381 The screen Bebe3 has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:387 The screen Drakken has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:396 The screen Stan has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:405 The screen Ned has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:412 The screen Boss has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:420 The screen Tim has not been given a parameter list.
+
+game/events/_repeats/character_def.rpy:426 The screen Jim has not been given a parameter list.
+
+game/events/_repeats/custom_screens.rpy:86 The screen demo_screen has not been given a parameter list.
+
+game/events/_repeats/custom_screens.rpy:238 The screen contacts has not been given a parameter list.
+
+game/events/_repeats/custom_screens.rpy:373 The screen gallery has not been given a parameter list.
+
+game/events/_repeats/custom_screens.rpy:498 The screen internet has not been given a parameter list.
+
+game/events/_repeats/custom_screens.rpy:527 The screen support has not been given a parameter list.
+
+game/events/_repeats/idles.rpy:136 The call is to nonexistent label 'kimquest5step9lust'.
+
+game/events/_repeats/maps.rpy:674 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}There's lots of content on both routes, but if you're here for the newest stuff, then make sure you're on the right route.{i}{/b}")
+
+game/events/_repeats/maps.rpy:676 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}I would make a quickswitch option for those on the wrong path, but unfortunately that's not really possible without risking major bugs.{/b}{/i}")
+
+game/events/_repeats/maps.rpy:677 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}Sorta the curse of having choices actually matter to any degree... One playthough doesn't just give everything at once.{/b}{/i}")
+
+game/events/_repeats/maps.rpy:681 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}There's lots of content on both routes, but if you're here for the newest stuff, then make sure you're on the right route.{i}{/b}")
+
+game/events/_repeats/maps.rpy:683 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}I would make a quickswitch option for those on the wrong path, but unfortunately that's not really possible without risking major bugs.{/b}{/i}")
+
+game/events/_repeats/maps.rpy:684 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}Sorta the curse of having choices actually matter to any degree... One playthough doesn't just give everything at once.{/b}{/i}")
+
+game/events/_repeats/maps.rpy:902 The screen workPositions has not been given a parameter list.
+
+game/events/_repeats/maps.rpy:921 The screen schoolPositions has not been given a parameter list.
+
+game/events/_repeats/maps.rpy:1064 The screen citymap1 has not been given a parameter list.
+
+game/events/_repeats/maps.rpy:1074 The screen citymap has not been given a parameter list.
+
+game/events/_repeats/menu_gallery.rpy:1162 The screen menu_gallery has not been given a parameter list.
+
+game/events/_repeats/menu_gallery.rpy:1333 The screen FAQscreen has not been given a parameter list.
+
+game/events/_repeats/quests.rpy:3 The call is to nonexistent label 'tests'.
+
+game/events/_repeats/quests.rpy:1103 The screen Questscreen has not been given a parameter list.
+
+game/events/_repeats/quotes.rpy:241 The call is to nonexistent label 'askToMeeBonnieAfterClass'.
+
+game/events/_repeats/quotes.rpy:2202 'shego5zblayeredimage' is not an image.
+
+game/events/_repeats/quotes.rpy:6778 The screen citymapshegospymission has not been given a parameter list.
+
+game/events/_repeats/replaymode.rpy:10298 The image tag 'tara2m_2' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/_repeats/replaymode.rpy:10300 The image tag 'tara2n_2' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/_repeats/replaymode.rpy:11860 The image tag 'monique2f_1' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/_repeats/replaymode.rpy:11964 The image tag 'monique2f_1' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/_repeats/replaymode.rpy:12325 The image tag 'monique2f_1' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/_repeats/replaymode.rpy:12429 The image tag 'monique2f_1' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/_repeats/replaymode.rpy:12919 'shego1' is not an image.
+
+game/events/_repeats/replaymode.rpy:13776 The image tag 'shegoi' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/_repeats/replaymode.rpy:18918 The image tag 'kim5elayeredimage' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/_repeats/replaymode.rpy:21284 Close text tag '{/i}' does not match open text tag '{b}'. (in "D-don't say that Ron! He doesn't hate you! S-sometimes people just need to {i}{b}stop!{/i}{/b}")
+
+game/events/_repeats/replaymode.rpy:22770 Close text tag '{/size}' does not match open text tag '{i}'. (in "{size=40}{i}*BEEEEEEEEEEEP*{/size}{/i}")
+
+game/events/_repeats/replaymode.rpy:33183 Text tag 'imag' is not known. (in "Mmmh {imag=heart}")
+
+game/events/annevents/annhotelevent.rpy:785 The jump is to nonexistent label 'annHotelEventPool'.
+
+game/events/annevents/annhotelevent.rpy:2864 Close text tag '{/i}' does not match open text tag '{b}'. (in "{i}{b}Fuck.{/i}{/b}")
+
+game/events/annevents/annhotelevent.rpy:2865 Close text tag '{/i}' does not match open text tag '{b}'. (in "{i}{b}Me.{/i}{/b}")
+
+game/events/annevents/annhotelevent.rpy:2866 Close text tag '{/i}' does not match open text tag '{b}'. (in "{i}{b}Up.{/i}{/b}")
+
+game/events/annevents/annquest1.rpy:286 The screen citymapannquest1 has not been given a parameter list.
+
+game/events/annevents/annquest4.rpy:869 The screen annquest4step6map has not been given a parameter list.
+
+game/events/bonnieevents/bonniequest4paranoid.rpy:1185 The screen bonniequest4step12paranoidmap has not been given a parameter list.
+
+game/events/kimevents/kimquest5end.rpy:735 The screen kimquest5endmap has not been given a parameter list.
+
+game/events/kimevents/kimquest5love.rpy:1186 The image tag 'kim5elayeredimage' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/kimevents/kimquest5lust.rpy:434 The screen kimquest3lustmap has not been given a parameter list.
+
+game/events/kimevents/kimquest5lust.rpy:1374 Close text tag '{/i}' does not match open text tag '{b}'. (in "D-don't say that Ron! He doesn't hate you! S-sometimes people just need to {i}{b}stop!{/i}{/b}")
+
+game/events/kimevents/kimquest6love.rpy:311 The jump is to nonexistent label 'citymapkimquest6step2'.
+
+game/events/kimevents/kimquest6love.rpy:313 The screen citymapkimquest6step2 has not been given a parameter list.
+
+game/events/kimevents/misc_cheerleaderBeachEvent.rpy:601 The screen citymapcheerleaderbeach has not been given a parameter list.
+
+game/events/kimevents/misc_kimweirdstuffevent.rpy:724 The screen citymapMC has not been given a parameter list.
+
+game/events/kimevents/misc_kimweirdstuffevent.rpy:809 The screen citymapKim has not been given a parameter list.
+
+game/events/moniqueevents/moniqueQuest2.rpy:1377 The image tag 'monique2f_1' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/moniqueevents/moniqueQuest2.rpy:1481 The image tag 'monique2f_1' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/moniqueevents/moniqueQuest3.rpy:1314 The image tag 'moniqueClosea_2' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/shegoevents/shegoquest1.rpy:937 'shego1' is not an image.
+
+game/events/shegoevents/shegoquest3.rpy:1461 The image tag 'shegoi' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/shegoevents/shegoquest4.rpy:57 Close text tag '{/}' does not match open text tag '{i}'. (in "There {i}is{/} a way, although it is not really smart.")
+
+game/events/shegoevents/shegoquest5.rpy:3137 The screen shegoquest5citymap has not been given a parameter list.
+
+game/events/taraevents/taraFreeuseMenus.rpy:12 The call is to nonexistent label 'taraParentQuestion'.
+
+game/events/taraevents/taraFreeuseMenus.rpy:62 The call is to nonexistent label 'taraParentQuestion'.
+
+game/events/taraevents/taraFreeuseMenus.rpy:128 The call is to nonexistent label 'taraParentQuestion'.
+
+game/events/taraevents/taraFreeuseMenus.rpy:158 The call is to nonexistent label 'taraParentQuestion'.
+
+game/events/taraevents/taraShegoHomeEvents.rpy:84 'outside' is not an image.
+
+game/events/taraevents/taraShegoHomeEvents.rpy:100 'outside' is not an image.
+
+game/events/taraevents/taraquest2.rpy:2210 The image tag 'tara2m_2' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/taraevents/taraquest2.rpy:2212 The image tag 'tara2n_2' is not the prefix of a declared image, nor was it used in a show statement before this hide statement.
+
+game/events/taraevents/taraquest3.rpy:2305 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}{size=30}No, I am going, you are saying. Now stay.{/size}{/b}{/i}")
+
+game/events/taraevents/taraquest3.rpy:3053 Close text tag '{/size}' does not match open text tag '{i}'. (in "{size=40}{i}*BEEEEEEEEEEEP*{/size}{/i}")
+
+game/events/taraevents/taraquest3.rpy:3175 Close text tag '{/size}' does not match open text tag '{i}'. (in "{size=40}{i}*BEEEEEEEEEEEP*{/size}{/i}")
+
+game/events/taraevents/taraquest3.rpy:4649 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}Unfortunately, this is not in the game yet... But when it is, you will be able to take Tara up on this offer every single morning.{/b}{/i}")
+
+game/events/taraevents/taraquest3.rpy:4650 Close text tag '{/b}' does not match open text tag '{i}'. (in "{b}{i}In different ways.{/b}{/i}")
+
+game/screens.rpy:436 The screen Navimagebuttons has not been given a parameter list.
+
+
+Unreachable Statements:
+
+game/events/_repeats/idles.rpy:
+    * line    12 
+    * line    24 
+    * line    44 
+    * line    51 
+    * and 2 more.
+
+game/events/annevents/annhotelevent.rpy:
+    * line   788 
+    * line  4075 
+
+game/events/moniqueevents/moniqueQuest2.rpy:
+    * line  1645 
+    * line  1764 
+    * line  1765 
+    * line  1766 
+    * and 36 more.
+
+game/events/shegoevents/shegoquest6.rpy:
+    * line   340 
+    * line   341 
+    * line   808 
+It is advised to set config.check_conflicting_properties to True.
+
+
+Statistics:
+
+The game contains 77,479 dialogue blocks, containing 591,885 words and
+3,109,607 characters, for an average of 7.6 words and 40 characters per block.
+
+The game contains 504 menus, 868 images, and 91 screens.
+
+
+Lint is not a substitute for thorough testing. Remember to update Ren'Py
+before releasing. New releases fix bugs and improve compatibility.

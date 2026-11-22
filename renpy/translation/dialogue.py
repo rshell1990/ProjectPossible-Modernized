@@ -1,30 +1,18 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
+from typing import Any
 
 import renpy
 
 import os
+import renpy.ast
+import renpy.arguments
+import renpy.config
+import renpy.game as game
+game: Any
+import renpy.loader
+import renpy.parser
 
 from renpy.translation import quote_unicode
 
@@ -47,7 +35,7 @@ def create_dialogue_map(language):
 
         return None
 
-    translator = renpy.game.script.translator
+    translator = game.script.translator
 
     for v in translator.file_translates.values():
 
@@ -176,7 +164,9 @@ class DialogueFile(object):
 
         self.filename = filename
 
-        commondir = os.path.normpath(renpy.config.commondir)
+        commondir = renpy.config.commondir
+        assert commondir is not None
+        commondir = os.path.normpath(commondir)
 
         if filename.startswith(commondir):
             return
@@ -199,7 +189,7 @@ class DialogueFile(object):
 
         lines = []
 
-        translator = renpy.game.script.translator
+        translator = game.script.translator
 
         for label, t in translator.file_translates[self.filename]:
 
@@ -250,7 +240,7 @@ class DialogueFile(object):
                 lines.sort(key=lambda x: int(x[4]))
 
         for line in lines:
-            self.f.write("\t".join(line).encode("utf-8") + "\n")
+            self.f.write("\t".join(line) + "\n")
 
     def get_strings(self):
         """
@@ -261,12 +251,14 @@ class DialogueFile(object):
 
         filename = renpy.parser.elide_filename(self.filename)
 
-        for ss in renpy.translation.scanstrings.scan_strings(self.filename):
+        from renpy.translation import scanstrings
+
+        for ss in scanstrings.scan_strings(self.filename):
 
             line = ss.line
             s = ss.text
 
-            stl = renpy.game.script.translator.strings[None] # @UndefinedVariable
+            stl = game.script.translator.strings[None] # @UndefinedVariable
 
             if s in stl.translations:
                 continue
@@ -307,10 +299,12 @@ def dialogue_command():
     args = ap.parse_args()
 
     tdf = not args.text
+    basedir = renpy.config.basedir
+    assert basedir is not None
     if tdf:
-        output = os.path.join(renpy.config.basedir, "dialogue.tab")
+        output = os.path.join(basedir, "dialogue.tab")
     else:
-        output = os.path.join(renpy.config.basedir, "dialogue.txt")
+        output = os.path.join(basedir, "dialogue.txt")
 
     with open(output, "w") as f:
         if tdf:
@@ -323,7 +317,7 @@ def dialogue_command():
                 "Ren'Py Script",
                 ]
 
-            f.write("\t".join(line).encode("utf-8") + "\n")
+            f.write("\t".join(line) + "\n")
 
     for dirname, filename in renpy.loader.listdirfiles():
         if dirname is None:

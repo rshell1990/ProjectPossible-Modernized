@@ -1,30 +1,18 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
+from typing import Any
+
 import renpy.display
+import renpy.display.behavior
+import renpy.display.core
+import renpy.exports
+import renpy.arguments
 import renpy.test
-import pygame_sdl2
+import renpy.test.testast
+import renpy.test.testmouse
+import pygame_sdl2 # type: ignore[import-not-found]
 
 # A map from the name of a testcase to the testcase.
 testcases = { }
@@ -136,7 +124,8 @@ def execute():
     if node is None:
         return
 
-    if renpy.display.interface.suppress_underlay and (not _test.force):
+    interface = renpy.display.interface # type: Any
+    if interface.suppress_underlay and (not _test.force):
         return
 
     if _test.maximum_framerate:
@@ -173,7 +162,8 @@ def execute():
     old_loc = loc
 
     if (now - last_state_change) > _test.timeout:
-        raise Exception("Testcase stuck at {}:{}.".format(node_loc[0], node_loc[1]))
+        location = node_loc if node_loc is not None else (node.filename, node.linenumber)
+        raise Exception("Testcase stuck at {}:{}.".format(location[0], location[1]))
 
 
 def test_command():

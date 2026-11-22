@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # Trigger remote resource download, following a DownloadNeeded
 # exception, and place it in the game/ in-memory filesystem when done.
@@ -32,6 +12,8 @@ from __future__ import print_function
 import renpy
 import os
 import renpy.display
+import renpy.config
+import renpy.exports
 import threading
 import time
 
@@ -45,7 +27,7 @@ to_unlink = { }
 queue_lock = threading.RLock()
 
 if renpy.emscripten:
-    import emscripten, json
+    import emscripten, json  # type: ignore[import-not-found]
 
     # Space-efficient, copy-less download share
     # Note: could be reimplement with pyodide's jsproxy, but let's keep things small
@@ -87,7 +69,7 @@ if renpy.emscripten:
 };
 """)
 
-    class XMLHttpRequest(object):
+    class EmscriptenXMLHttpRequest(object):
         def __init__(self, filename):
             url = 'game/' + filename
             self.id = emscripten.run_script_int(
@@ -108,28 +90,43 @@ if renpy.emscripten:
         def statusText(self):
             return emscripten.run_script_string(r'''RenPyWeb.dl_get({}).statusText'''.format(self.id))
 
+    XMLHttpRequest = EmscriptenXMLHttpRequest
+
 elif os.environ.get('RENPY_SIMULATE_DOWNLOAD', False):
     # simulate
     # Ex: rm -rf odrdtest-simu && unzip -d odrdtest-simu/ odrdtest-1.0-dists/odrdtest-1.0-web/game.zip && RENPY_SIMULATE_DOWNLOAD=1 ./renpy.sh odrdtest-simu
 
-    import urllib2, urllib, httplib, os, threading, time, random
+    try:
+        import urllib2  # type: ignore[import-not-found]
+        import httplib  # type: ignore[import-not-found]
+        import urllib
+        URLError = urllib2.URLError
+    except ImportError:
+        from urllib import request as urllib2
+        from http import client as httplib
+        from urllib import parse as urllib
+        from urllib.error import URLError
+    import os, threading, time, random
 
-    class XMLHttpRequest(object):
+    class SimulatedXMLHttpRequest(object):
         def __init__(self, filename):
             self.done = False
             self.error = None
-            url = 'http://127.0.0.1:8042/game/' + urllib.quote(filename)
+            url = 'http://127.0.0.1:8042/game/' + getattr(urllib, "quote", lambda value: value)(filename)
             req = urllib2.Request(url)
             def thread_main():
                 try:
                     time.sleep(random.random() * 0.5)
                     r = urllib2.urlopen(req)
-                    fullpath = os.path.join(renpy.config.gamedir, filename)
+                    gamedir = renpy.config.gamedir
+                    if gamedir is None:
+                        raise IOError("renpy.config.gamedir is not initialized")
+                    fullpath = os.path.join(gamedir, filename)
                     with queue_lock:
                         with open(fullpath, 'wb') as f:
                             f.write(r.read())
-                except urllib2.URLError as e:
-                    self.error = str(e.reason)
+                except URLError as e:
+                    self.error = str(getattr(e, "reason", e))
                 except httplib.HTTPException as e:
                     self.error = 'HTTPException'
                 except Exception as e:
@@ -153,6 +150,8 @@ elif os.environ.get('RENPY_SIMULATE_DOWNLOAD', False):
         @property
         def statusText(self):
             return self.error or 'OK'
+
+    XMLHttpRequest = SimulatedXMLHttpRequest
 
 
 class DownloadNeeded(Exception):
@@ -205,6 +204,10 @@ def process_downloaded_resources():
     if not queue:
         return
 
+    gamedir = renpy.config.gamedir
+    if gamedir is None:
+        return
+
     with queue_lock:
 
         todo = queue[:]
@@ -219,7 +222,7 @@ def process_downloaded_resources():
                     continue
 
                 if rr.rtype == 'image':
-                    fullpath = os.path.join(renpy.config.gamedir,rr.relpath)
+                    fullpath = os.path.join(gamedir, rr.relpath)
                     if not os.path.exists(fullpath):
                         # trigger Ren'Py's error handler
                         raise IOError("Download error: {} ('{}' > '{}')".format(
@@ -229,7 +232,7 @@ def process_downloaded_resources():
                     renpy.exports.flush_cache_file(image_filename)
 
                     # mark for deletion
-                    fullpath = os.path.join(renpy.config.gamedir,rr.relpath)
+                    fullpath = os.path.join(gamedir, rr.relpath)
                     to_unlink[fullpath] = time.time()
 
                 elif rr.rtype == 'music':
@@ -240,7 +243,7 @@ def process_downloaded_resources():
 
                 elif rr.rtype == 'voice':
                     # mark for deletion as it's a one-time usage (a bit delayed)
-                    fullpath = os.path.join(renpy.config.gamedir,rr.relpath)
+                    fullpath = os.path.join(gamedir, rr.relpath)
                     to_unlink[fullpath] = time.time() + 120
 
                 # TODO: videos (when web support is implemented)

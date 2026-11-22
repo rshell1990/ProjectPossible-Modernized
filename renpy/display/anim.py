@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains support for state-machine controlled animations.
 
@@ -25,6 +5,10 @@ from __future__ import division, absolute_import, with_statement, print_function
 from renpy.compat import *
 
 import renpy.display
+import renpy.display.core
+import renpy.display.im
+import renpy.display.layout
+import renpy.display.render as render  # type: ignore[import-not-found]
 import renpy.game
 import renpy.easy
 
@@ -228,13 +212,16 @@ class SMAnimation(renpy.display.core.Displayable):
         the old and new states, and any transition that is present.
         """
 
-        if self.edge.trans:
-            im = self.edge.trans(old_widget=self.states[self.edge.old].get_image(),
-                                 new_widget=self.states[self.edge.new].get_image())
+        edge = self.edge
+        assert edge is not None
+
+        if edge.trans:
+            im = edge.trans(old_widget=self.states[edge.old].get_image(),
+                            new_widget=self.states[edge.new].get_image())
         elif self.showold:
-            im = self.states[self.edge.old].get_image()
+            im = self.states[edge.old].get_image()
         else:
-            im = self.states[self.edge.new].get_image()
+            im = self.states[edge.new].get_image()
 
         self.edge_cache = im
 
@@ -269,7 +256,7 @@ class SMAnimation(renpy.display.core.Displayable):
         # with that.
 
         if not self.edge:
-            im = renpy.display.render.render(self.states[self.state].get_image(),
+            im = render.render(self.states[self.state].get_image(),
                                              width, height,
                                              st - self.edge_start, at)
 
@@ -279,14 +266,14 @@ class SMAnimation(renpy.display.core.Displayable):
             if not self.edge_cache:
                 self.update_cache()
 
-            im = renpy.display.render.render(self.edge_cache, width, height, t - self.edge_start, at)
+            im = render.render(self.edge_cache, width, height, t - self.edge_start, at)
 
             if not renpy.game.less_updates:
-                renpy.display.render.redraw(self.edge_cache, self.edge.delay - (t - self.edge_start))
+                render.redraw(self.edge_cache, self.edge.delay - (t - self.edge_start))
 
         iw, ih = im.get_size()
 
-        rv = renpy.display.render.Render(iw, ih)
+        rv = render.Render(iw, ih)
         rv.blit(im, (0, 0))
 
         return rv
@@ -391,14 +378,14 @@ class TransitionAnimation(renpy.display.core.Displayable):
         for image, prev, delay, trans in zip(self.images, self.prev_images, self.delays, self.transitions):
             if t < delay:
                 if not renpy.game.less_updates:
-                    renpy.display.render.redraw(self, delay - t)
+                    render.redraw(self, delay - t)
 
                 if trans and orig_t >= self.delays[0]:
                     image = trans(old_widget=prev, new_widget=image)
 
-                im = renpy.display.render.render(image, width, height, t, at)
+                im = render.render(image, width, height, t, at)
                 width, height = im.get_size()
-                rv = renpy.display.render.Render(width, height)
+                rv = render.Render(width, height)
                 rv.blit(im, (0, 0))
 
                 return rv
@@ -493,9 +480,9 @@ class Blink(renpy.display.core.Displayable):
             frac = time / self.rise
             alpha = self.high * frac + self.low * (1.0 - frac)
 
-        rend = renpy.display.render.render(self.image, height, width, st, at)
+        rend = render.render(self.image, height, width, st, at)
         w, h = rend.get_size()
-        rv = renpy.display.render.Render(w, h)
+        rv = render.Render(w, h)
 
         rv.blit(rend, (0, 0))
         rv.alpha = alpha
@@ -505,7 +492,7 @@ class Blink(renpy.display.core.Displayable):
         rv.add_uniform("u_renpy_over", 1.0)
 
         if not renpy.game.less_updates:
-            renpy.display.render.redraw(self, delay)
+            render.redraw(self, delay)
 
         return rv
 

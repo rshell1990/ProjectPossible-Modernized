@@ -1,49 +1,33 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
+from typing import Any
 
 import renpy
+import renpy.arguments
+import renpy.game as game
+game: Any
 import json
 
 
 def extract_strings_core(language, destination, merge=False, force=False):
 
-    if (not force) and (language not in renpy.game.script.translator.strings):  # @UndefinedVariable
+    if (not force) and (language not in game.script.translator.strings):  # @UndefinedVariable
         raise Exception("Language %r does not have any translations." % language)
 
-    st = renpy.game.script.translator.strings[language]  # @UndefinedVariable
+    st = game.script.translator.strings[language]  # @UndefinedVariable
 
     result = { }
 
     if merge:
-        with open(destination, "r") as f:
-            result.update(json.load(f, "utf-8"))
+        with open(destination, "r", encoding="utf-8") as f:
+            result.update(json.load(f))
 
     for k, v in st.translations.items():
         if v and v != k:
             result[k] = v
 
-    with open(destination, "wb") as f:
+    with open(destination, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=True)
 
 

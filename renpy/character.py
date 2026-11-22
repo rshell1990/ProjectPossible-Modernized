@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # The Character object (and friends).
 
@@ -25,6 +5,26 @@ from __future__ import division, absolute_import, with_statement, print_function
 from renpy.compat import *
 
 import renpy.display
+import renpy.config
+import renpy.exports
+import renpy.game
+import renpy.easy
+import renpy.store # type: ignore[reportMissingImports]
+import renpy.ui
+import renpy.text
+import renpy.text.text
+import renpy.atl
+import renpy.display.motion
+import renpy.display.layout
+import renpy.display.predict
+import renpy.display.image
+import renpy.display.im
+import renpy.display.screen
+import renpy.object
+import renpy.python
+import renpy.substitutions
+import renpy.log
+import renpy.preferences
 
 import re
 import os
@@ -228,16 +228,16 @@ def compute_widget_properties(who_args, what_args, window_args, properties, vari
     return rv
 
 
-def show_display_say(who, what, who_args={}, what_args={}, window_args={},
+def show_display_say(who, what, who_args=None, what_args=None, window_args=None,
                      image=False, side_image=None, two_window=False,
-                     two_window_vbox_properties={},
-                     who_window_properties={},
-                     say_vbox_properties={},
+                     two_window_vbox_properties=None,
+                     who_window_properties=None,
+                     say_vbox_properties=None,
                      transform=None,
                      variant=None,
                      screen=None,
                      layer=None,
-                     properties={},
+                     properties=None,
                      multiple=None,
                      **kwargs):
     """
@@ -272,6 +272,14 @@ def show_display_say(who, what, who_args={}, what_args={}, window_args={},
     This function is required to return the ui.text() widget
     displaying the what text.
     """
+
+    who_args = {} if who_args is None else who_args
+    what_args = {} if what_args is None else what_args
+    window_args = {} if window_args is None else window_args
+    two_window_vbox_properties = {} if two_window_vbox_properties is None else two_window_vbox_properties
+    who_window_properties = {} if who_window_properties is None else who_window_properties
+    say_vbox_properties = {} if say_vbox_properties is None else say_vbox_properties
+    properties = {} if properties is None else properties
 
     props = compute_widget_properties(who_args, what_args, window_args, properties, variant=variant, multiple=multiple)
 
@@ -454,7 +462,9 @@ def display_say(
     if not final:
         advance = False
 
-    if final and (not renpy.game.preferences.skip_unseen) and (not renpy.game.context().seen_current(True)) and renpy.config.skipping == "fast":
+    preferences = getattr(renpy.game, "preferences", None)
+    skip_unseen = getattr(preferences, "skip_unseen", False) if preferences is not None else False
+    if final and (not skip_unseen) and (not renpy.game.context().seen_current(True)) and renpy.config.skipping == "fast":
         renpy.config.skipping = None
 
     # If we're in fast skipping mode, don't bother with say
@@ -498,14 +508,16 @@ def display_say(
     # If we're committed to skipping this statement, disable slow.
     elif (renpy.config.skipping and
           advance and
-          (renpy.game.preferences.skip_unseen or
+          (skip_unseen or
            renpy.game.context().seen_current(True))):
         slow = False
         all_at_once = True
 
     # Figure out which pause we're on. (Or set the pause to None in
     # order to put us in all-at-once mode.)
-    if not interact or renpy.game.preferences.self_voicing:
+    preferences = getattr(renpy.game, "preferences", None)
+    self_voicing = getattr(preferences, "self_voicing", False) if preferences is not None else False
+    if not interact or self_voicing:
         all_at_once = True
 
     if dtt is None:
@@ -570,9 +582,13 @@ def display_say(
 
             what_ctc = renpy.easy.displayable_or_none(what_ctc)
 
-            if (what_ctc is not None) and what_ctc._duplicatable:
-                what_ctc = what_ctc._duplicate(None)
-                what_ctc._unique()
+            if (what_ctc is not None) and getattr(what_ctc, "_duplicatable", False):
+                duplicate = getattr(what_ctc, "_duplicate", None)
+                if duplicate is not None:
+                    what_ctc = duplicate(None)
+                    unique = getattr(what_ctc, "_unique", None)
+                    if unique is not None:
+                        unique()
 
             if ctc is not what_ctc:
                 if (ctc is not None) and ctc._duplicatable:
@@ -620,10 +636,10 @@ def display_say(
                 if what_text.text[0] == what_string:
 
                     # Update the properties of the what_text widget.
-                    what_text.start = start
+                    setattr(what_text, "start", start)
                     what_text.end = end
                     what_text.slow = slow
-                    what_text.slow_done = slow_done
+                    setattr(what_text, "slow_done", slow_done)
 
                     what_text.update()
 
@@ -681,7 +697,10 @@ def display_say(
         renpy.plog(1, "before with none")
 
         if with_none:
-            renpy.game.interface.do_with(None, None)
+            interface = getattr(renpy.game, "interface", None)
+            do_with = getattr(interface, "do_with", None) if interface is not None else None
+            if do_with is not None:
+                do_with(None, None)
 
         renpy.plog(1, "after with none")
 
@@ -701,6 +720,15 @@ class HistoryEntry(renpy.object.Object):
     # See ADVCharacter.add_history for the fields.
 
     multiple = None
+    kind = None
+    who = None
+    what = None
+    who_args = {}
+    what_args = {}
+    window_args = {}
+    show_args = {}
+    image_tag = None
+    rollback_identifier = None
 
     def __repr__(self):
         return "<History {!r} {!r}>".format(self.who, self.what)
@@ -913,11 +941,14 @@ class ADVCharacter(object):
             properties=self.properties,
             **self.show_args)
 
-    def resolve_say_attributes(self, predict, attrs, wanted=[], remove=[]):
+    def resolve_say_attributes(self, predict, attrs, wanted=None, remove=None):
         """
         Deals with image attributes associated with the current say
         statement. Returns True if an image is shown, None otherwise.
         """
+
+        wanted = [] if wanted is None else wanted
+        remove = [] if remove is None else remove
 
         if not (attrs or wanted or remove):
             return
@@ -1350,7 +1381,9 @@ class ADVCharacter(object):
         h.multiple = multiple
 
         if renpy.game.context().rollback:
-            h.rollback_identifier = renpy.game.log.current.identifier
+            game_log = getattr(renpy.game, "log", None)
+            current = getattr(game_log, "current", None) if game_log is not None else None
+            h.rollback_identifier = getattr(current, "identifier", None)
         else:
             h.rollback_identifier = None
 

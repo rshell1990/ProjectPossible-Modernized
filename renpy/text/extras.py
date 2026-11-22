@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # Other text-related things.
 
@@ -25,9 +5,13 @@ from __future__ import division, absolute_import, with_statement, print_function
 from renpy.compat import *
 
 import renpy.text
+import renpy.config
+import renpy.python
 
-from renpy.text.textsupport import TAG, PARAGRAPH
-import renpy.text.textsupport as textsupport
+from renpy.text.textsupport import TAG, PARAGRAPH # type: ignore[reportMissingImports]
+import renpy.text.textsupport as textsupport # type: ignore[reportMissingImports]
+import renpy.text.texwrap as texwrap # type: ignore[reportMissingImports]
+import renpy.text.text as text_module
 
 # A list of text tags, mapping from the text tag prefix to if it
 # requires a closing tag.
@@ -241,7 +225,7 @@ class ParameterizedText(object):
     def _duplicate(self, args):
 
         if args.lint:
-            return renpy.text.text.Text("", style=self.style, **self.properties)
+            return text_module.Text("", style=self.style, **self.properties)
 
         if len(args.args) == 0:
             raise Exception("'%s' takes a single string parameter." % ' '.join(args.name))
@@ -249,7 +233,7 @@ class ParameterizedText(object):
         param = "".join(args.args)
         string = renpy.python.py_eval(param)
 
-        return renpy.text.text.Text(string, style=self.style, **self.properties)
+        return text_module.Text(string, style=self.style, **self.properties)
 
 
 def textwrap(s, width=78, asian=False):
@@ -291,5 +275,5 @@ def textwrap(s, width=78, asian=False):
         glyphs.append(g)
 
     textsupport.annotate_unicode(glyphs, False, 2)
-    renpy.text.texwrap.linebreak_tex(glyphs, width * 10, width * 10, False)
+    texwrap.linebreak_tex(glyphs, width * 10, width * 10, False)
     return textsupport.linebreak_list(glyphs)

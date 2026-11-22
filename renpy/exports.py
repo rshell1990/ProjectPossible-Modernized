@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains functions that are exported to the script namespace as
 # the renpy namespace. (So renpy.say, renpy.pause, and so on.)
@@ -30,6 +10,16 @@ import gc
 
 import renpy.display
 import renpy.audio
+import renpy.text.font
+import renpy.config
+import renpy.game
+import renpy.python
+import renpy.store  # type: ignore[import-not-found]
+import renpy.object
+import renpy.arguments
+import renpy.character
+import renpy.persistent
+import renpy.ast
 
 from renpy.pyanalysis import const, pure, not_const
 
@@ -49,7 +39,7 @@ def renpy_pure(fn):
     return fn
 
 
-import pygame_sdl2
+import pygame_sdl2  # type: ignore[import-not-found]
 
 from renpy.text.extras import ParameterizedText, filter_text_tags
 from renpy.text.font import register_sfont, register_mudgefont, register_bmfont
@@ -100,7 +90,7 @@ from renpy.text.extras import check_text_tags
 
 from renpy.memory import profile_memory, diff_memory, profile_rollback
 
-from renpy.text.textsupport import TAG as TEXT_TAG, TEXT as TEXT_TEXT, PARAGRAPH as TEXT_PARAGRAPH, DISPLAYABLE as TEXT_DISPLAYABLE
+from renpy.text.textsupport import TAG as TEXT_TAG, TEXT as TEXT_TEXT, PARAGRAPH as TEXT_PARAGRAPH, DISPLAYABLE as TEXT_DISPLAYABLE  # type: ignore[import-not-found]
 
 from renpy.execution import not_infinite_loop
 
@@ -138,53 +128,26 @@ def public_api():
 
     This does nothing, except to make warnings about unused imports go away.
     """
-    ParameterizedText, filter_text_tags
-    register_sfont, register_mudgefont, register_bmfont
-    Keymap
-    run, run_action, run_unhovered, run_periodic, map_event
-    Minigame
-    curry, partial
-    play
-    movie_start_fullscreen, movie_start_displayable, movie_stop
-    load, save, list_saved_games, can_load, rename_save, copy_save, unlink_save, scan_saved_game
-    list_slots, newest_slot, slot_mtime, slot_json, slot_screenshot, force_autosave
-    eval
-    random
-    atl_warper
-    show_display_say, predict_show_display_say, display_say
-    sound
-    music
-    time
-    define_screen, show_screen, hide_screen, use_screen, has_screen
-    current_screen, get_screen, get_widget, profile_screen, get_widget_properties
-    focus_coordinates
-    predict, predict_screen
-    displayable, split_properties
-    unelide_filename, get_parse_errors
-    change_language, known_languages, translate_string
-    transform_text
-    language_tailor
-    register_persistent
-    register_statement
-    check_text_tags
-    map_event, queue_event, clear_keymap_cache
-    const, pure, not_const
-    image_exists, has_image, list_images
-    get_available_image_tags, get_available_image_attributes, check_image_attributes, get_ordered_image_attributes
-    get_registered_image
-    load_image, load_surface
-    profile_memory, diff_memory, profile_rollback
-    TEXT_TAG
-    TEXT_TEXT
-    TEXT_PARAGRAPH
-    TEXT_DISPLAYABLE
-    not_infinite_loop
-    register_sl_statement, register_sl_displayable
-    eval_who
-    is_selected, is_sensitive
-    add_python_directory
-    try_compile, try_eval
-    register_shader, has_live2d
+    _ = (
+        ParameterizedText, filter_text_tags, register_sfont, register_mudgefont, register_bmfont,
+        Keymap, run, run_action, run_unhovered, run_periodic, map_event, Minigame,
+        curry, partial, play, movie_start_fullscreen, movie_start_displayable, movie_stop,
+        load, save, list_saved_games, can_load, rename_save, copy_save, unlink_save, scan_saved_game,
+        list_slots, newest_slot, slot_mtime, slot_json, slot_screenshot, force_autosave,
+        eval, random, atl_warper, show_display_say, predict_show_display_say, display_say,
+        sound, music, time, define_screen, show_screen, hide_screen, use_screen, has_screen,
+        current_screen, get_screen, get_widget, profile_screen, get_widget_properties,
+        focus_coordinates, predict, predict_screen, displayable, split_properties,
+        unelide_filename, get_parse_errors, change_language, known_languages, translate_string,
+        transform_text, language_tailor, register_persistent, register_statement, check_text_tags,
+        map_event, queue_event, clear_keymap_cache, const, pure, not_const,
+        image_exists, has_image, list_images, get_available_image_tags,
+        get_available_image_attributes, check_image_attributes, get_ordered_image_attributes,
+        get_registered_image, load_image, load_surface, profile_memory, diff_memory, profile_rollback,
+        TEXT_TAG, TEXT_TEXT, TEXT_PARAGRAPH, TEXT_DISPLAYABLE, not_infinite_loop,
+        register_sl_statement, register_sl_displayable, eval_who, is_selected, is_sensitive,
+        add_python_directory, try_compile, try_eval, register_shader, has_live2d,
+    )
 
 
 del public_api
@@ -1660,7 +1623,7 @@ def with_statement(trans, always=False, paired=None, clear=True):
     if not (renpy.game.preferences.transitions or always):
         trans = None
 
-    renpy.exports.mode('with')
+    mode('with')
 
     if isinstance(paired, dict):
         paired = paired.get(None, None)
@@ -1674,14 +1637,17 @@ def with_statement(trans, always=False, paired=None, clear=True):
             if k is None:
                 continue
 
-            renpy.exports.transition(v, layer=k)
+            transition(v, layer=k)
 
         if None not in trans:
             return
 
         trans = trans[None]
 
-    return renpy.game.interface.do_with(trans, paired, clear=clear)
+    interface = renpy.game.interface
+    if interface is None:
+        return
+    return interface.do_with(trans, paired, clear=clear)
 
 
 globals()["with"] = with_statement
@@ -2553,8 +2519,10 @@ def free_memory():
     """
 
     force_full_redraw()
-    renpy.display.interface.kill_textures()
-    renpy.display.interface.kill_surfaces()
+    interface = renpy.display.interface
+    if interface is not None:
+        interface.kill_textures()
+        interface.kill_surfaces()
     renpy.text.font.free_memory()
 
     gc.collect(2)
@@ -3325,7 +3293,7 @@ def vibrate(duration):
     """
 
     if renpy.android:
-        import android # @UnresolvedImport
+        import android # @UnresolvedImport # type: ignore[import-not-found]
         android.vibrate(duration)
 
 
@@ -4232,7 +4200,7 @@ def check_permission(permission):
     if not renpy.android:
         return False
 
-    from jnius import autoclass
+    from jnius import autoclass  # type: ignore[import-not-found]
     PythonSDLActivity = autoclass("org.renpy.android.PythonSDLActivity")
     activity = PythonSDLActivity.mActivity
 

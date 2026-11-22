@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains code that is responsible for storing and executing a
 # Ren'Py script.
@@ -26,15 +6,31 @@ from __future__ import division, absolute_import, with_statement, print_function
 from renpy.compat import *
 
 import renpy
+import renpy.ast
+import renpy.config
+import renpy.display
+import renpy.exports
+import renpy.game
+import renpy.loader
+import renpy.parser
+import renpy.python
+import renpy.translation
+import renpy.display.presplash
 
 import hashlib
 import os
-import imp
 import difflib
 import time
 import marshal
 import struct
 import zlib
+
+try:
+    import importlib.util
+    MAGIC = importlib.util.MAGIC_NUMBER
+except (AttributeError, ImportError):
+    import imp  # type: ignore[import-not-found]
+    MAGIC = imp.get_magic()
 
 from renpy.compat.pickle import loads, dumps
 import shutil
@@ -44,9 +40,6 @@ script_version = renpy.script_version
 
 # The version of the bytecode cache.
 BYTECODE_VERSION = 1
-
-# The python magic code.
-MAGIC = imp.get_magic()
 
 # A string at the start of each rpycv2 file.
 RPYC2_HEADER = b"RENPY RPC2"
@@ -108,8 +101,12 @@ class Script(object):
         # we're loading.
         renpy.game.script = self
 
-        if os.path.exists(renpy.config.renpy_base + "/lock.txt"):
-            self.key = open(renpy.config.renpy_base + "/lock.txt", "rb").read()
+        renpy_base = renpy.config.renpy_base
+        lock_file = os.path.join(renpy_base, "lock.txt") if renpy_base is not None else None
+
+        if lock_file is not None and os.path.exists(lock_file):
+            with open(lock_file, "rb") as f:
+                self.key = f.read()
         else:
             self.key = None
 
@@ -159,7 +156,13 @@ class Script(object):
         if backups is None:
             return
 
-        basename = os.path.basename(renpy.config.basedir)
+        basedir = renpy.config.basedir
+        if basedir is None:
+            basedir = renpy.config.gamedir
+        if basedir is None:
+            return None
+
+        basename = os.path.basename(basedir)
         backupdir = renpy.os.path.join(renpy.exports.fsencode(backups),
                                        renpy.exports.fsencode(basename))
 
@@ -185,15 +188,19 @@ class Script(object):
         if backupdir is None:
             return
 
+        game_dir = renpy.config.gamedir
+        if game_dir is None:
+            return
+
         for fn, checksum in backup_list:
 
-            if not fn.startswith(renpy.config.gamedir):
+            if not fn.startswith(game_dir):
                 continue
 
             if not os.path.exists(fn):
                 continue
 
-            short_fn = renpy.exports.fsencode(fn[len(renpy.config.gamedir) + 1:])
+            short_fn = renpy.exports.fsencode(fn[len(game_dir) + 1:])
 
             base, ext = os.path.splitext(short_fn)
 
@@ -272,8 +279,8 @@ class Script(object):
 
         for fn, dir in script_files: # @ReservedAssignment
             # Mitigate "busy script" warning from the browser
-            if renpy.emscripten:
-                import emscripten
+            if getattr(renpy, "emscripten", False):
+                import emscripten  # type: ignore[import-not-found]
                 emscripten.sleep(0)
 
             # Pump the presplash window to prevent marking
@@ -612,6 +619,9 @@ class Script(object):
                     with open(mergefn, "rb") as rpycf:
                         bindata = self.read_rpyc_data(rpycf, 1)
 
+                    if bindata is None:
+                        continue
+
                     old_data, old_stmts = loads(bindata)
 
                     self.merge_names(old_stmts, stmts, used_names)
@@ -638,8 +648,8 @@ class Script(object):
                         self.write_rpyc_data(f, 1, pickle_data_before_static_transforms)
                         self.write_rpyc_data(f, 2, pickle_data_after_static_transforms)
 
-                        with open(fullfn, "rU") as fullf:
-                            rpydigest = hashlib.md5(fullf.read()).digest()
+                        with open(fullfn, "rU", encoding="utf-8") as fullf:
+                            rpydigest = hashlib.md5(fullf.read().encode("utf-8")).digest()
 
                         self.write_rpyc_md5(f, rpydigest)
                 except:
@@ -739,7 +749,8 @@ class Script(object):
             if os.path.exists(rpyfn) and os.path.exists(rpycfn):
 
                 # Are we forcing a compile?
-                force_compile = renpy.game.args.compile # @UndefinedVariable
+                args = getattr(renpy.game, "args", None)
+                force_compile = bool(getattr(args, "compile", False))
 
                 # Use the source file here since it'll be loaded if it exists.
                 lastfn = rpyfn
@@ -796,7 +807,8 @@ class Script(object):
 
         self.finish_load(stmts, initcode, filename=lastfn)
 
-        self.digest.update(digest)
+        if digest is not None:
+            self.digest.update(digest)
 
     def init_bytecode(self):
         """
@@ -861,8 +873,10 @@ class Script(object):
                     if text is None:
                         text = ''
 
-                    if not isinstance(text, str):
+                    if isinstance(text, bytes):
                         text = text.decode("utf-8", "replace")
+                    elif not isinstance(text, str):
+                        text = str(text)
 
                     pem = renpy.parser.ParseError(
                         filename=e.filename,
@@ -876,6 +890,9 @@ class Script(object):
                     continue
 
                 renpy.game.exception_info = old_ei
+
+            if code is None:
+                raise RuntimeError("Unable to compile Python block at %s:%s." % i.location)
 
             self.bytecode_newcache[key] = code
             i.bytecode = marshal.loads(code)

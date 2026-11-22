@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
@@ -29,6 +9,13 @@ import zlib
 import weakref
 
 import renpy
+import renpy.game
+import renpy.config
+import renpy.exports
+import renpy.display
+import renpy.loadsave
+import renpy.loadsave.location  # type: ignore[import-not-found]
+import renpy.preferences
 
 from renpy.loadsave import dump, dumps, loads
 
@@ -36,6 +23,8 @@ from renpy.loadsave import dump, dumps, loads
 
 
 class Persistent(object):
+
+    _changed = None
 
     def __init__(self):
         self._update()
@@ -117,7 +106,7 @@ class Persistent(object):
             }
 
 
-renpy.game.Persistent = Persistent
+setattr(renpy.game, "Persistent", Persistent)
 renpy.game.persistent = Persistent()
 
 
@@ -176,7 +165,9 @@ def find_changes():
 
         if not (new == old):
 
-            persistent._changed[f] = now
+            changed = getattr(persistent, "_changed", None)
+            if changed is not None:
+                changed[f] = now
             backup[f] = safe_deepcopy(new)
 
             rv = True
@@ -223,11 +214,12 @@ def init():
     disk, so that we can configure the savelocation system.
     """
 
-    filename = os.path.join(renpy.config.savedir, "persistent.new")
+    savedir = renpy.exports.fsencode(renpy.config.savedir)
+    filename = os.path.join(savedir, b"persistent.new")
     persistent = load(filename)
 
     if persistent is None:
-        filename = os.path.join(renpy.config.savedir, "persistent")
+        filename = os.path.join(savedir, b"persistent")
         persistent = load(filename)
 
     if persistent is None:
@@ -316,9 +308,9 @@ def merge(other):
         if pval == oval:
             continue
 
-        ptime = persistent._changed.get(f, 0)
+        ptime = getattr(persistent, "_changed", { }).get(f, 0)
 
-        otime = other._changed.get(f, 0)
+        otime = getattr(other, "_changed", { }).get(f, 0)
         otime = min(now, otime)
 
         if ptime >= otime:
@@ -336,7 +328,9 @@ def merge(other):
 
         pvars[f] = val
         backup[f] = safe_deepcopy(val)
-        persistent._changed[f] = t
+        changed = getattr(persistent, "_changed", None)
+        if changed is not None:
+            changed[f] = t
 
 
 # The mtime of the most recently processed savefile.
@@ -349,7 +343,8 @@ def check_update():
     restarts the interaction.
     """
 
-    for mtime, _data in renpy.loadsave.location.load_persistent():
+    location = getattr(renpy.loadsave, "location")
+    for mtime, _data in location.load_persistent():
         if mtime > persistent_mtime:
             break
     else:
@@ -372,7 +367,8 @@ def update(force_save=False):
 
     # A list of (mtime, other) pairs, where other is a persistent file
     # we might want to merge in.
-    pairs = renpy.loadsave.location.load_persistent()
+    location = getattr(renpy.loadsave, "location")
+    pairs = location.load_persistent()
     pairs.sort(key=lambda a : a[0])
 
     # Deals with the case where we don't have any persistent data for
@@ -408,7 +404,8 @@ def save():
 
     try:
         data = zlib.compress(dumps(renpy.game.persistent), 3)
-        renpy.loadsave.location.save_persistent(data)
+        location = getattr(renpy.loadsave, "location")
+        location.save_persistent(data)
     except:
         if renpy.config.developer:
             raise
@@ -418,7 +415,8 @@ def save():
     # Prevent updates just after save
     mtime = persistent_mtime
 
-    for mtime, _data in renpy.loadsave.location.load_persistent():
+    location = getattr(renpy.loadsave, "location")
+    for mtime, _data in location.load_persistent():
         if mtime <= persistent_mtime:
             continue
 
@@ -440,6 +438,8 @@ def save_MP():
 
 
 class _MultiPersistent(object):
+
+    _filename = b""
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -486,7 +486,8 @@ def MultiPersistent(name, save_on_quit=False):
         files = [ os.path.expanduser(b"~/RenPy/Persistent") ]
 
         if 'APPDATA' in os.environ:
-            files.append(os.environ[b'APPDATA'] + b"/RenPy/persistent")
+            appdata = renpy.exports.fsencode(os.environ['APPDATA'])
+            files.append(appdata + b"/RenPy/persistent")
 
     elif renpy.macintosh:
         files = [ os.path.expanduser(b"~/.renpy/persistent"),
@@ -495,11 +496,13 @@ def MultiPersistent(name, save_on_quit=False):
         files = [ os.path.expanduser(b"~/.renpy/persistent") ]
 
     if "RENPY_MULTIPERSISTENT" in os.environ:
-        files = [ os.environ["RENPY_MULTIPERSISTENT"] ]
+        files = [ renpy.exports.fsencode(os.environ["RENPY_MULTIPERSISTENT"]) ]
 
     # Make the new persistent directory, why not?
     try:
-        os.makedirs(files[-1])
+        directory = files[-1]
+        if directory is not None:
+            os.makedirs(directory)
     except:
         pass
 
@@ -509,7 +512,7 @@ def MultiPersistent(name, save_on_quit=False):
     # Find the first file that actually exists. Otherwise, use the last
     # file.
     for fn in files:
-        fn = os.path.join(fn, name)
+        fn = os.path.join(fn or b"", name)
         if os.path.isfile(fn):
             try:
                 data = open(fn, "rb").read()
@@ -536,5 +539,5 @@ def MultiPersistent(name, save_on_quit=False):
     return rv
 
 
-renpy.loadsave._MultiPersistent = _MultiPersistent
-renpy.loadsave.MultiPersistent = MultiPersistent
+setattr(renpy.loadsave, "_MultiPersistent", _MultiPersistent)
+setattr(renpy.loadsave, "MultiPersistent", MultiPersistent)

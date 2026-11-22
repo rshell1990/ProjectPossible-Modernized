@@ -1,0 +1,358 @@
+﻿I'm sorry, but errors were detected in your script. Please correct the
+errors listed below, and try again.
+
+
+File "renpy/common/00action_data.rpy", line 22: python block expects a non-empty block.
+    init -1600 python:
+                      ^
+
+File "renpy/common/00action_data.rpy", line 26: expected statement.
+    _m1_00action_data__FieldNotFound = object()
+                                     ^
+
+File "renpy/common/00action_data.rpy", line 28: expected statement.
+    def _m1_00action_data__get_field(obj, name, kind):
+                                    ^
+
+File "renpy/common/00action_data.rpy", line 33: expected statement.
+    rv = obj
+       ^
+
+File "renpy/common/00action_data.rpy", line 34: expected statement.
+    for i in name.split("."):
+          ^
+
+File "renpy/common/00action_data.rpy", line 41: expected statement.
+    def _m1_00action_data__set_field(obj, name, value, kind):
+                                    ^
+
+File "renpy/common/00action_data.rpy", line 42: expected statement.
+    fields, _, attr = name.rpartition(".")
+          ^
+
+File "renpy/common/00action_data.rpy", line 44: expected statement.
+    try:
+       ^
+
+File "renpy/common/00action_data.rpy", line 47: expected statement.
+    except:
+          ^
+
+File "renpy/common/00action_data.rpy", line 49: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 50: expected statement.
+    class SetField(Action, FieldEquality):
+                  ^
+
+File "renpy/common/00action_data.rpy", line 60: expected statement.
+    identity_fields = [ "object" ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 61: expected statement.
+    equality_fields = [ "field", "value" ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 63: expected statement.
+    kind = "field"
+         ^
+
+File "renpy/common/00action_data.rpy", line 65: expected statement.
+    def __init__(self, object, field, value, kind="field"):
+                ^
+
+File "renpy/common/00action_data.rpy", line 71: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00action_data.rpy", line 75: expected statement.
+    def get_selected(self):
+                    ^
+
+File "renpy/common/00action_data.rpy", line 78: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 79: expected statement.
+    def SetVariable(name, value):
+                   ^
+
+File "renpy/common/00action_data.rpy", line 80: end of line expected.
+(Perhaps you left out a " at the end of the first line.)
+    """
+    :doc: data_action
+    
+    Causes the variable with `name` to be set to `value`.
+    
+    The `name` argument must be a string, and can be a simple name like "strength", or
+                                                                              ^
+    one with dots separating the variable from fields, like "hero.strength"
+    or "persistent.show_cutscenes".
+    """
+
+File "renpy/common/00action_data.rpy", line 92: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 93: expected statement.
+    class SetDict(Action, FieldEquality):
+                 ^
+
+File "renpy/common/00action_data.rpy", line 100: expected statement.
+    identity_fields = [ "dict" ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 101: expected statement.
+    equality_fields = [ "key", "value" ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 103: expected statement.
+    def __init__(self, dict, key, value):
+                ^
+
+File "renpy/common/00action_data.rpy", line 108: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00action_data.rpy", line 112: expected statement.
+    def get_selected(self):
+                    ^
+
+File "renpy/common/00action_data.rpy", line 119: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 120: expected statement.
+    class SetScreenVariable(Action, FieldEquality):
+                           ^
+
+File "renpy/common/00action_data.rpy", line 128: expected statement.
+    identity_fields = [ "value" ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 129: expected statement.
+    equality_fields = [ "name" ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 131: expected statement.
+    def __init__(self, name, value):
+                ^
+
+File "renpy/common/00action_data.rpy", line 135: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00action_data.rpy", line 145: expected statement.
+    def get_selected(self):
+                    ^
+
+File "renpy/common/00action_data.rpy", line 158: expected statement.
+    def SetLocalVariable(name, value):
+                        ^
+
+File "renpy/common/00action_data.rpy", line 178: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 179: expected statement.
+    class ToggleField(Action, FieldEquality):
+                     ^
+
+File "renpy/common/00action_data.rpy", line 193: expected statement.
+    identity_fields = [ "object"]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 194: expected statement.
+    equality_fields = [ "field", "true_value", "false_value"  ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 196: expected statement.
+    kind = "field"
+         ^
+
+File "renpy/common/00action_data.rpy", line 198: expected statement.
+    def __init__(self, object, field, true_value=None, false_value=None, kind="field"):
+                ^
+
+File "renpy/common/00action_data.rpy", line 205: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00action_data.rpy", line 221: expected statement.
+    def get_selected(self):
+                    ^
+
+File "renpy/common/00action_data.rpy", line 230: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 231: expected statement.
+    def ToggleVariable(variable, true_value=None, false_value=None):
+                      ^
+
+File "renpy/common/00action_data.rpy", line 232: end of line expected.
+(Perhaps you left out a " at the end of the first line.)
+    """
+    :doc: data_action
+    
+    Toggles `variable`.
+    
+    The `variable` argument must be a string, and can be a simple name like "strength", or
+                                                                                  ^
+    one with dots separating the variable from fields, like "hero.strength"
+    or "persistent.show_cutscenes".
+    
+    
+    `true_value`
+                If not None, then this is the true value used.
+    `false_value`
+                If not None, then this is the false value used.
+    """
+
+File "renpy/common/00action_data.rpy", line 251: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 252: expected statement.
+    class ToggleDict(Action, FieldEquality):
+                    ^
+
+File "renpy/common/00action_data.rpy", line 265: expected statement.
+    identity_fields = [ "dict", ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 266: expected statement.
+    equality_fields = [ "key", "true_value", "false_value" ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 268: expected statement.
+    def __init__(self, dict, key, true_value=None, false_value=None):
+                ^
+
+File "renpy/common/00action_data.rpy", line 274: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00action_data.rpy", line 291: expected statement.
+    def get_selected(self):
+                    ^
+
+File "renpy/common/00action_data.rpy", line 303: expected statement.
+    def ToggleLocalVariable(name, true_value=None, false_value=None):
+                           ^
+
+File "renpy/common/00action_data.rpy", line 326: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 327: expected statement.
+    class ToggleScreenVariable(Action, FieldEquality):
+                              ^
+
+File "renpy/common/00action_data.rpy", line 339: expected statement.
+    equality_fields = [ "name", "true_value", "false_value" ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 341: expected statement.
+    def __init__(self, name, true_value=None, false_value=None):
+                ^
+
+File "renpy/common/00action_data.rpy", line 346: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00action_data.rpy", line 368: expected statement.
+    def get_selected(self):
+                    ^
+
+File "renpy/common/00action_data.rpy", line 385: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 386: expected statement.
+    class AddToSet(Action, FieldEquality):
+                  ^
+
+File "renpy/common/00action_data.rpy", line 399: expected statement.
+    identity_fields = [ 'set' ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 400: expected statement.
+    equality_fields = [ 'value' ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 402: expected statement.
+    def __init__(self, set, value):
+                ^
+
+File "renpy/common/00action_data.rpy", line 406: expected statement.
+    def get_sensitive(self):
+                     ^
+
+File "renpy/common/00action_data.rpy", line 409: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00action_data.rpy", line 417: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 418: expected statement.
+    class RemoveFromSet(Action, FieldEquality):
+                       ^
+
+File "renpy/common/00action_data.rpy", line 430: expected statement.
+    identity_fields = [ 'set' ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 431: expected statement.
+    equality_fields = [ 'value' ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 433: expected statement.
+    def __init__(self, set, value):
+                ^
+
+File "renpy/common/00action_data.rpy", line 437: expected statement.
+    def get_sensitive(self):
+                     ^
+
+File "renpy/common/00action_data.rpy", line 440: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00action_data.rpy", line 446: expected statement.
+    @renpy.pure
+          ^
+
+File "renpy/common/00action_data.rpy", line 447: expected statement.
+    class ToggleSetMembership(Action, FieldEquality):
+                             ^
+
+File "renpy/common/00action_data.rpy", line 464: expected statement.
+    identity_fields = [ 'set' ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 465: expected statement.
+    equality_fields = [ 'value' ]
+                    ^
+
+File "renpy/common/00action_data.rpy", line 467: expected statement.
+    def __init__(self, set, value):
+                ^
+
+File "renpy/common/00action_data.rpy", line 471: expected statement.
+    def get_selected(self):
+                    ^
+
+File "renpy/common/00action_data.rpy", line 474: expected statement.
+    def __call__(self):
+                ^
+
+File "renpy/common/00iconbutton.rpy", line 42: u'icon' is not a keyword argument or valid child for the button statement.
+    icon icon style "iconbutton_icon" properties icon_properties
+        ^
+
+Ren'Py Version: Ren'Py 7.4.11.2266
+Sun Nov 22 11:01:37 2026

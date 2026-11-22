@@ -1,29 +1,18 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
+from typing import Any
 
 import renpy
 renpy.update_path()
+import renpy.ast
+import renpy.config
+import renpy.exports
+import renpy.game as game
+game: Any
+import renpy.loader
+import renpy.object
+import renpy.python
 
 import hashlib
 import re
@@ -186,7 +175,7 @@ class ScriptTranslator(object):
     def lookup_translate(self, identifier, alternate=None):
 
         identifier = identifier.replace('.', '_')
-        language = renpy.game.preferences.language
+        language = game.preferences.language
 
         if language is not None:
             tl = self.language_translates.get((identifier, language), None)
@@ -229,7 +218,7 @@ class Restructurer(object):
         if identifier in self.identifiers:
             return True
 
-        if identifier in renpy.game.script.translator.default_translates: # @UndefinedVariable
+        if identifier in game.script.translator.default_translates: # @UndefinedVariable
             return True
 
         return False
@@ -428,11 +417,17 @@ class StringTranslator(object):
             return
 
         if language is None:
-            fn = os.path.join(renpy.config.gamedir, "strings.rpy")
+            gamedir = renpy.config.gamedir
+            assert gamedir is not None
+            fn = os.path.join(gamedir, "strings.rpy")
         else:
-            fn = os.path.join(renpy.config.gamedir, renpy.config.tl_directory, language, "strings.rpy")
+            gamedir = renpy.config.gamedir
+            assert gamedir is not None
+            fn = os.path.join(gamedir, renpy.config.tl_directory, language, "strings.rpy")
 
-        with renpy.translation.generation.open_tl_file(fn) as f:
+        from renpy.translation import generation
+
+        with generation.open_tl_file(fn) as f:
             f.write(u"translate {} strings:\n".format(language))
             f.write(u"\n")
 
@@ -447,7 +442,7 @@ class StringTranslator(object):
 
 def add_string_translation(language, old, new, newloc):
 
-    tl = renpy.game.script.translator
+    tl = game.script.translator
     stl = tl.strings[language]
     tl.languages.add(language)
     stl.add(old, new, newloc)
@@ -470,15 +465,15 @@ def translate_string(s, language=Default):
     """
 
     if language is Default:
-        language = renpy.game.preferences.language
+        language = game.preferences.language
 
-    stl = renpy.game.script.translator.strings[language] # @UndefinedVariable
+    stl = game.script.translator.strings[language] # @UndefinedVariable
     return stl.translate(s)
 
 
 def write_updated_strings():
-    stl = renpy.game.script.translator.strings[renpy.game.preferences.language] # @UndefinedVariable
-    stl.write_updated_strings(renpy.game.preferences.language)
+    stl = game.script.translator.strings[game.preferences.language] # @UndefinedVariable
+    stl.write_updated_strings(game.preferences.language)
 
 ################################################################################
 # RPT Support
@@ -554,11 +549,12 @@ def init_translation():
     """
 
     global style_backup
-    style_backup = renpy.style.backup() # @UndefinedVariable
+    style_module: Any = getattr(renpy, "style")
+    style_backup = style_module.backup()
 
     load_all_rpts()
 
-    renpy.store._init_language() # @UndefinedVariable
+    getattr(renpy, "store")._init_language()
 
 
 old_language = "language never set"
@@ -575,12 +571,12 @@ def old_change_language(tl, language):
 
     def run_blocks():
         for i in tl.early_block[language]:
-            renpy.game.context().run(i.block[0])
+            game.context().run(i.block[0])
 
         for i in tl.block[language]:
-            renpy.game.context().run(i.block[0])
+            game.context().run(i.block[0])
 
-    renpy.game.invoke_in_new_context(run_blocks)
+    game.invoke_in_new_context(run_blocks)
 
     for i in tl.python[language]:
         renpy.python.py_exec_bytecode(i.code.bytecode)
@@ -596,9 +592,9 @@ def new_change_language(tl, language):
 
     def run_blocks():
         for i in tl.early_block[language]:
-            renpy.game.context().run(i.block[0])
+            game.context().run(i.block[0])
 
-    renpy.game.invoke_in_new_context(run_blocks)
+    game.invoke_in_new_context(run_blocks)
 
     for i in renpy.config.language_callbacks[language]:
         i()
@@ -606,13 +602,14 @@ def new_change_language(tl, language):
     for i in deferred_styles:
         i.apply()
 
-    def run_blocks():
+    def run_translation_blocks():
         for i in tl.block[language]:
-            renpy.game.context().run(i.block[0])
+            game.context().run(i.block[0])
 
-    renpy.game.invoke_in_new_context(run_blocks)
+    game.invoke_in_new_context(run_translation_blocks)
 
-    renpy.config.init_system_styles()
+    init_system_styles = getattr(renpy.config, "init_system_styles")
+    init_system_styles()
 
 
 def change_language(language, force=False):
@@ -626,17 +623,19 @@ def change_language(language, force=False):
     global old_language
 
     if old_language != language:
-        renpy.store._history_list = renpy.store.list()
-        renpy.store.nvl_list = renpy.store.list()
+        store = getattr(renpy, "store")
+        store._history_list = store.list()
+        store.nvl_list = store.list()
 
-    renpy.game.preferences.language = language
+    game.preferences.language = language
     if old_language == language and not force:
         return
 
-    tl = renpy.game.script.translator
+    tl = game.script.translator
 
-    renpy.style.restore(style_backup) # @UndefinedVariable
-    renpy.style.rebuild() # @UndefinedVariable
+    style_module: Any = getattr(renpy, "style")
+    style_module.restore(style_backup)
+    style_module.rebuild()
 
     for i in renpy.config.translate_clean_stores:
         renpy.python.clean_store(i)
@@ -654,7 +653,7 @@ def change_language(language, force=False):
     renpy.exports.free_memory()
 
     # Rebuild the styles.
-    renpy.style.rebuild() # @UndefinedVariable
+    style_module.rebuild()
 
     for i in renpy.config.translate_clean_stores:
         renpy.python.reset_store_changes(i)
@@ -674,8 +673,8 @@ def check_language():
     of the current translation block.
     """
 
-    ctx = renpy.game.contexts[-1]
-    preferences = renpy.game.preferences
+    ctx = game.contexts[-1]
+    preferences = game.preferences
 
     # Deal with a changed language.
     if ctx.translate_language != preferences.language:
@@ -684,10 +683,10 @@ def check_language():
         tid = ctx.translate_identifier
 
         if tid is not None:
-            node = renpy.game.script.translator.lookup_translate(tid) # @UndefinedVariable
+            node = game.script.translator.lookup_translate(tid) # @UndefinedVariable
 
             if node is not None:
-                raise renpy.game.JumpException(node.name)
+                raise game.JumpException(node.name)
 
 
 def known_languages():
@@ -698,7 +697,7 @@ def known_languages():
     language, None.
     """
 
-    return { i for i in renpy.game.script.translator.languages if i is not None } # @UndefinedVariable
+    return { i for i in game.script.translator.languages if i is not None } # @UndefinedVariable
 
 ################################################################################
 # Detect language
@@ -892,11 +891,11 @@ def detect_user_locale():
         windll = ctypes.windll.kernel32
         locale_name = locale.windows_locale.get(windll.GetUserDefaultUILanguage())
     elif renpy.android:
-        from jnius import autoclass
+        from jnius import autoclass # type: ignore[reportMissingImports]
         Locale = autoclass('java.util.Locale')
         locale_name = str(Locale.getDefault().getLanguage())
     elif renpy.ios:
-        import pyobjus
+        import pyobjus # type: ignore[reportMissingImports]
         NSLocale = pyobjus.autoclass("NSLocale")
         languages = NSLocale.preferredLanguages()
         locale_name = languages.objectAtIndex_(0).UTF8String().decode("utf-8")

@@ -1,23 +1,3 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1400 python:
 
@@ -94,9 +74,9 @@ init -1110 python hide:
     @theme
     def OneOrTwoColor(image, color):
         if len(color) == 2:
-            return im.Twocolor(image, color[0], color[1])
+            return Transform(image, matrixcolor=ColorizeMatrix(color[1], color[0]))
         else:
-            return im.Twocolor(image, color, color)
+            return Transform(image, matrixcolor=ColorizeMatrix(color, color))
 
     def roundrect_based_theme(name, file_prefix, Box=None, frame_png=None):
 
@@ -612,7 +592,7 @@ init -1110 python hide:
         theme.clear_bars()
 
         def color(fn, c):
-            return im.Twocolor("_outline/" + fn + ".png", inside, c)
+            return Transform("_outline/" + fn + ".png", matrixcolor=ColorizeMatrix(c, inside))
 
         style.bar.ymaximum = 16
         style.bar.left_bar = Frame(color("circle", idle), 7, 0)
@@ -749,9 +729,9 @@ init -1110 python hide:
 init -1110 python:
 
     def __AWTBox(colour):
-        base_image = im.MatrixColor("_theme_awt/frame.png", im.matrix.opacity(0.45))
-        colour_tint = im.MatrixColor("_theme_awt/frame.png", im.matrix.colorize(colour, colour))
-        colour_tint = im.MatrixColor(colour_tint, im.matrix.opacity(0.4))
+        base_image = Transform("_theme_awt/frame.png", matrixcolor=OpacityMatrix(0.45))
+        colour_tint = Transform("_theme_awt/frame.png", matrixcolor=ColorizeMatrix(colour, colour))
+        colour_tint = Transform(colour_tint, matrixcolor=OpacityMatrix(0.4))
         frame_image = im.Composite(
                                         (220, 147),
                                         (0, 0), base_image,
@@ -763,13 +743,13 @@ init -1110 python:
 
     def __AWTButton(image, colour, highlight, low_sat=False):
         base_image = "_theme_awt/" + image + ".png"
-        colour_tint = im.MatrixColor("_theme_awt/" + image + ".png", im.matrix.colorize(colour, colour))
+        colour_tint = Transform(base_image, matrixcolor=ColorizeMatrix(colour, colour))
         opacity = 0.5
         if highlight:
             opacity = 0.3
         if low_sat:
             opacity = opacity * 0.4
-        colour_tint = im.MatrixColor(colour_tint, im.matrix.opacity(opacity))
+        colour_tint = Transform(colour_tint, matrixcolor=OpacityMatrix(opacity))
         if highlight:
             button_image = im.Composite(
                                             (203, 47),
@@ -878,8 +858,8 @@ init -1110 python hide:
 
         def set_radio_style(s, colour):
 
-            selected = im.MatrixColor("_theme_awt/radio_base.png", im.matrix.colorize(colour, colour))
-            selected = im.MatrixColor(selected, im.matrix.opacity(0.75))
+            selected = Transform("_theme_awt/radio_base.png", matrixcolor=ColorizeMatrix(colour, colour))
+            selected = Transform(selected, matrixcolor=OpacityMatrix(0.75))
             selected = im.Composite( (17, 18),
                                                 (0, 0), "_theme_awt/radio_unselected.png",
                                                 (0, 0), "_theme_awt/radio_base.png",
@@ -887,8 +867,8 @@ init -1110 python hide:
                                                 (0, 0), "_theme_awt/radio_base_overlay.png"
                                                 )
 
-            hover = im.MatrixColor("_theme_awt/radio_base.png", im.matrix.colorize(colour, colour))
-            hover = im.MatrixColor(hover, im.matrix.opacity(0.75))
+            hover = Transform("_theme_awt/radio_base.png", matrixcolor=ColorizeMatrix(colour, colour))
+            hover = Transform(hover, matrixcolor=OpacityMatrix(0.75))
             hover = im.Composite( (17, 18),
                                                 (0, 0), "_theme_awt/radio_unselected.png",
                                                 (0, 0), "_theme_awt/radio_base.png",
@@ -1025,8 +1005,8 @@ init -1110 python hide:
         theme.clear_bars()
 
         def img(name, colour, width, height, x, y):
-            i = im.MatrixColor("_theme_awt/" + name + ".png", im.matrix.colorize(colour, colour))
-            i = im.MatrixColor(i, im.matrix.opacity(0.5))
+            i = Transform("_theme_awt/" + name + ".png", matrixcolor=ColorizeMatrix(colour, colour))
+            i = Transform(i, matrixcolor=OpacityMatrix(0.5))
             i = im.Composite(
                 (width, height),
                 (0, 0), "_theme_awt/" + name + ".png",
@@ -1037,8 +1017,8 @@ init -1110 python hide:
             return i
 
         def himg(name, colour, width, height, x, y):
-            i = im.MatrixColor("_theme_awt/" + name + ".png", im.matrix.colorize(colour, colour))
-            i = im.MatrixColor(i, im.matrix.opacity(0.5))
+            i = Transform("_theme_awt/" + name + ".png", matrixcolor=ColorizeMatrix(colour, colour))
+            i = Transform(i, matrixcolor=OpacityMatrix(0.5))
             i = im.Composite(
                 (width, height),
                 (0, 0), "_theme_awt/" + name + ".png",

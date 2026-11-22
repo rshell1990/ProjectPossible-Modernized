@@ -1,39 +1,19 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1500 python:
 
     @renpy.pure
     class StaticValue(BarValue, DictEquality):
         """
-         :doc: value
+        :doc: value
 
-         This allows a value to be specified statically.
+        This allows a value to be specified statically.
 
-         `value`
-              The value itself, a number.
+        `value`
+            The value itself, a number.
 
-         `range`
-              The range of the value.
-         """
+        `range`
+            The range of the value.
+        """
 
         def __init__(self, value=0.0, range=1.0):
             self.value = value
@@ -45,26 +25,26 @@ init -1500 python:
     @renpy.pure
     class AnimatedValue(BarValue, DictEquality):
         """
-         :doc: value
+        :doc: value
 
-         This animates a value, taking `delay` seconds to vary the value from
-         `old_value` to `value`.
+        This animates a value, taking `delay` seconds to vary the value from
+        `old_value` to `value`.
 
-         `value`
-             The value itself, a number.
+        `value`
+            The value itself, a number.
 
-         `range`
-             The range of the value, a number.
+        `range`
+            The range of the value, a number.
 
-         `delay`
-             The time it takes to animate the value, in seconds. Defaults
-             to 1.0.
+        `delay`
+            The time it takes to animate the value, in seconds. Defaults
+            to 1.0.
 
-         `old_value`
-             The old value. If this is None, then the value is taken from the
-             AnimatedValue we replaced, if any. Otherwise, it is initialized
-             to `value`.
-         """
+        `old_value`
+            The old value. If this is None, then the value is taken from the
+            AnimatedValue we replaced, if any. Otherwise, it is initialized
+            to `value`.
+        """
 
         def __init__(self, value=0.0, range=1.0, delay=1.0, old_value=None):
             if old_value == None:
@@ -115,33 +95,33 @@ init -1500 python:
     @renpy.pure
     class DictValue(BarValue, FieldEquality):
         """
-         :doc: value
+        :doc: value
 
-         A value that allows the user to adjust the value of a key
-         in a dict.
+        A value that allows the user to adjust the value of a key
+        in a dict.
 
-         `dict`
-             The dict.
-         `key`
-             The key.
-         `range`
-             The range to adjust over.
-         `max_is_zero`
-             If True, then when the value of a key is zero, the value of the
-             bar will be range, and all other values will be shifted down by 1.
-             This works both ways - when the bar is set to the maximum, the
-             value of a key is set to 0.
+        `dict`
+            The dict.
+        `key`
+            The key.
+        `range`
+            The range to adjust over.
+        `max_is_zero`
+            If True, then when the value of a key is zero, the value of the
+            bar will be range, and all other values will be shifted down by 1.
+            This works both ways - when the bar is set to the maximum, the
+            value of a key is set to 0.
 
-         `style`
-             The styles of the bar created.
-         `offset`
-             An offset to add to the value.
-         `step`
-             The amount to change the bar by. If None, defaults to 1/10th of
-             the bar.
-         `action`
-             If not None, an action to call when the field has changed.
-         """
+        `style`
+            The styles of the bar created.
+        `offset`
+            An offset to add to the value.
+        `step`
+            The amount to change the bar by. If None, defaults to 1/10th of
+            the bar.
+        `action`
+            If not None, an action to call when the field has changed.
+        """
 
         offset = 0
         action = None
@@ -209,34 +189,34 @@ init -1500 python:
     @renpy.pure
     class FieldValue(BarValue, FieldEquality):
         """
-         :doc: value
+        :doc: value
 
-         A bar value that allows the user to adjust the value of a field
-         on an object.
+        A bar value that allows the user to adjust the value of a field
+        on an object.
 
-         `object`
-             The object.
-         `field`
-             The field, a string.
-         `range`
-             The range to adjust over.
-         `max_is_zero`
-             If True, then when the field is zero, the value of the
-             bar will be range, and all other values will be shifted
-             down by 1. This works both ways - when the bar is set to
-             the maximum, the field is set to 0.
+        `object`
+            The object.
+        `field`
+            The field, a string.
+        `range`
+            The range to adjust over.
+        `max_is_zero`
+            If True, then when the field is zero, the value of the
+            bar will be range, and all other values will be shifted
+            down by 1. This works both ways - when the bar is set to
+            the maximum, the field is set to 0.
 
-             This is used internally, for some preferences.
-         `style`
-             The styles of the bar created.
-         `offset`
-             An offset to add to the value.
-         `step`
-             The amount to change the bar by. If None, defaults to 1/10th of
-             the bar.
-         `action`
-             If not None, an action to call when the field has changed.
-         """
+            This is used internally, for some preferences.
+        `style`
+            The styles of the bar created.
+        `offset`
+            An offset to add to the value.
+        `step`
+            The amount to change the bar by. If None, defaults to 1/10th of
+            the bar.
+        `action`
+            If not None, an action to call when the field has changed.
+        """
 
         offset = 0
         action = None
@@ -304,31 +284,31 @@ init -1500 python:
     @renpy.pure
     def VariableValue(variable, range, max_is_zero=False, style="bar", offset=0, step=None, action=None, force_step=False):
         """
-         :doc: value
+        :doc: value
 
-         A bar value that allows the user to adjust the value of a variable
-         in the default store.
+        A bar value that allows the user to adjust the value of a variable
+        in the default store.
 
-         `variable`
-             A string giving the name of the variable to adjust.
-         `range`
-             The range to adjust over.
-         `max_is_zero`
-             If True, then when the field is zero, the value of the
-             bar will be range, and all other values will be shifted
-             down by 1. This works both ways - when the bar is set to
-             the maximum, the field is set to 0.
+        `variable`
+            A string giving the name of the variable to adjust.
+        `range`
+            The range to adjust over.
+        `max_is_zero`
+            If True, then when the field is zero, the value of the
+            bar will be range, and all other values will be shifted
+            down by 1. This works both ways - when the bar is set to
+            the maximum, the field is set to 0.
 
-             This is used internally, for some preferences.
-         `style`
-             The styles of the bar created.
-         `offset`
-             An offset to add to the value.
-         `step`
-             The amount to change the bar by. If None, defaults to 1/10th of
-             the bar.
-         `action`
-             If not None, an action to call when the field has changed.
+            This is used internally, for some preferences.
+        `style`
+            The styles of the bar created.
+        `offset`
+            An offset to add to the value.
+        `step`
+            The amount to change the bar by. If None, defaults to 1/10th of
+            the bar.
+        `action`
+            If not None, an action to call when the field has changed.
         """
 
         return FieldValue(store, variable, range, max_is_zero=max_is_zero, style=style, offset=offset, step=step, action=action, force_step=force_step)
@@ -360,13 +340,13 @@ init -1500 python:
             the bar.
         `action`
             If not None, an action to call when the field has changed.
-         """
+        """
 
         action = None
         offset = 0
         force_step = False
 
-        identity_fields = [  ]
+        identity_fields = [ ]
         equality_fields = [ 'variable', 'max_is_zero', 'style', 'offset', 'step', 'action', 'force_step' ]
 
         def __init__(self, variable, range, max_is_zero=False, style="bar", offset=0, step=None, action=None, force_step=False):
@@ -431,20 +411,18 @@ init -1500 python:
         def get_style(self):
             return self.style, "v" + self.style
 
-
-
     @renpy.pure
     class MixerValue(BarValue, DictEquality):
         """
-         :doc: value
+        :doc: value
 
-         The value of an audio mixer.
+        The value of an audio mixer.
 
-         `mixer`
-             The name of the mixer to adjust. This is usually one of
-             "music", "sfx", or "voice", but creators can create new
-             mixers.
-         """
+        `mixer`
+            The name of the mixer to adjust. This is usually one of
+            "music", "sfx", or "voice", but creators can create new
+            mixers.
+        """
 
         def __init__(self, mixer):
             self.mixer = mixer
@@ -464,12 +442,12 @@ init -1500 python:
 
     class XScrollValue(BarValue, FieldEquality):
         """
-         :doc: value
+        :doc: value
 
-         The value of an adjustment that horizontally scrolls the viewport with the
-         given id, on the current screen. The viewport must be defined before a bar
-         with this value is.
-         """
+        The value of an adjustment that horizontally scrolls the viewport with the
+        given id, on the current screen. The viewport must be defined before a bar
+        with this value is.
+        """
 
         equality_fields = [ 'viewport' ]
 
@@ -488,12 +466,12 @@ init -1500 python:
 
     class YScrollValue(BarValue, FieldEquality):
         """
-         :doc: value
+        :doc: value
 
-         The value of an adjustment that vertically scrolls the viewport with the
-         given id, on the current screen. The viewport must be defined before a bar
-         with this value is.
-         """
+        The value of an adjustment that vertically scrolls the viewport with the
+        given id, on the current screen. The viewport must be defined before a bar
+        with this value is.
+        """
 
         equality_fields = [ 'viewport' ]
 
@@ -510,7 +488,6 @@ init -1500 python:
 
         def get_style(self):
             return "scrollbar", "vscrollbar"
-
 
     @renpy.pure
     class AudioPositionValue(BarValue, DictEquality):

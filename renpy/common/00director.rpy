@@ -139,7 +139,7 @@ init python in director:
     # Initialize the state object if it doesn't exist.
     if state is None:
 
-        state = store.NoRollback()
+        state = renpy.NoRollback()
 
         # Is the directory currently active.
         state.active = False

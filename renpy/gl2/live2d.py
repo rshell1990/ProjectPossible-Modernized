@@ -1,35 +1,23 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import renpy.display
+import renpy.display.core
+import renpy.display.render # type: ignore[import-not-found]
+import renpy.config
+import renpy.easy
+import renpy.exports
+import renpy.loader
 import renpy.gl2.live2dmotion
 from renpy.gl2.gl2shadercache import register_shader
 
+from typing import Any
+
 try:
-    import renpy.gl2.live2dmodel as live2dmodel
+    import renpy.gl2.live2dmodel as live2dmodel # type: ignore[import-not-found]
 except ImportError:
-    live2dmodel = None
+    live2dmodel = None # type: Any
 
 import sys
 import os
@@ -56,7 +44,9 @@ def onetime_init():
     if os.path.exists(fn):
         dll = fn
 
-    if not renpy.gl2.live2dmodel.load(dll):
+    if live2dmodel is None:
+        raise Exception("Live2D has not been built.")
+    if not live2dmodel.load(dll):
         raise Exception("Could not load Live2D. {} was not found.".format(dll))
 
     did_onetime_init = True
@@ -193,7 +183,7 @@ class Live2DCommon(object):
             self.model_json = json.load(f)
 
         # The model created from the moc3 file.
-        self.model = renpy.gl2.live2dmodel.Live2DModel(self.base + self.model_json["FileReferences"]["Moc"])
+        self.model = live2dmodel.Live2DModel(self.base + self.model_json["FileReferences"]["Moc"])
 
         # The texture images.
         self.textures = [ ]
@@ -239,7 +229,7 @@ class Live2DCommon(object):
         self.attributes = set([ "still", "null" ])
 
         # A map from a motion name to a motion identifier.
-        self.motions = { "still" : renpy.gl2.live2dmotion.NullMotion() }
+        self.motions = { "still" : renpy.gl2.live2dmotion.NullMotion() } # type: Any
 
         for i in motion_files.values():
             name = i["File"].lower().rpartition("/")[2].partition(".")[0]
@@ -320,7 +310,7 @@ class Live2DCommon(object):
     def apply_aliases(self, aliases):
 
         for k, v in aliases.items():
-            target = None
+            target = None # type: Any
             expression = False
 
             if v in self.motions:
@@ -381,12 +371,12 @@ class Live2DState(object):
 
         # The displayable in the old and new state. Both can be None if
         # it's not being shown.
-        self.old = None
-        self.new = None
+        self.old = None # type: Any
+        self.new = None # type: Any
 
         # The time at which the old and new displayables were last updated.
-        self.old_base_time = 0
-        self.new_base_time = 0
+        self.old_base_time = 0 # type: Any
+        self.new_base_time = 0 # type: Any
 
         # A list of (expression_name, time_shown) tuples.
         self.expressions = [ ]
@@ -483,7 +473,7 @@ class Live2D(renpy.display.core.Displayable):
 
     common_cache = None
     _duplicatable = True
-    used_nonexclusive = None
+    used_nonexclusive = None # type: Any
 
     def create_common(self, default_fade=1.0):
 
@@ -802,7 +792,8 @@ class Live2D(renpy.display.core.Displayable):
         model = common.model
         state = states[self.name]
 
-        now = renpy.display.interface.frame_time
+        interface = renpy.display.interface # type: Any
+        now = interface.frame_time
 
         # Reap obsolete old_expressions.
         state.old_expressions = [ (name, shown, hidden) for (name, shown, hidden) in state.old_expressions if (now - hidden) < common.all_expressions[name].fadeout ]
@@ -858,7 +849,10 @@ class Live2D(renpy.display.core.Displayable):
         model = common.model
 
         # Determine if we should fade.
-        fade = self.fade if (self.fade is not None) else renpy.store._live2d_fade
+        store = getattr(renpy, "store") # type: Any
+        interface = renpy.display.interface # type: Any
+        fade = self.fade if (self.fade is not None) else store._live2d_fade
+        old = None # type: Any
 
         if not self.name:
             fade = False
@@ -871,7 +865,7 @@ class Live2D(renpy.display.core.Displayable):
                 fade = False
 
             if state.new_base_time is None:
-                state.new_base_time = renpy.display.interface.frame_time - st
+                state.new_base_time = interface.frame_time - st
 
             if state.old is None:
                 fade = False
@@ -880,22 +874,23 @@ class Live2D(renpy.display.core.Displayable):
                 fade = False
 
         if fade:
-
-            if state.old.common is not self.common:
+            old = state.old
+            assert old is not None
+            if old.common is not self.common:
                 fade = False
 
         # Reset the parameter, and update.
         model.reset_parameters()
 
         if fade:
-            t = renpy.display.interface.frame_time - state.new_base_time
+            t = interface.frame_time - state.new_base_time
         else:
             t = st
 
         new_redraw = self.update(common, t, None)
 
         if fade:
-            old_redraw = state.old.update(common, renpy.display.interface.frame_time - state.old_base_time, st)
+            old_redraw = old.update(common, interface.frame_time - state.old_base_time, st)
         else:
             old_redraw = None
 

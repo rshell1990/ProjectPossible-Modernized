@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
@@ -28,7 +8,37 @@ from renpy.minstore import *
 # of user code, unless we re-import it.
 import renpy.display
 import renpy.audio
+import renpy.audio.audio
 import renpy.text
+import renpy.config
+import renpy.python
+import renpy.store # type: ignore[reportMissingImports]
+import renpy.character
+import renpy.persistent
+import renpy.ui
+import renpy.style # type: ignore[reportMissingImports]
+import renpy.easy
+import renpy.curry
+import renpy.color
+import renpy.gl2
+import renpy.gl2.live2d
+import renpy.display.image
+import renpy.display.behavior
+import renpy.display.im
+import renpy.display.imagelike
+import renpy.display.layout
+import renpy.display.viewport
+import renpy.display.motion
+import renpy.display.video
+import renpy.display.particle
+import renpy.display.dragdrop
+import renpy.display.model
+import renpy.display.transition
+import renpy.display.movetransition
+import renpy.display.matrix # type: ignore[reportMissingImports]
+import renpy.text.text
+import renpy.text.extras
+import renpy.text.font
 
 import renpy.display.im as im
 import renpy.display.anim as anim

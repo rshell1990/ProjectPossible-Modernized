@@ -1,38 +1,33 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import math
+from typing import Any, Optional
 import renpy.display
+import renpy.text
+import renpy.config
+import renpy.game as game
+game: Any
+import renpy.easy
+import renpy.exports
+import renpy.substitutions
+import renpy.display.behavior
+import renpy.display.core
+import renpy.display.focus
+import renpy.display.im
+import renpy.display.pgrender
+import renpy.display.scale
 
-from renpy.text.textsupport import TAG, TEXT, PARAGRAPH, DISPLAYABLE
+from renpy.text.textsupport import TAG, TEXT, PARAGRAPH, DISPLAYABLE # type: ignore[reportMissingImports]
 
-import renpy.text.textsupport as textsupport
-import renpy.text.texwrap as texwrap
+import renpy.text.textsupport as textsupport # type: ignore[reportMissingImports]
+import renpy.text.texwrap as texwrap # type: ignore[reportMissingImports]
 import renpy.text.font as font
 import renpy.text.extras as extras
 
-from _renpybidi import log2vis, WRTL, RTL, ON # @UnresolvedImport
+from renpy.display import render # type: ignore[reportMissingImports]
+from _renpybidi import log2vis, WRTL, RTL, ON # type: ignore[reportMissingImports]
 
 BASELINE = -65536
 
@@ -231,7 +226,7 @@ class TextSegment(object):
         self.outline_color = None
 
         if style.slow_cps is True:
-            self.cps = renpy.game.preferences.text_cps
+            self.cps = game.preferences.text_cps
 
         self.cps = self.cps * style.slow_cps_multiplier
 
@@ -301,7 +296,7 @@ class TextSegment(object):
 
         tf = self.font
 
-        font_transform = renpy.game.preferences.font_transform
+        font_transform = game.preferences.font_transform
         if font_transform is not None:
             font_func = renpy.config.font_transforms.get(font_transform, None)
             if font_func is not None:
@@ -509,17 +504,20 @@ class Layout(object):
 
             return 0
 
+        assert width is not None
+        assert height is not None
         width = min(32767, width)
         height = min(32767, height)
 
         if drawable_res and (not size_only) and renpy.config.drawable_resolution_text:
             # How much do we want to oversample the text by, compared to the
             # virtual resolution.
-            self.oversample = renpy.display.draw.draw_per_virt
+            draw: Any = renpy.display.draw
+            self.oversample = draw.draw_per_virt
 
             # Matrices to go from oversampled to virtual and vice versa.
-            self.reverse = renpy.display.draw.draw_to_virt
-            self.forward = renpy.display.draw.virt_to_draw
+            self.reverse = draw.draw_to_virt
+            self.forward = draw.virt_to_draw
 
             self.outline_step = text.style.outline_scaling != "linear"
 
@@ -528,8 +526,8 @@ class Layout(object):
         else:
 
             self.oversample = 1.0
-            self.reverse = renpy.display.render.IDENTITY
-            self.forward = renpy.display.render.IDENTITY
+            self.reverse = render.IDENTITY
+            self.forward = render.IDENTITY
             self.outline_step = True
 
             self.pixel_perfect = False
@@ -561,10 +559,14 @@ class Layout(object):
 
         width = self.scale_int(width)
         height = self.scale_int(height)
+        assert width is not None
+        assert height is not None
 
         # Figure out outlines and other info.
         outlines, xborder, yborder, xoffset, yoffset = self.figure_outlines(style)
         self.outlines = outlines
+        assert xborder is not None
+        assert yborder is not None
         self.xborder = xborder
         self.yborder = yborder
         self.xoffset = xoffset
@@ -611,6 +613,8 @@ class Layout(object):
 
         first_indent = self.scale_int(style.first_indent)
         rest_indent = self.scale_int(style.rest_indent)
+        assert first_indent is not None
+        assert rest_indent is not None
 
         # True if we've encountered the start and end segments respectively
         # while assigning times.
@@ -721,7 +725,11 @@ class Layout(object):
 
             # Figure out the line height, line spacing, and the y coordinate of each
             # glyph.
-            l, y = textsupport.place_vertical(par_glyphs, y, self.scale_int(style.line_spacing), self.scale_int(style.line_leading))
+            line_spacing = self.scale_int(style.line_spacing)
+            line_leading = self.scale_int(style.line_leading)
+            assert line_spacing is not None
+            assert line_leading is not None
+            l, y = textsupport.place_vertical(par_glyphs, y, line_spacing, line_leading)
             lines.extend(l)
 
             # Figure out the indent of the next paragraph.
@@ -729,6 +737,7 @@ class Layout(object):
                 first_indent = rest_indent
 
         line_spacing = self.scale_int(style.line_spacing)
+        assert line_spacing is not None
 
         if style.line_spacing < 0:
             if renpy.config.broken_line_spacing:
@@ -739,6 +748,7 @@ class Layout(object):
             lines[-1].height = y - lines[-1].y
 
         min_width = self.scale_int(style.min_width)
+        assert min_width is not None
         if min_width > maxx + self.xborder:
             maxx = min_width - self.xborder
 
@@ -752,6 +762,8 @@ class Layout(object):
 
             target_x = self.scale_int(splits_from.size[0] - splits_from.xborder)
             target_y = self.scale_int(splits_from.size[1] - splits_from.yborder)
+            assert target_x is not None
+            assert target_y is not None
 
             target_x_delta = target_x - maxx
             target_y_delta = target_y - y
@@ -803,7 +815,7 @@ class Layout(object):
         # A map from (outline, color) to a texture.
         self.textures = { }
 
-        di = DrawInfo()
+        di: Any = DrawInfo()
 
         for o, color, _xo, _yo in self.outlines:
             key = (o, color)
@@ -828,7 +840,7 @@ class Layout(object):
 
             surf = renpy.display.pgrender.surface((tw, th), True)
 
-            if renpy.game.preferences.high_contrast:
+            if game.preferences.high_contrast:
                 if color:
                     surf.fill(color)
                 else:
@@ -860,8 +872,9 @@ class Layout(object):
             if renpy.config.debug_text_alignment:
                 self.make_alignment_grid(surf)
 
-            renpy.display.draw.mutated_surface(surf)
-            tex = renpy.display.draw.load_texture(surf, properties={ "mipmap" : renpy.config.mipmap_text if (style.mipmap is None) else style.mipmap })
+            draw: Any = renpy.display.draw
+            draw.mutated_surface(surf)
+            tex = draw.load_texture(surf, properties={ "mipmap" : renpy.config.mipmap_text if (style.mipmap is None) else style.mipmap })
 
             self.textures[key] = tex
 
@@ -963,13 +976,13 @@ class Layout(object):
         self.hyperlink_targets = { }
 
         paragraphs = [ ]
-        line = [ ]
+        line = [ ] # type: list
 
         ts = TextSegment(None)
 
         ts.cps = style.slow_cps
         if ts.cps is None or ts.cps is True:
-            ts.cps = renpy.game.preferences.text_cps
+            ts.cps = game.preferences.text_cps
 
         ts.take_style(style, self)
 
@@ -1033,7 +1046,7 @@ class Layout(object):
 
                         tag = tag[1:]
 
-                        if not renpy.text.extras.text_tags.get(tag, True):
+                        if not extras.text_tags.get(tag, True):
                             raise Exception("{/%s} isn't valid, since the %s text tag doesn't take a close tag." % (tag, tag))
 
                         raise Exception("%r closes a text tag that isn't open." % text)
@@ -1061,6 +1074,7 @@ class Layout(object):
                         raise Exception("empty value supplied for tag %r" % tag)
 
                     width = self.scale_int(int(value))
+                    assert width is not None
                     line.append((SpaceSegment(tss[-1], width=width), u""))
 
                 elif tag == "vspace":
@@ -1071,6 +1085,7 @@ class Layout(object):
                     # Duplicates from the newline tag.
 
                     height = self.scale_int(int(value))
+                    assert height is not None
 
                     if line:
                         paragraphs.append(line)
@@ -1152,7 +1167,7 @@ class Layout(object):
                     ts.strikethrough = False
 
                 elif tag == "":
-                    style = getattr(renpy.store.style, value)
+                    style = getattr(getattr(renpy, "store").style, value)
                     push().take_style(style, self)
 
                 elif tag == "font":
@@ -1259,7 +1274,7 @@ class Layout(object):
                     raise Exception("Unknown text tag %r" % text)
 
             except:
-                renpy.game.exception_info = "While processing text tag {{{!s}}} in {!r}.:".format(text, text_displayable.get_all_text())
+                game.exception_info = "While processing text tag {{{!s}}} in {!r}.:".format(text, text_displayable.get_all_text())
                 raise
 
         # If the line is empty, fill it with a space.
@@ -1301,7 +1316,7 @@ class Layout(object):
         style_outlines = style.outlines
         dslist = style.drop_shadow
 
-        if (not style_outlines) and (not dslist) and not renpy.game.preferences.high_contrast:
+        if (not style_outlines) and (not dslist) and not game.preferences.high_contrast:
             return [ (0, None, 0, 0) ], 0, 0, 0, 0
 
         outlines = [ ]
@@ -1343,7 +1358,7 @@ class Layout(object):
 
         outlines.append((0, None, 0, 0))
 
-        if renpy.game.preferences.high_contrast:
+        if game.preferences.high_contrast:
             outlines = [ (2, (0, 0, 0, 255), 0, 0), (0, None, 0, 0) ]
 
         return outlines, right - left, bottom - top, -left, -top
@@ -1484,8 +1499,8 @@ def text_tick():
     slow_text = [ ]
 
 
-VERT_REVERSE = renpy.display.render.Matrix2D(0, -1, 1, 0)
-VERT_FORWARD = renpy.display.render.Matrix2D(0, 1, -1, 0)
+VERT_REVERSE = render.Matrix2D(0, -1, 1, 0)
+VERT_FORWARD = render.Matrix2D(0, 1, -1, 0)
 
 
 class Text(renpy.display.core.Displayable):
@@ -1559,13 +1574,13 @@ class Text(renpy.display.core.Displayable):
                     break
 
         # True if we are substituting things in.
-        self.substitute = substitute
+        self.substitute = substitute # type: Any
 
         # Do we need to update ourselves?
         self.dirty = True
 
         # The text, after substitutions.
-        self.text = None
+        self.text = None # type: Any
 
         # A mask, for passwords and such.
         self.mask = mask
@@ -1573,7 +1588,7 @@ class Text(renpy.display.core.Displayable):
         # Sets the text we're showing, and performs substitutions.
         self.set_text(text, scope, substitute)
 
-        if renpy.game.less_updates or renpy.game.preferences.self_voicing:
+        if game.less_updates or game.preferences.self_voicing:
             slow = False
 
         # True if we're using slow text mode.
@@ -1598,7 +1613,7 @@ class Text(renpy.display.core.Displayable):
             self.end = replaces.end
 
         # The list of displayables we use.
-        self.displayables = None
+        self.displayables = None # type: Any
 
         self._duplicatable = self.slow
 
@@ -1666,14 +1681,15 @@ class Text(renpy.display.core.Displayable):
         if self.locked:
             return False
 
-        return self.set_text(self.text_parameter, scope, self.substitute, update)
+        substitute: Any = self.substitute
+        return self.set_text(self.text_parameter, scope, substitute, update)
 
-    def set_text(self, text, scope=None, substitute=False, update=True):
+    def set_text(self, text, scope=None, substitute=False, update=True): # type: (Any, Any, Optional[bool], Any, Any) -> Any
 
         if self.locked:
             return
 
-        self.language = renpy.game.preferences.language
+        self.language = game.preferences.language
 
         old_text = self.text
 
@@ -1711,12 +1727,12 @@ class Text(renpy.display.core.Displayable):
                 self.dirty = True
 
                 if old_text is not None:
-                    renpy.display.render.redraw(self, 0)
+                    render.redraw(self, 0)
 
         return True
 
     def per_interact(self):
-        if (self.language != renpy.game.preferences.language) and not self._uses_scope:
+        if (self.language != game.preferences.language) and not self._uses_scope:
             self.set_text(self.text_parameter, substitute=self.substitute, update=True)
 
         if self.style.slow_abortable:
@@ -1740,11 +1756,13 @@ class Text(renpy.display.core.Displayable):
 
         self.kill_layout()
 
+        assert self.text is not None
         text = self.text
 
         # Decide the portion of the text to show quickly, the part to
         # show slowly, and the part not to show (but to lay out).
         if self.start is not None:
+            assert self.end is not None
             start_string = text[0][:self.start]
             mid_string = text[0][self.start:self.end]
             end_string = text[0][self.end:]
@@ -1815,7 +1833,9 @@ class Text(renpy.display.core.Displayable):
         if self.dirty or self.displayables is None:
             self.update()
 
-        return list(self.displayables)
+        displayables: Any = self.displayables
+        assert displayables is not None
+        return list(displayables)
 
     def _tts(self):
 
@@ -1832,7 +1852,7 @@ class Text(renpy.display.core.Displayable):
         rv, _, _ = rv.partition("{done}")
         _, _, rv = rv.rpartition("{fast}")
 
-        rv = renpy.text.extras.filter_alt_text(rv)
+        rv = extras.filter_alt_text(rv)
 
         alt = self.style.alt
 
@@ -1912,8 +1932,10 @@ class Text(renpy.display.core.Displayable):
 
             renders = { }
 
-            for i in self.displayables:
-                renders[i] = renpy.display.render.render(i, width, self.style.size, st, at)
+            displayables: Any = self.displayables
+            assert displayables is not None
+            for i in displayables:
+                renders[i] = render.render(i, width, self.style.size, st, at)
 
             layout = Layout(self, width, height, renders, size_only=True, drawable_res=True)
 
@@ -1929,7 +1951,7 @@ class Text(renpy.display.core.Displayable):
         layout = self.get_layout()
 
         self.kill_layout()
-        renpy.display.render.redraw(self, 0)
+        render.redraw(self, 0)
 
         if layout is None:
             return
@@ -1949,7 +1971,7 @@ class Text(renpy.display.core.Displayable):
         """
 
         self.kill_layout()
-        renpy.display.render.redraw(self, 0)
+        render.redraw(self, 0)
 
         hyperlink_focus = self.style.hyperlink_functions[2]
 
@@ -2045,8 +2067,10 @@ class Text(renpy.display.core.Displayable):
 
         renders = { }
 
-        for i in self.displayables:
-            renders[i] = renpy.display.render.render(i, width, self.style.size, st, at)
+        displayables: Any = self.displayables
+        assert displayables is not None
+        for i in displayables:
+            renders[i] = render.render(i, width, self.style.size, st, at)
 
         layout = Layout(self, width, height, renders, size_only=True, drawable_res=True)
 
@@ -2085,8 +2109,10 @@ class Text(renpy.display.core.Displayable):
         # Render all of the child displayables.
         renders = { }
 
-        for i in self.displayables:
-            renders[i] = renpy.display.render.render(i, width, self.style.size, st, at)
+        displayables: Any = self.displayables
+        assert displayables is not None
+        for i in displayables:
+            renders[i] = render.render(i, width, self.style.size, st, at)
 
         # Find the virtual-resolution layout.
         virtual_layout = self.get_virtual_layout()
@@ -2126,11 +2152,11 @@ class Text(renpy.display.core.Displayable):
             redraw = layout.redraw_typewriter(st)
 
         # Blit text layers.
-        rv = renpy.display.render.Render(vw, vh)
-        # rv = renpy.display.render.Render(*layout.unscale_pair(w, h))
+        rv = render.Render(vw, vh)
+        # rv = render.Render(*layout.unscale_pair(w, h))
 
         if renpy.config.draw_virtual_text_box:
-            fill = renpy.display.render.Render(vw, vh)
+            fill = render.Render(vw, vh)
             fill.fill((255, 0, 0, 32))
             fill.forward = layout.reverse
             fill.reverse = layout.forward
@@ -2200,7 +2226,7 @@ class Text(renpy.display.core.Displayable):
 
             self.displayable_offsets = [ ]
 
-            drend = renpy.display.render.Render(w, h)
+            drend = render.Render(w, h)
             drend.forward = layout.reverse
             drend.reverse = layout.forward
 
@@ -2235,15 +2261,16 @@ class Text(renpy.display.core.Displayable):
         # Figure out if we need to redraw or call slow_done.
         if self.slow:
             if redraw is not None:
-                renpy.display.render.redraw(self, redraw)
+                render.redraw(self, redraw)
             else:
-                renpy.display.interface.timeout(0)
+                interface: Any = getattr(renpy.display, "interface")
+                interface.timeout(0)
 
         rv.forward = layout.forward
         rv.reverse = layout.reverse
 
         if self.style.vertical:
-            vrv = renpy.display.render.Render(rv.height, rv.width)
+            vrv = render.Render(rv.height, rv.width)
             vrv.forward = VERT_FORWARD
             vrv.reverse = VERT_REVERSE
             vrv.blit(rv, (rv.height, 0))

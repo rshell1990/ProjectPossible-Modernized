@@ -1,29 +1,11 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE
-
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import copy
 import renpy.audio
+import renpy.game
+import renpy.object
+from renpy.audio import music
 
 pad_bindings = {
     "pad_leftshoulder_press" : [ "rollback", ],
@@ -175,6 +157,9 @@ class Preferences(renpy.object.Object):
     """
     __version__ = len(all_preferences)
 
+    volumes = { }
+    mute = { }
+
     def init(self):
         """
         Initializes the preference that have not been set.
@@ -241,12 +226,12 @@ class Preferences(renpy.object.Object):
         return self.mute[mixer]
 
     def init_mixers(self):
-        for i in renpy.audio.music.get_all_mixers():
+        for i in music.get_all_mixers():
             self.volumes.setdefault(i, 1.0)
             self.mute.setdefault(i, False)
 
     def get_all_mixers(self):
-        return renpy.audio.music.get_all_mixers()
+        return music.get_all_mixers()
 
     def __eq__(self, other):
         return vars(self) == vars(other)
@@ -255,5 +240,5 @@ class Preferences(renpy.object.Object):
         return not (self == other)
 
 
-renpy.game.Preferences = Preferences
-renpy.game.preferences = Preferences()
+setattr(renpy.game, "Preferences", Preferences)
+setattr(renpy.game, "preferences", Preferences())

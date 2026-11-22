@@ -1,29 +1,24 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import renpy.display
 import renpy.pyanalysis
+import renpy.object
+import renpy.config
+import renpy.game
+import renpy.python
+import renpy.store # type: ignore[reportMissingImports]
+import renpy.ast
+import renpy.display.matrix # type: ignore[reportMissingImports]
+import renpy.display.predict
+import renpy.display.motion
+import renpy.gl2
+import renpy.gl2.gl2mesh2 # type: ignore[reportMissingImports]
+import renpy.gl2.gl2mesh3 # type: ignore[reportMissingImports]
+import renpy.easy
+import renpy.display.layout
+import renpy.atl
 
 import random
 
@@ -95,7 +90,7 @@ def matrix(x):
 
 
 def mesh(x):
-    if isinstance(x, (renpy.gl2.gl2mesh2.Mesh2, renpy.gl2mesh3.Mesh3, tuple)):
+    if isinstance(x, (renpy.gl2.gl2mesh2.Mesh2, renpy.gl2.gl2mesh3.Mesh3, tuple)):
         return x
 
     return bool(x)
@@ -146,7 +141,7 @@ def interpolate(t, a, b, type): # @ReservedAssignment
     elif callable(b):
         a_origin = getattr(a, "origin", None)
         rv = b(a_origin, t)
-        rv.origin = b
+        setattr(rv, "origin", b)
         return rv
 
     # Interpolate everything else.
@@ -375,7 +370,9 @@ class ATLTransformBase(renpy.object.Object):
         requires that t.atl is self.atl.
         """
 
-        super(ATLTransformBase, self).take_execution_state(t)
+        take_execution_state = getattr(super(ATLTransformBase, self), "take_execution_state", None)
+        if take_execution_state is not None:
+            take_execution_state(t)
 
         self.atl_st_offset = None
         self.atl_state = None
@@ -470,7 +467,7 @@ class ATLTransformBase(renpy.object.Object):
         rv = renpy.display.motion.ATLTransform(
             atl=self.atl,
             child=child,
-            style=self.style_arg,
+            style=getattr(self, "style_arg", None),
             context=context,
             parameters=parameters,
             _args=_args,
@@ -602,7 +599,7 @@ class ATLTransformBase(renpy.object.Object):
         if block is None:
             block = self.compile()
 
-        return self.children + block.visit()
+        return getattr(self, "children", []) + block.visit()
 
 
 # This is used in mark_constant to analyze expressions for constness.

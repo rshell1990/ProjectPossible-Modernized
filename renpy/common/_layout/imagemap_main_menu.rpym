@@ -1,95 +1,107 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+﻿# Modernized imagemap main menu for Ren'Py 7 / 8+
+# Note: Standard modern Ren'Py templates define `screen main_menu()` in `screens.rpy`.
+# Rename or merge carefully if your project uses a standard template.
+
+define config.main_menu_ground = {}
+define config.main_menu_idle = {}
+define config.main_menu_selected = {}
+define config.main_menu_hotspots = {}
+define _main_menu_variant = None
 
 init python:
+    def _mm_img_resolve_variant(val, variant):
+        if isinstance(val, dict):
+            return val.get(variant, val.get(None))
+        return val
 
-    layout.provides('main_menu')
-    renpy.load_module("_layout/imagemap_common")
+    def _mm_img_eval_bool(expr, default=True):
+        if isinstance(expr, bool):
+            return expr
+        if isinstance(expr, basestring):
+            return bool(renpy.python.py_eval(expr))
+        return bool(expr) if expr is not None else default
 
-    # The ground image.
-    config.main_menu_ground = { }
+    def _mm_img_action(clicked, enabled=True):
+        if not enabled or clicked is None:
+            return None
+        if isinstance(clicked, basestring):
+            return Start(clicked) if clicked == "start" else renpy.curried_call_in_new_context(clicked)
+        return clicked
 
-    # The selected/hover image.
-    config.main_menu_selected = { }
+    def _mm_img_build_hotspot_actions(hotspots, main_menu_entries):
+        # Maps hotspot_name -> (action, sensitive)
+        actions = {}
+        matched_names = set()
 
-    # The idle image.
-    config.main_menu_idle = { }
+        for entry in main_menu_entries:
+            if len(entry) == 4:
+                name, act, enabled, shown = entry
+            else:
+                name, act, enabled = entry
+                shown = True
 
-    # The hotspots. Each hotspot is defined by a tuple giving:
-    # - The x-coordinate of the left side.
-    # - The y-coordinate of the top side.
-    # - The x-coordinate of the right side.
-    # - The y-coordinate of the bottoms side.
-    # - Either the (untranslated) name of the main menu button this hotspot
-    #   is equivalent to, or, a label in the program to jump to when this
-    #   hotspot is clicked.
-    config.main_menu_hotspots = { }
+            is_shown = _mm_img_eval_bool(shown, True)
+            is_enabled = _mm_img_eval_bool(enabled, True)
 
-    # This can be set from user code to define the main menu variant to use.
-    _main_menu_variant = None
+            if not is_shown:
+                matched_names.add(name)
+                continue
+
+            matched_names.add(name)
+            actions[name] = (_mm_img_action(act, is_enabled), is_enabled)
+
+        # Any remaining hotspot names jump out of context to a label of that name.
+        for x1, y1, x2, y2, hs_name in hotspots:
+            if hs_name not in matched_names and hs_name not in actions:
+                actions[hs_name] = (_mm_img_action(hs_name, True), True)
+
+        return actions
+
+screen imagemap_main_menu():
+
+    tag menu
+
+    style_prefix "mm"
+
+    # Ignore right-click / game_menu key while on the main menu
+    key "game_menu" action NullAction()
+
+    $ ground_img = _mm_img_resolve_variant(config.main_menu_ground, _main_menu_variant)
+    $ idle_img = _mm_img_resolve_variant(config.main_menu_idle, _main_menu_variant) or ground_img
+    $ sel_img = _mm_img_resolve_variant(config.main_menu_selected, _main_menu_variant) or idle_img
+
+    $ hotspot_list = list(_mm_img_resolve_variant(config.main_menu_hotspots, _main_menu_variant) or ())
+    $ hs_actions = _mm_img_build_hotspot_actions(hotspot_list, config.main_menu)
+
+    window:
+        style "mm_root"
+        null
+
+    imagemap:
+        style "imagemap"
+        ground ground_img
+        idle idle_img
+        hover sel_img
+        selected_idle idle_img
+        selected_hover sel_img
+
+        for x1, y1, x2, y2, hs_name in hotspot_list:
+            $ w = x2 - x1
+            $ h = y2 - y1
+            $ action_cfg = hs_actions.get(hs_name)
+
+            hotspot:
+                style "imagemap_button"
+                area (x1, y1, w, h)
+                if action_cfg is not None and action_cfg[0] is not None:
+                    sensitive action_cfg[1]
+                    action action_cfg[0]
+                else:
+                    sensitive False
+                    action NullAction()
 
 label main_menu_screen:
-
-    python hide:
-
-        # Ignore right-click while at the main menu.
-        ui.keymap(game_menu=ui.returns(None))
-
-        # Show the background.
-        ui.window(style='mm_root')
-        ui.null()
-
-        ime = _ImageMapper(
-            None,
-            config.main_menu_ground,
-            config.main_menu_idle,
-            config.main_menu_selected,
-            config.main_menu_idle,
-            config.main_menu_selected,
-            config.main_menu_hotspots,
-            navigation=False,
-            variant=_main_menu_variant)
-
-        for e in config.main_menu:
-            if len(e) == 4:
-                name, act, enabled, shown = e
-            else:
-                name, act, enabled = e
-                shown = "True"
-
-            if not eval(shown):
-                ime.nothing(name)
-
-            if not eval(enabled):
-                act = None
-
-            if isinstance(act, basestring):
-                act = ui.jumpsoutofcontext(act)
-
-            ime.button(name, act, False)
-
-        for i in list(ime.remaining_hotspots):
-            ime.button(i, ui.jumpsoutofcontext(i), None)
-
-        ime.close()
-        ui.interact(mouse='mainmenu')
-
+    $ renpy.scene("master")
+    $ renpy.show_screen("imagemap_main_menu")
+    $ ui.interact(mouse="mainmenu")
     jump main_menu_screen

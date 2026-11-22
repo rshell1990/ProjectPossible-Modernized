@@ -41,8 +41,8 @@ init -1500 python:
     @renpy.pure
     class _TouchKeyboardBackspace(Action, DictEquality):
         """
-         Simulate backspace
-         """
+        Simulate backspace
+        """
 
         def __call__(self):
             pygame_sdl2.event.post(pygame_sdl2.event.Event(
@@ -61,8 +61,8 @@ init -1500 python:
     @renpy.pure
     class _TouchKeyboardReturn(Action, DictEquality):
         """
-         Simulate return
-         """
+        Simulate return
+        """
 
         def __call__(self):
             import pygame_sdl2

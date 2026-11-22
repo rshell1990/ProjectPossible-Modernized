@@ -1,23 +1,3 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1500 python:
 
@@ -33,35 +13,35 @@ init -1500 python:
     @renpy.pure
     class ShowMenu(Action, DictEquality):
         """
-         :doc: menu_action
+            :doc: menu_action
 
-         Causes us to enter the game menu, if we're not there already. If we
-         are in the game menu, then this shows a screen or jumps to a label.
+            Causes us to enter the game menu, if we're not there already. If we
+            are in the game menu, then this shows a screen or jumps to a label.
 
-         `screen` is usually the name of a screen, which is shown using
-         the screen mechanism. If the screen doesn't exist, then "_screen"
-         is appended to it, and that label is jumped to.
+            `screen` is usually the name of a screen, which is shown using
+            the screen mechanism. If the screen doesn't exist, then "_screen"
+            is appended to it, and that label is jumped to.
 
-         If the optional keyword argument `_transition` is given, the
-         menu will change screens using the provided transition.
-         If not manually specified, the default transition is
-         `config.intra_transition`.
+            If the optional keyword argument `_transition` is given, the
+            menu will change screens using the provided transition.
+            If not manually specified, the default transition is
+            `config.intra_transition`.
 
-         * ShowMenu("load")
-         * ShowMenu("save")
-         * ShowMenu("preferences")
+            * ShowMenu("load")
+            * ShowMenu("save")
+            * ShowMenu("preferences")
 
-         This can also be used to show user-defined menu screens. For
-         example, if one has a "stats" screen defined, one can
-         show it as part of the game menu using:
+            This can also be used to show user-defined menu screens. For
+            example, if one has a "stats" screen defined, one can
+            show as part of the game menu using:
 
-         * ShowMenu("stats")
+            * ShowMenu("stats")
 
-         ShowMenu without an argument will enter the game menu at the
-         default screen, taken from _game_menu_screen.
+            ShowMenu without an argument will enter the game menu at the
+            default screen, taken from _game_menu_screen.
 
-         Extra arguments and keyword arguments are passed on to the screen
-         """
+            Extra arguments and keyword arguments are passed on to the screen
+            """
         transition = None  # For save compatability; see renpy#2376
 
         def __init__(self, screen=None, *args, **kwargs):
@@ -131,15 +111,15 @@ init -1500 python:
     @renpy.pure
     class Start(Action, DictEquality):
         """
-         :doc: menu_action
+        :doc: menu_action
 
-         Causes Ren'Py to jump out of the menu context to the named
-         label. The main use of this is to start a new game from the
-         main menu. Common uses are:
+        Causes Ren'Py to jump out of the menu context to the named
+        label. The main use of this is to start a new game from the
+        main menu. Common uses are:
 
-         * Start() - Start at the start label.
-         * Start("foo") - Start at the "foo" label.
-         """
+        * Start() - Start at the start label.
+        * Start("foo") - Start at the "foo" label.
+        """
 
         def __init__(self, label="start"):
             self.label = label
@@ -193,15 +173,15 @@ init -1500 python:
     @renpy.pure
     class Quit(Action, DictEquality):
         """
-         :doc: menu_action
+        :doc: menu_action
 
-         Quits the game.
+        Quits the game.
 
-         `confirm`
-              If true, prompts the user if he wants to quit, rather
-              than quitting directly. If None, asks if and only if
-              the user is not at the main menu.
-         """
+        `confirm`
+            If true, prompts the user if he wants to quit, rather
+            than quitting directly. If None, asks if and only if
+            the user is not at the main menu.
+        """
 
         def __init__(self, confirm=None):
             self.confirm = confirm
@@ -225,18 +205,18 @@ init -1500 python:
     @renpy.pure
     class Skip(Action, DictEquality):
         """
-         :doc: other_action
+        :doc: other_action
 
-         Causes the game to begin skipping. If the game is in a menu
-         context, then this returns to the game. Otherwise, it just
-         enables skipping.
+        Causes the game to begin skipping. If the game is in a menu
+        context, then this returns to the game. Otherwise, it just
+        enables skipping.
 
-         `fast`
-               If true, skips directly to the next menu choice.
+        `fast`
+            If true, skips directly to the next menu choice.
 
-         `confirm`
-               If true, asks for confirmation before beginning skipping.
-         """
+        `confirm`
+            If true, asks for confirmation before beginning skipping.
+        """
 
         fast = False
         confirm = False
@@ -316,13 +296,13 @@ init -1500 python:
             following way:
 
             * If a label with this name exists, the label is called in
-              a new context.
+            a new context.
             * Otherwise, this is interpreted as giving the name of a file
-              that should be opened in a web browser.
+            that should be opened in a web browser.
 
             If `help` is None, :var:`config.help` is used as the default
             value.
-         """
+        """
 
         def __init__(self, help=None):
             self.help = help

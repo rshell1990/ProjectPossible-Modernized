@@ -1,23 +1,3 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains code that handles the execution of python code
 # contained within the script file. It also handles rolling back the
@@ -42,11 +22,29 @@ import io
 import types
 import copyreg
 import functools
+from typing import cast, Any
 
 import renpy.audio
+import renpy.object
+import renpy.minstore
+import renpy.game
+import renpy.config
+import renpy.script
+import renpy.display
+import renpy.display.screen
+import renpy.translation
+import renpy.exports
+import renpy.audio
+import renpy.audio.audio
+import renpy.ast
+import renpy.store  # type: ignore[import-not-found]
+import renpy.display.predict
 
 # A set of flags that indicate dict should run in future-compatible mode.
-FUTURE_FLAGS = (__future__.CO_FUTURE_DIVISION | __future__.CO_FUTURE_WITH_STATEMENT)
+FUTURE_FLAGS = (
+    getattr(__future__, "CO_FUTURE_DIVISION", 0)
+    | getattr(__future__, "CO_FUTURE_WITH_STATEMENT", 0)
+)
 
 ##############################################################################
 # Monkeypatch copy_reg to work around a change in the class that RevertableSet
@@ -59,16 +57,16 @@ def _reconstructor(cls, base, state):
         state = [ ]
 
     if base is object:
-        obj = object.__new__(cls)
+        obj = getattr(object, "__new__")(cls)
     else:
-        obj = base.__new__(cls, state)
+        obj = getattr(base, "__new__")(cls, state)
         if base.__init__ != object.__init__:
             base.__init__(obj, state)
 
     return obj
 
 
-copyreg._reconstructor = _reconstructor
+setattr(copyreg, "_reconstructor", _reconstructor)
 
 ##############################################################################
 # Code that implements the store.
@@ -98,7 +96,7 @@ class StoreModule(object):
     # since Python won't call them by default.
 
     def __reduce__(self):
-        return (get_store_module, (self.__name__,))
+        return (get_store_module, (getattr(self, "__name__"),))
 
     def __init__(self, d):
         object.__setattr__(self, "__dict__", d)
@@ -116,7 +114,7 @@ def get_store_module(name):
     return sys.modules[name]
 
 
-from renpy.pydict import DictItems, find_changes
+from renpy.pydict import DictItems, find_changes  # type: ignore[import-not-found]
 
 EMPTY_DICT = { }
 EMPTY_SET = set()
@@ -249,12 +247,12 @@ def create_store(name):
 
     # Create or reuse the corresponding module.
     if name in store_modules:
-        sys.modules[pyname] = store_modules[name]
+        sys.modules[pyname] = cast(Any, store_modules[name])
     else:
-        store_modules[name] = sys.modules[pyname] = StoreModule(d)
+        store_modules[name] = sys.modules[pyname] = cast(Any, StoreModule(d))
 
     if parent:
-        store_dicts[parent][var] = sys.modules[pyname]
+        store_dicts[parent][var] = cast(Any, sys.modules[pyname])
 
 
 class StoreBackup():
@@ -325,7 +323,8 @@ def clean_stores():
     Revert the store to the clean copy.
     """
 
-    clean_store_backup.restore()
+    if clean_store_backup is not None:
+        clean_store_backup.restore()
 
 
 def clean_store(name):
@@ -336,7 +335,8 @@ def clean_store(name):
     if not name.startswith("store."):
         name = "store." + name
 
-    clean_store_backup.restore_one(name)
+    if clean_store_backup is not None:
+        clean_store_backup.restore_one(name)
 
 
 def reset_store_changes(name):
@@ -455,44 +455,39 @@ class WrapNode(ast.NodeTransformer):
     def visit_ClassDef(self, n):
         n = self.generic_visit(n)
 
-        if not n.bases:
-            n.bases.append(ast.Name(id=b("object"), ctx=ast.Load()))
+        bases = getattr(n, "bases", None)
+        if bases is not None and not bases:
+            bases.append(ast.Name(id=cast(Any, b("object")), ctx=ast.Load()))
 
         return n
 
     def visit_SetComp(self, n):
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__set__"),
+                id=cast(Any, b("__renpy__set__")),
                 ctx=ast.Load()
                 ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            args=[ cast(Any, self.generic_visit(n)) ],
+            keywords=[ ])
 
     def visit_Set(self, n):
 
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__set__"),
+                id=cast(Any, b("__renpy__set__")),
                 ctx=ast.Load()
                 ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            args=[ cast(Any, self.generic_visit(n)) ],
+            keywords=[ ])
 
     def visit_ListComp(self, n):
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__list__"),
+                id=cast(Any, b("__renpy__list__")),
                 ctx=ast.Load()
                 ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            args=[ cast(Any, self.generic_visit(n)) ],
+            keywords=[ ])
 
     def visit_List(self, n):
         if not isinstance(n.ctx, ast.Load):
@@ -500,36 +495,30 @@ class WrapNode(ast.NodeTransformer):
 
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__list__"),
+                id=cast(Any, b("__renpy__list__")),
                 ctx=ast.Load()
                 ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            args=[ cast(Any, self.generic_visit(n)) ],
+            keywords=[ ])
 
     def visit_DictComp(self, n):
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__dict__"),
+                id=cast(Any, b("__renpy__dict__")),
                 ctx=ast.Load()
                 ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            args=[ cast(Any, self.generic_visit(n)) ],
+            keywords=[ ])
 
     def visit_Dict(self, n):
 
         return ast.Call(
             func=ast.Name(
-                id=b("__renpy__dict__"),
+                id=cast(Any, b("__renpy__dict__")),
                 ctx=ast.Load()
                 ),
-            args=[ self.generic_visit(n) ],
-            keywords=[ ],
-            starargs=None,
-            kwargs=None)
+            args=[ cast(Any, self.generic_visit(n)) ],
+            keywords=[ ])
 
 
 wrap_node = WrapNode()
@@ -550,7 +539,7 @@ _execute_python_hide()
     for i in ast.walk(hide):
         ast.copy_location(i, hide.body[0])
 
-    hide.body[0].body = tree.body
+    setattr(hide.body[0], "body", tree.body)
     tree.body = hide.body
 
 
@@ -634,7 +623,7 @@ def fix_missing_locations(node, lineno, col_offset):
 def quote_eval(s):
     """
     Quotes a string for `eval`. This is necessary when it's in certain places,
-    like as part of an argument string. We need to stick \ at the end of lines
+    like as part of an argument string. We need to stick \\ at the end of lines
     that don't have it already, and that aren't in triple-quoted strings.
     """
 
@@ -768,10 +757,12 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
             py_compile_cache[key] = rv
             return rv
 
-        bytecode = renpy.game.script.bytecode_oldcache.get(key, None)
+        script = getattr(renpy.game, "script", None)
+        bytecode_oldcache = getattr(script, "bytecode_oldcache", {})
+        bytecode = bytecode_oldcache.get(key, None)
         if bytecode is not None:
-
-            renpy.game.script.bytecode_newcache[key] = bytecode
+            bytecode_newcache = getattr(script, "bytecode_newcache", {})
+            bytecode_newcache[key] = bytecode
             rv = marshal.loads(bytecode)
             py_compile_cache[key] = rv
             return rv
@@ -793,17 +784,35 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
         if filename in py3_files:
 
             flags = py3_compile_flags
-            tree = compile(source, filename, py_mode, ast.PyCF_ONLY_AST | flags, 1)
+            tree = compile(
+                source,
+                filename,
+                py_mode,
+                flags=ast.PyCF_ONLY_AST | flags,
+                dont_inherit=True,
+            )
 
         else:
 
             try:
                 flags = new_compile_flags
-                tree = compile(source, filename, py_mode, ast.PyCF_ONLY_AST | flags, 1)
+                tree = compile(
+                    source,
+                    filename,
+                    py_mode,
+                    flags=ast.PyCF_ONLY_AST | flags,
+                    dont_inherit=True,
+                )
             except:
                 flags = old_compile_flags
                 source = escape_unicode(source)
-                tree = compile(source, filename, py_mode, ast.PyCF_ONLY_AST | flags, 1)
+                tree = compile(
+                    source,
+                    filename,
+                    py_mode,
+                    flags=ast.PyCF_ONLY_AST | flags,
+                    dont_inherit=True,
+                )
 
         tree = wrap_node.visit(tree)
 
@@ -818,12 +827,13 @@ def py_compile(source, mode, filename='<none>', lineno=1, ast_node=False, cache=
         if ast_node:
             return tree.body
 
-        rv = compile(tree, filename, py_mode, flags, 1)
+        rv = compile(tree, filename, py_mode, flags=flags, dont_inherit=True)
 
         if cache:
             py_compile_cache[key] = rv
-            renpy.game.script.bytecode_newcache[key] = marshal.dumps(rv)
-            renpy.game.script.bytecode_dirty = True
+            bytecode_newcache = getattr(renpy.game.script, "bytecode_newcache", {})
+            bytecode_newcache[key] = marshal.dumps(rv)
+            setattr(renpy.game.script, "bytecode_dirty", True)
 
         return rv
 
@@ -866,15 +876,33 @@ def mutator(method):
 
         global mutate_flag
 
-        mutated = renpy.game.log.mutated # @UndefinedVariable
+        log = getattr(renpy.game, "log", None)
+        mutated = getattr(log, "mutated", None) if log is not None else None
 
-        if id(self) not in mutated:
+        if mutated is not None and id(self) not in mutated:
             mutated[id(self)] = (weakref.ref(self), self._clean())
             mutate_flag = True
 
         return method(self, *args, **kwargs)
 
     return do_mutation
+
+
+def _revertable_list_wrapper(method):
+    def newmethod(self, *args, **kwargs):
+        return RevertableList(method(self, *args, **kwargs))
+
+    return newmethod
+
+
+def _revertable_set_wrapper(method):
+    def newmethod(self, *args, **kwargs):
+        rv = method(self, *args, **kwargs)
+        if isinstance(rv, (set, frozenset)):
+            return RevertableSet(rv)
+        return rv
+
+    return newmethod
 
 
 class CompressedList(object):
@@ -962,10 +990,10 @@ class RevertableList(list):
 
     __delitem__ = mutator(list.__delitem__)
     if PY2:
-        __delslice__ = mutator(list.__delslice__)
+        __delslice__ = mutator(getattr(list, "__delslice__"))
     __setitem__ = mutator(list.__setitem__)
     if PY2:
-        __setslice__ = mutator(list.__setslice__)
+        __setslice__ = mutator(getattr(list, "__setslice__"))
     __iadd__ = mutator(list.__iadd__)
     __imul__ = mutator(list.__imul__)
     append = mutator(list.append)
@@ -976,17 +1004,9 @@ class RevertableList(list):
     reverse = mutator(list.reverse)
     sort = mutator(list.sort)
 
-    def wrapper(method): # E0213 @NoSelf
-
-        def newmethod(*args, **kwargs):
-            l = method(*args, **kwargs)
-            return RevertableList(l)
-
-        return newmethod
-
-    __add__ = wrapper(list.__add__)
+    __add__ = _revertable_list_wrapper(list.__add__)
     if PY2:
-        __getslice__ = wrapper(list.__getslice__)
+        __getslice__ = _revertable_list_wrapper(getattr(list, "__getslice__"))
 
     def __getitem__(self, index):
         rv = list.__getitem__(self, index)
@@ -1157,28 +1177,15 @@ class RevertableSet(set):
     union_update = mutator(set.update)
     update = mutator(set.update)
 
-    def wrapper(method): # @NoSelf
-
-        def newmethod(*args, **kwargs):
-            rv = method(*args, **kwargs)
-            if isinstance(rv, (set, frozenset)):
-                return RevertableSet(rv)
-            else:
-                return rv
-
-        return newmethod
-
-    __and__ = wrapper(set.__and__)
-    __sub__ = wrapper(set.__sub__)
-    __xor__ = wrapper(set.__xor__)
-    __or__ = wrapper(set.__or__)
-    copy = wrapper(set.copy)
-    difference = wrapper(set.difference)
-    intersection = wrapper(set.intersection)
-    symmetric_difference = wrapper(set.symmetric_difference)
-    union = wrapper(set.union)
-
-    del wrapper
+    __and__ = _revertable_set_wrapper(set.__and__)
+    __sub__ = _revertable_set_wrapper(set.__sub__)
+    __xor__ = _revertable_set_wrapper(set.__xor__)
+    __or__ = _revertable_set_wrapper(set.__or__)
+    copy = _revertable_set_wrapper(set.copy)
+    difference = _revertable_set_wrapper(set.difference)
+    intersection = _revertable_set_wrapper(set.intersection)
+    symmetric_difference = _revertable_set_wrapper(set.symmetric_difference)
+    union = _revertable_set_wrapper(set.union)
 
     def _clean(self):
         return list(self)
@@ -1268,7 +1275,7 @@ class RollbackRandom(random.Random):
     setstate = mutator(random.Random.setstate)
 
     if PY2:
-        jumpahead = mutator(random.Random.jumpahead)
+        jumpahead = mutator(getattr(random.Random, "jumpahead"))
 
     getrandbits = mutator(random.Random.getrandbits)
     seed = mutator(random.Random.seed)
@@ -1303,10 +1310,12 @@ class DetRandom(random.Random):
         else:
             rv = super(DetRandom, self).random()
 
-        log = renpy.game.log
+        log = getattr(renpy.game, "log", None)
 
-        if log.current is not None:
-            log.current.random.append(rv)
+        if log is not None:
+            current = getattr(log, "current", None)
+            if current is not None:
+                current.random.append(rv)
 
         return rv
 
@@ -1380,6 +1389,7 @@ class Rollback(renpy.object.Object):
     """
 
     __version__ = 5
+    store = None
 
     identifier = None
     not_greedy = False
@@ -1427,7 +1437,7 @@ class Rollback(renpy.object.Object):
         if version < 2:
             self.stores = { "store" : { } }
 
-            for i in self.store:
+            for i in getattr(self, "store", ()):
                 if len(i) == 2:
                     k, v = i
                     self.stores["store"][k] = v
@@ -1671,14 +1681,15 @@ class RollbackLog(renpy.object.Object):
             self.log.pop(0)
 
         # check for the end of fixed rollback
-        if self.log and self.log[-1] == self.current:
+        current = self.current
+        if current is not None and self.log and self.log[-1] == current:
 
-            if self.current.context.current == self.fixed_rollback_boundary:
+            if current.context.current == self.fixed_rollback_boundary:
                 self.rollback_is_fixed = False
 
             elif self.rollback_is_fixed and not self.forward:
                 # A lack of rollback data in fixed rollback mode ends rollback.
-                self.fixed_rollback_boundary = self.current.context.current
+                self.fixed_rollback_boundary = current.context.current
                 self.rollback_is_fixed = False
 
         self.current = Rollback()
@@ -1720,17 +1731,21 @@ class RollbackLog(renpy.object.Object):
             self.checkpoint(hard=False)
             self.force_checkpoint = False
 
+        current = self.current
+        if current is None:
+            return
+
         # Update self.current.stores with the changes from each store.
         # Also updates .ever_been_changed.
         for name, sd in store_dicts.items():
-            self.current.stores[name], self.current.delta_ebc[name] = sd.get_changes(begin)
+            current.stores[name], current.delta_ebc[name] = sd.get_changes(begin)
 
         # Update the list of mutated objects and what we need to do to
         # restore them.
 
         for _i in range(4):
 
-            del self.current.objects[:]
+            del current.objects[:]
 
             try:
                 for _k, v in self.mutated.items():
@@ -1745,7 +1760,7 @@ class RollbackLog(renpy.object.Object):
                         continue
 
                     compressed = obj._compress(clean)
-                    self.current.objects.append((obj, compressed))
+                    current.objects.append((obj, compressed))
 
                 break
 
@@ -1813,8 +1828,9 @@ class RollbackLog(renpy.object.Object):
         if self.forward:
 
             name, data = self.forward[0]
+            current = self.current
 
-            if self.current.context.current == name:
+            if current is not None and current.context.current == name:
                 return data
 
         return None
@@ -1831,31 +1847,32 @@ class RollbackLog(renpy.object.Object):
 
         self.retain_after_load_flag = False
 
-        if self.current.checkpoint:
+        current = self.current
+        if current is None or current.checkpoint:
             return
 
         if not renpy.game.context().rollback:
             return
 
-        self.current.checkpoint = True
+        current.checkpoint = True
 
-        if hard and (not self.current.hard_checkpoint):
+        if hard and (not current.hard_checkpoint):
             if self.rollback_limit < renpy.config.hard_rollback_limit:
                 self.rollback_limit += 1
 
             if hard == "not_greedy":
-                self.current.not_greedy = True
+                current.not_greedy = True
             else:
-                self.current.hard_checkpoint = hard
+                current.hard_checkpoint = hard
 
         if self.in_fixed_rollback() and self.forward:
             # use data from the forward stack
             fwd_name, fwd_data = self.forward[0]
-            if self.current.context.current == fwd_name:
-                self.current.forward = fwd_data
+            if current.context.current == fwd_name:
+                current.forward = fwd_data
                 self.forward.pop(0)
             else:
-                self.current.forward = data
+                current.forward = data
                 del self.forward[:]
 
         elif data is not None:
@@ -1864,7 +1881,7 @@ class RollbackLog(renpy.object.Object):
                 # Otherwise, clear the forward stack.
                 fwd_name, fwd_data = self.forward[0]
 
-                if (self.current.context.current == fwd_name
+                if (current.context.current == fwd_name
                     and data == fwd_data
                     and (keep_rollback or self.rolled_forward)
                     ):
@@ -1873,7 +1890,7 @@ class RollbackLog(renpy.object.Object):
                     del self.forward[:]
 
             # Log the data in case we roll back again.
-            self.current.forward = data
+            current.forward = data
 
     def suspend_checkpointing(self, flag):
         """
@@ -1905,7 +1922,9 @@ class RollbackLog(renpy.object.Object):
             return
 
         self.retain_after_load_flag = True
-        self.current.retain_after_load = True
+        current = self.current
+        if current is not None:
+            current.retain_after_load = True
         renpy.game.context().force_checkpoint = True
 
     def fix_rollback(self):
@@ -2001,7 +2020,8 @@ class RollbackLog(renpy.object.Object):
                 checkpoints -= 1
 
             if checkpoints <= 0:
-                if renpy.game.script.has_label(rb.context.current):
+                script = getattr(renpy.game, "script", None)
+                if script is not None and script.has_label(getattr(rb.context, "current", None)):
                     break
 
         else:
@@ -2024,7 +2044,8 @@ class RollbackLog(renpy.object.Object):
 
             rb = self.log[-1]
 
-            if not renpy.game.script.has_label(rb.context.current):
+            script = getattr(renpy.game, "script", None)
+            if script is None or not script.has_label(getattr(rb.context, "current", None)):
                 break
 
             if rb.hard_checkpoint:
@@ -2079,7 +2100,9 @@ class RollbackLog(renpy.object.Object):
             renpy.game.context().come_from(come_from, label)
 
         # Disable the next transition, as it's pointless. (Only when not used with a label.)
-        renpy.game.interface.suppress_transition = abnormal
+        interface = getattr(renpy.game, "interface", None)
+        if interface is not None:
+            interface.suppress_transition = abnormal
 
         # If necessary, reset the RNG.
         if force:
@@ -2144,7 +2167,9 @@ class RollbackLog(renpy.object.Object):
         self.purge_unreachable(roots, wait=wait)
 
         # The current is not purged.
-        self.current.purged = False
+        current = self.current
+        if current is not None:
+            current.purged = False
 
         return roots
 
@@ -2214,7 +2239,8 @@ class RollbackLog(renpy.object.Object):
         for i in reversed(self.log):
 
             if i.identifier is not None:
-                if renpy.game.script.has_label(i.context.current):
+                script = getattr(renpy.game, "script", None)
+                if script is not None and script.has_label(getattr(i.context, "current", None)):
                     self.identifier_cache[i.identifier] = checkpoints
 
             if i.hard_checkpoint:
@@ -2228,7 +2254,10 @@ class RollbackLog(renpy.object.Object):
 
     def get_identifier_checkpoints(self, identifier):
         self.build_identifier_cache()
-        return self.identifier_cache.get(identifier, None)
+        cache = self.identifier_cache
+        if cache is None:
+            return None
+        return cache.get(identifier, None)
 
 
 def py_exec_bytecode(bytecode, hide=False, globals=None, locals=None, store="store"): # @ReservedAssignment
@@ -2307,7 +2336,7 @@ def raise_at_location(e, loc):
 class StoreProxy(object):
 
     def __getattr__(self, k):
-        return getattr(renpy.store, k) # @UndefinedVariable
+        return getattr(renpy.store, k)
 
     def __setattr__(self, k, v):
         setattr(renpy.store, k, v) # @UndefinedVariable

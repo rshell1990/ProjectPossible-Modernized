@@ -37,6 +37,17 @@ PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
 PY34 = sys.version_info[0:2] >= (3, 4)
 
+try:
+    import builtins as _builtins
+except ImportError:
+    import __builtin__ as _builtins  # type: ignore[import-not-found]
+
+basestring = getattr(_builtins, "basestring", (str, bytes))
+long = getattr(_builtins, "long", int)
+unicode = getattr(_builtins, "unicode", str)
+unichr = getattr(_builtins, "unichr", chr)
+file = getattr(_builtins, "file", object)
+
 if PY3:
     string_types = str,
     integer_types = int,
@@ -48,7 +59,7 @@ if PY3:
 else:
     string_types = basestring,
     integer_types = (int, long)
-    class_types = (type, types.ClassType)
+    class_types = (type, getattr(types, "ClassType", type))
     text_type = unicode
     binary_type = str
 
@@ -87,6 +98,9 @@ class _LazyDescr(object):
 
     def __init__(self, name):
         self.name = name
+
+    def _resolve(self):
+        raise AttributeError("Lazy descriptor has not been resolved.")
 
     def __get__(self, obj, tp):
         result = self._resolve()
@@ -185,6 +199,17 @@ class _SixMetaPathImporter(object):
         if fullname in self.known_modules:
             return self
         return None
+
+    def find_spec(self, fullname, path=None, target=None):
+        finder = self.find_module(fullname, path)
+        if finder is None:
+            return None
+
+        try:
+            from importlib.util import spec_from_loader
+            return spec_from_loader(fullname, finder)
+        except ImportError:
+            return None
 
     def __get_module(self, fullname):
         try:
@@ -561,7 +586,10 @@ else:
     class Iterator(object):
 
         def next(self):
-            return type(self).__next__(self)
+            next_method = getattr(type(self), "__next__", None)
+            if next_method is None:
+                raise StopIteration
+            return next_method(self)
 
     callable = callable
 _add_doc(get_unbound_function,
@@ -659,9 +687,14 @@ else:
 
     def indexbytes(buf, i):
         return ord(buf[i])
-    iterbytes = functools.partial(itertools.imap, ord)
-    import StringIO
-    StringIO = BytesIO = StringIO.StringIO
+    iterbytes = functools.partial(getattr(itertools, "imap", map), ord)
+    try:
+        import StringIO  # type: ignore[import-not-found]
+        StringIO = BytesIO = StringIO.StringIO
+    except ImportError:
+        import io
+        StringIO = io.StringIO
+        BytesIO = io.BytesIO
     _assertCountEqual = "assertItemsEqual"
     _assertRaisesRegex = "assertRaisesRegexp"
     _assertRegex = "assertRegexpMatches"
@@ -884,7 +917,7 @@ def ensure_str(s, encoding='utf-8', errors='strict'):
         raise TypeError("not expecting type '%s'" % type(s))
     if PY2 and isinstance(s, text_type):
         s = s.encode(encoding, errors)
-    elif PY3 and isinstance(s, binary_type):
+    elif PY3 and isinstance(s, bytes):
         s = s.decode(encoding, errors)
     return s
 
@@ -900,7 +933,7 @@ def ensure_text(s, encoding='utf-8', errors='strict'):
       - `str` -> `str`
       - `bytes` -> decoded to `str`
     """
-    if isinstance(s, binary_type):
+    if isinstance(s, bytes):
         return s.decode(encoding, errors)
     elif isinstance(s, text_type):
         return s
@@ -944,7 +977,7 @@ if sys.meta_path:
         # the six meta path importer, since the other six instance will have
         # inserted an importer with different class.
         if (type(importer).__name__ == "_SixMetaPathImporter" and
-                importer.name == __name__):
+                getattr(importer, "name", None) == __name__):
             del sys.meta_path[i]
             break
     del i, importer

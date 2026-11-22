@@ -1,30 +1,17 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 
 import renpy.display
+import renpy.object
+import renpy.parser
+import renpy.python
+import renpy.atl
+import renpy.display.screen
+import renpy.ast
 import contextlib
+from typing import Any
 
 # Grab the python versions of the parser and ast modules.
 ast = __import__("ast")
@@ -239,10 +226,10 @@ class Parser(object):
         except SyntaxError as e:
             raise renpy.parser.ParseError(
                 filename,
-                lineno + e[1][1] - 1,
+                lineno + (e.lineno or 1) - 1,
                 "Syntax error while parsing python expression.",
-                e[1][3],
-                e[1][2])
+                e.text or "",
+                e.offset or 0)
 
         increment_lineno(rv, lineno-1)
 
@@ -263,10 +250,10 @@ class Parser(object):
 
             raise renpy.parser.ParseError(
                 filename,
-                lineno + e[1][1] - 1,
+                lineno + (e.lineno or 1) - 1,
                 "Syntax error while parsing python code.",
-                e[1][3],
-                e[1][2])
+                e.text or "",
+                e.offset or 0)
 
         increment_lineno(rv, lineno-1)
 
@@ -1205,7 +1192,7 @@ class ScreenLangScreen(renpy.object.Object):
     # prediction existed.
     predict = "False"
 
-    parameters = None
+    parameters = None  # type: Any
     location = None
 
     def __init__(self):
@@ -1223,7 +1210,7 @@ class ScreenLangScreen(renpy.object.Object):
         self.tag = None
 
         # The PyCode object containing the screen's code.
-        self.code = None
+        self.code = None  # type: Any
 
         # The variant of screen we're defining.
         self.variant = "None"  # expr.
@@ -1232,7 +1219,7 @@ class ScreenLangScreen(renpy.object.Object):
         self.predict = "None"  # expr.
 
         # The parameters this screen takes.
-        self.parameters = None
+        self.parameters = None  # type: Any
 
     def after_upgrade(self, version):
         if version < 1:
@@ -1257,7 +1244,9 @@ class ScreenLangScreen(renpy.object.Object):
             )
 
     def __call__(self, *args, **kwargs):
-        scope = kwargs["_scope"]
+        scope = kwargs.get("_scope")
+        if scope is None:
+            scope = {}
 
         if self.parameters:
 
@@ -1266,6 +1255,9 @@ class ScreenLangScreen(renpy.object.Object):
 
             values = renpy.ast.apply_arguments(self.parameters, args, kwargs)
             scope.update(values)
+
+        if self.code is None:
+            raise Exception("The screen %r has not been compiled." % self.name)
 
         renpy.python.py_exec_bytecode(self.code.bytecode, locals=scope)
 
@@ -1341,7 +1333,7 @@ class ScreenParser(Parser):
                 rv.extend(c)
                 count += 1
 
-        node = ast.Module(body=rv, lineno=lineno, col_offset=0)
+        node = ast.Module(body=rv, type_ignores=[], lineno=lineno, col_offset=0)
         ast.fix_missing_locations(node)
         LineNumberNormalizer().visit(node)
 
