@@ -1,24 +1,29 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import renpy.display
 import renpy.pyanalysis
-import renpy.object
-import renpy.config
-import renpy.game
-import renpy.python
-import renpy.store # type: ignore[reportMissingImports]
-import renpy.ast
-import renpy.display.matrix # type: ignore[reportMissingImports]
-import renpy.display.predict
-import renpy.display.motion
-import renpy.gl2
-import renpy.gl2.gl2mesh2 # type: ignore[reportMissingImports]
-import renpy.gl2.gl2mesh3 # type: ignore[reportMissingImports]
-import renpy.easy
-import renpy.display.layout
-import renpy.atl
 
 import random
 
@@ -90,7 +95,7 @@ def matrix(x):
 
 
 def mesh(x):
-    if isinstance(x, (renpy.gl2.gl2mesh2.Mesh2, renpy.gl2.gl2mesh3.Mesh3, tuple)):
+    if isinstance(x, (renpy.gl2.gl2mesh2.Mesh2, renpy.gl2mesh3.Mesh3, tuple)):
         return x
 
     return bool(x)
@@ -141,7 +146,7 @@ def interpolate(t, a, b, type): # @ReservedAssignment
     elif callable(b):
         a_origin = getattr(a, "origin", None)
         rv = b(a_origin, t)
-        setattr(rv, "origin", b)
+        rv.origin = b
         return rv
 
     # Interpolate everything else.
@@ -370,9 +375,7 @@ class ATLTransformBase(renpy.object.Object):
         requires that t.atl is self.atl.
         """
 
-        take_execution_state = getattr(super(ATLTransformBase, self), "take_execution_state", None)
-        if take_execution_state is not None:
-            take_execution_state(t)
+        super(ATLTransformBase, self).take_execution_state(t)
 
         self.atl_st_offset = None
         self.atl_state = None
@@ -467,7 +470,7 @@ class ATLTransformBase(renpy.object.Object):
         rv = renpy.display.motion.ATLTransform(
             atl=self.atl,
             child=child,
-            style=getattr(self, "style_arg", None),
+            style=self.style_arg,
             context=context,
             parameters=parameters,
             _args=_args,
@@ -599,7 +602,7 @@ class ATLTransformBase(renpy.object.Object):
         if block is None:
             block = self.compile()
 
-        return getattr(self, "children", []) + block.visit()
+        return self.children + block.visit()
 
 
 # This is used in mark_constant to analyze expressions for constness.
@@ -619,7 +622,8 @@ class RawStatement(object):
 
     # Compiles this RawStatement into a Statement, by using ctx to
     # evaluate expressions as necessary.
-    def compile(self, ctx): # @ReservedAssignment
+    # @ReservedAssignment
+    def compile(self, ctx):  # type: (...) -> "Statement"
         raise Exception("Compile not implemented.")
 
     # Predicts the images used by this statement.
@@ -668,7 +672,7 @@ class Statement(renpy.object.Object):
     #
     # Pause is the amount of time until execute should be called again,
     # or None if there's no need to call execute ever again.
-    def execute(self, trans, st, state, events):
+    def execute(self, trans, st, state, events):  # type: (...) -> tuple[object, object, object]
         raise Exception("Not implemented.")
 
     # Return a list of displayable children.
@@ -676,7 +680,7 @@ class Statement(renpy.object.Object):
         return [ ]
 
     # Does this respond to an event?
-    def _handles_event(self, event):
+    def _handles_event(self, event):  # type: (...) -> bool
         return False
 
 # This represents a Raw ATL block.
@@ -848,6 +852,8 @@ class Block(Statement):
                     continue
 
             return action, arg, pause
+
+        return action, arg, pause
 
     def visit(self):
         return [ j for i in self.statements for j in i.visit() ]
@@ -1171,7 +1177,8 @@ class Interpolation(Statement):
         elif complete > 1.0:
             complete = 1.0
 
-        complete = warper(complete)
+        if warper is not None:
+            complete = warper(complete)
 
         if state is None:
 
@@ -1457,12 +1464,14 @@ class Choice(Statement):
         if state is None:
 
             total = 0
-            for chance, choice in self.choices:
+            for chance, _c in self.choices:
                 total += chance
 
             n = random.uniform(0, total)
+            choice = None
 
-            for chance, choice in self.choices:
+            for chance, c in self.choices:
+                choice = c
                 if n < chance:
                     break
                 n -= chance
@@ -1471,6 +1480,9 @@ class Choice(Statement):
 
         else:
             choice, cstate = state
+
+        if choice is None:
+            return "next", 0, None
 
         action, arg, pause = choice.execute(trans, st, cstate, events)
 

@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains classes that handle layout of displayables on
 # the screen.
@@ -8,12 +28,7 @@ from renpy.compat import *
 import math
 
 import renpy.display
-import renpy.display.behavior
-import renpy.display.core
-import renpy.display.focus
-import renpy.display.layout
-import renpy.display.render # type: ignore[import-not-found]
-import pygame_sdl2 as pygame # type: ignore[import-not-found]
+import pygame_sdl2 as pygame
 
 
 def edgescroll_proportional(n):
@@ -301,9 +316,10 @@ class Viewport(renpy.display.layout.Container):
                 self.yadjustment.change(yvalue)
                 raise renpy.display.core.IgnoreEvent()
 
-            drag_position = self.drag_position
-            assert drag_position is not None
-            oldx, oldy = drag_position
+            if self.drag_position is None:
+                self.drag_position = (x, y)
+
+            oldx, oldy = self.drag_position
             dx = x - oldx
             dy = y - oldy
 
@@ -467,10 +483,10 @@ class Viewport(renpy.display.layout.Container):
 
                 return n
 
+            edge_function = self.edge_function or edgescroll_proportional
+
             xspeed = speed(x, self.width - self.edge_size, self.width)
             xspeed -= speed(x, self.edge_size, 0)
-            edge_function = self.edge_function
-            assert edge_function is not None
             self.edge_xspeed = self.edge_speed * edge_function(xspeed)
 
             yspeed = speed(y, self.height - self.edge_size, self.height)
@@ -494,7 +510,7 @@ class Viewport(renpy.display.layout.Container):
 
 
 # For compatibility with old saves.
-setattr(renpy.display.layout, "Viewport", Viewport)
+renpy.display.layout.Viewport = Viewport
 
 
 class VPGrid(Viewport):
@@ -541,7 +557,6 @@ class VPGrid(Viewport):
                 cols += 1
 
         if rows is None:
-            assert cols is not None
             rows = lc // cols
             if rows * cols < lc:
                 rows += 1

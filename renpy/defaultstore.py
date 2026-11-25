@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
@@ -8,37 +28,7 @@ from renpy.minstore import *
 # of user code, unless we re-import it.
 import renpy.display
 import renpy.audio
-import renpy.audio.audio
 import renpy.text
-import renpy.config
-import renpy.python
-import renpy.store # type: ignore[reportMissingImports]
-import renpy.character
-import renpy.persistent
-import renpy.ui
-import renpy.style # type: ignore[reportMissingImports]
-import renpy.easy
-import renpy.curry
-import renpy.color
-import renpy.gl2
-import renpy.gl2.live2d
-import renpy.display.image
-import renpy.display.behavior
-import renpy.display.im
-import renpy.display.imagelike
-import renpy.display.layout
-import renpy.display.viewport
-import renpy.display.motion
-import renpy.display.video
-import renpy.display.particle
-import renpy.display.dragdrop
-import renpy.display.model
-import renpy.display.transition
-import renpy.display.movetransition
-import renpy.display.matrix # type: ignore[reportMissingImports]
-import renpy.text.text
-import renpy.text.extras
-import renpy.text.font
 
 import renpy.display.im as im
 import renpy.display.anim as anim
@@ -200,36 +190,40 @@ Live2D = renpy.gl2.live2d.Live2D
 Model = renpy.display.model.Model
 
 # Currying things.
-Alpha = renpy.curry.curry(renpy.display.layout.Alpha)
-Position = renpy.curry.curry(renpy.display.layout.Position)
-Pan = renpy.curry.curry(renpy.display.motion.Pan)
-Move = renpy.curry.curry(renpy.display.motion.Move)
-Motion = renpy.curry.curry(renpy.display.motion.Motion)
-Revolve = renpy.curry.curry(renpy.display.motion.Revolve)
-Zoom = renpy.curry.curry(renpy.display.motion.Zoom)
-RotoZoom = renpy.curry.curry(renpy.display.motion.RotoZoom)
-FactorZoom = renpy.curry.curry(renpy.display.motion.FactorZoom)
-SizeZoom = renpy.curry.curry(renpy.display.motion.SizeZoom)
-Fade = renpy.curry.curry(renpy.display.transition.Fade)
-Dissolve = renpy.curry.curry(renpy.display.transition.Dissolve)
-ImageDissolve = renpy.curry.curry(renpy.display.transition.ImageDissolve)
-AlphaDissolve = renpy.curry.curry(renpy.display.transition.AlphaDissolve)
-CropMove = renpy.curry.curry(renpy.display.transition.CropMove)
-PushMove = renpy.curry.curry(renpy.display.transition.PushMove)
-Pixellate = renpy.curry.curry(renpy.display.transition.Pixellate)
+from renpy.curry import curry as _curry
 
-OldMoveTransition = renpy.curry.curry(renpy.display.movetransition.OldMoveTransition)
-MoveTransition = renpy.curry.curry(renpy.display.movetransition.MoveTransition)
-MoveFactory = renpy.curry.curry(renpy.display.movetransition.MoveFactory)
-MoveIn = renpy.curry.curry(renpy.display.movetransition.MoveIn)
-MoveOut = renpy.curry.curry(renpy.display.movetransition.MoveOut)
-ZoomInOut = renpy.curry.curry(renpy.display.movetransition.ZoomInOut)
-RevolveInOut = renpy.curry.curry(renpy.display.movetransition.RevolveInOut)
+Alpha = _curry(renpy.display.layout.Alpha)
+Position = _curry(renpy.display.layout.Position)
+Pan = _curry(renpy.display.motion.Pan)
+Move = _curry(renpy.display.motion.Move)
+Motion = _curry(renpy.display.motion.Motion)
+Revolve = _curry(renpy.display.motion.Revolve)
+Zoom = _curry(renpy.display.motion.Zoom)
+RotoZoom = _curry(renpy.display.motion.RotoZoom)
+FactorZoom = _curry(renpy.display.motion.FactorZoom)
+SizeZoom = _curry(renpy.display.motion.SizeZoom)
+Fade = _curry(renpy.display.transition.Fade)
+Dissolve = _curry(renpy.display.transition.Dissolve)
+ImageDissolve = _curry(renpy.display.transition.ImageDissolve)
+AlphaDissolve = _curry(renpy.display.transition.AlphaDissolve)
+CropMove = _curry(renpy.display.transition.CropMove)
+PushMove = _curry(renpy.display.transition.PushMove)
+Pixellate = _curry(renpy.display.transition.Pixellate)
 
-MultipleTransition = renpy.curry.curry(renpy.display.transition.MultipleTransition)
-ComposeTransition = renpy.curry.curry(renpy.display.transition.ComposeTransition)
-Pause = renpy.curry.curry(renpy.display.transition.NoTransition)
-SubTransition = renpy.curry.curry(renpy.display.transition.SubTransition)
+OldMoveTransition = _curry(renpy.display.movetransition.OldMoveTransition)
+MoveTransition = _curry(renpy.display.movetransition.MoveTransition)
+MoveFactory = _curry(renpy.display.movetransition.MoveFactory)
+MoveIn = _curry(renpy.display.movetransition.MoveIn)
+MoveOut = _curry(renpy.display.movetransition.MoveOut)
+ZoomInOut = _curry(renpy.display.movetransition.ZoomInOut)
+RevolveInOut = _curry(renpy.display.movetransition.RevolveInOut)
+
+MultipleTransition = _curry(renpy.display.transition.MultipleTransition)
+ComposeTransition = _curry(renpy.display.transition.ComposeTransition)
+Pause = _curry(renpy.display.transition.NoTransition)
+SubTransition = _curry(renpy.display.transition.SubTransition)
+
+del _curry
 
 # Misc.
 ADVSpeaker = ADVCharacter = renpy.character.ADVCharacter
@@ -479,13 +473,13 @@ import os
 
 
 def public_api():
-    ui
-    im
-    object
-    range
-    sorted
-    os
-    sys
+    _ = ui
+    _ = im
+    _ = object
+    _ = range
+    _ = sorted
+    _ = os
+    _ = sys
 
 
 del public_api

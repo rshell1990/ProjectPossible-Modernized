@@ -1,313 +1,414 @@
-﻿# Modernized Load / Save file picker for Ren'Py 7 / 8+
-# Note: Standard modern Ren'Py templates define `screen save()` and `screen load()`
-# in `screens.rpy`. Rename or merge carefully if your project uses a standard template.
-
-define config.load_save_ground = {}
-define config.load_save_idle = {}
-define config.load_save_hover = {}
-define config.load_save_selected_idle = {}
-define config.load_save_selected_hover = {}
-define config.load_save_hotspots = {}
-
-define config.disable_thumbnails = False
-define config.load_save_empty_thumbnail = None
-define config.time_format = "%b %d, %H:%M"
-define config.file_entry_format = "%(time)s\n%(save_name)s"
-define _load_prompt = True
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init python:
-    import time
 
-    class _LoadSaveState(object):
-        def __init__(self):
-            self.file_picker_page = None
-            self.initialized = False
-            self.per_page = 0
-            self.pages = 0
-            self.has_autosave = False
-            self.has_quicksave = False
+    layout.provides('load_save')
+    renpy.load_module("_layout/imagemap_common")
 
-    _ls_state = _LoadSaveState()
+    # The ground image.
+    config.load_save_ground = { }
 
-    def _ls_resolve_variant(val, variant):
-        if isinstance(val, dict):
-            return val.get(variant, val.get(None))
-        return val
+    # The idle image.
+    config.load_save_idle = { }
 
-    def _ls_process_screenshot(s):
-        return s
+    # The hover image.
+    config.load_save_hover = { }
 
-    def _ls_init():
-        hotspot_names = set()
-        raw_hotspots = config.load_save_hotspots
+    # The selected idle image.
+    config.load_save_selected_idle = { }
 
-        if isinstance(raw_hotspots, dict):
-            for entries in raw_hotspots.values():
-                for (_x1, _y1, _x2, _y2, name) in entries:
-                    hotspot_names.add(name)
-        elif raw_hotspots:
-            for (_x1, _y1, _x2, _y2, name) in raw_hotspots:
-                hotspot_names.add(name)
+    # The selected hover image.
+    config.load_save_selected_hover = { }
 
-        _ls_state.has_autosave = "page_auto" in hotspot_names
-        _ls_state.has_quicksave = "page_quick" in hotspot_names
+    # The hotspots. Each hotspot is defined by a tuple giving:
+    # - The x-coordinate of the left side.
+    # - The y-coordinate of the top side.
+    # - The x-coordinate of the right side.
+    # - The y-coordinate of the bottoms side.
+    # - The name of the button or slider this is equivalent to.
+    config.load_save_hotspots = { }
 
-        per_page = 0
-        while ("slot_%d" % per_page) in hotspot_names:
-            per_page += 1
-        _ls_state.per_page = per_page
+    # Define styles
+    style.file_picker_text = Style(style.large_button_text, help="text inside a file picker entry")
+    style.file_picker_empty_slot = Style(style.file_picker_text, help="text inside an empty file picker entry slot")
+    style.file_picker_text_window = Style(style.default, help="a window containing the file picker text.")
+    style.file_picker_ss_window = Style(style.default, help="a window containing the screenshot.")
 
-        pages = 1
-        while ("page_%d" % pages) in hotspot_names:
-            pages += 1
-        _ls_state.pages = max(0, pages - 1)
-        _ls_state.initialized = True
+    # Should we disable thumbnails?
+    config.disable_thumbnails = False
 
-    def _ls_page_files(page):
-        per_page = _ls_state.per_page
-        entries = []
+    # The default thumbnail to use when no file exists.
+    config.load_save_empty_thumbnail = None
 
-        if _ls_state.has_autosave:
+    # How we format time in a file entry.
+    config.time_format = "%b %d, %H:%M"
+
+    # How we format a file entry.
+    config.file_entry_format = "%(time)s\n%(save_name)s"
+
+    # True if we should prompt before loading a game.
+    _load_prompt = True
+
+    # This is used to store scratch data that's used by the
+    # library, but shouldn't be saved out as part of the savegame.
+    __scratch = object()
+    __scratch.file_picker_page = None
+    __scratch.initialized = False
+    __scratch.per_page = 0
+    __scratch.pages = 0
+    __scratch.has_autosave = False
+    __scratch.has_quicksave = False
+
+    def _build_savefile_slot(ime, index, name, extra_info, screenshot, mtime, newest, clicked):
+
+        import time
+
+        pos = ime.button(
+            "slot_%d" % index, clicked, newest,
+            keymap={ "save_delete" : Return(("unlink", name)) })
+
+        if pos is None:
+            return None
+
+        x1, y1, x2, y2 = pos
+
+        s = name + ". " + config.file_entry_format % dict(
+            time=time.strftime(config.time_format,
+                            time.localtime(mtime)),
+            save_name=extra_info)
+
+        return {
+            "saved" : True,
+            "index" : index,
+            "x1" : x1,
+            "y1" : y1,
+            "w" : x2 - x1,
+            "h" : y2 - y1,
+            "screenshot" : screenshot,
+            "text" : s,
+            }
+
+    def _build_new_slot(ime, index, name, clicked):
+
+        pos = ime.button("slot_%d" % index, clicked, False)
+
+        if pos is None:
+            return None
+
+        x1, y1, x2, y2 = pos
+
+        return {
+            "saved" : False,
+            "index" : index,
+            "x1" : x1,
+            "y1" : y1,
+            "w" : x2 - x1,
+            "h" : y2 - y1,
+            "name" : name,
+            }
+
+
+    # This function is given a page, and should map it to the names
+    # of the files on that page.
+    def _file_picker_page_files(page):
+
+        per_page = __scratch.per_page
+        rv = [ ]
+
+        if __scratch.has_autosave:
             if page == 0:
                 for i in range(1, per_page + 1):
-                    entries.append(("auto-" + str(i), _("a") + str(i), True))
-                return entries
-            page -= 1
+                    rv.append(("auto-" + str(i), _(u"a") + str(i), True))
 
-        if _ls_state.has_quicksave:
+                return rv
+            else:
+                page -= 1
+
+        if __scratch.has_quicksave:
             if page == 0:
                 for i in range(1, per_page + 1):
-                    entries.append(("quick-" + str(i), _("q") + str(i), True))
-                return entries
-            page -= 1
+                    rv.append(("quick-" + str(i), _(u"q") + str(i), True))
 
-        start = per_page * page + 1
-        for i in range(start, start + per_page):
-            entries.append((str(i), str(i), False))
+                return rv
+            else:
+                page -= 1
 
-        return entries
+        for i in range(per_page * page + 1, per_page * page + 1 + per_page):
+            rv.append(("%d" % i, "%d" % i, False))
 
-    def _ls_file_page(filename):
-        per_page = _ls_state.per_page
-        if per_page <= 0:
-            return 0
+        return rv
+
+    # Given a filename, returns the page that filename is on.
+    def _file_picker_file_page(filename):
+
+        per_page = __scratch.per_page
 
         base = 0
-        if _ls_state.has_autosave:
+
+        if __scratch.has_autosave:
             if filename.startswith("auto-"):
                 return base
-            base += 1
+            else:
+                base += 1
 
-        if _ls_state.has_quicksave:
+        if __scratch.has_quicksave:
             if filename.startswith("quick-"):
                 return base
-            base += 1
+            else:
+                base += 1
 
         try:
-            return base + ((int(filename) - 1) // per_page)
-        except Exception:
+            return base + int((int(filename) - 1) / per_page)
+        except:
             return base
 
-    def _ls_pages():
-        pages = []
+    # Processes a screenshot.
+    def _file_picker_process_screenshot(s):
+        return s
+
+    # Initialize the scratch information.
+    def _file_picker_init():
+
+        hotspots = set()
+
+        if isinstance(config.load_save_hotspots, dict):
+            for d in config.load_save_hotspots.values():
+                for (x1, y1, x2, y2, name) in d:
+                    hotspots.add(name)
+        else:
+            for (x1, y1, x2, y2, name) in config.load_save_hotspots:
+                hotspots.add(name)
+
+        __scratch.has_autosave = ("page_auto" in hotspots)
+        __scratch.has_quicksave = ("page_quick" in hotspots)
+
+        __scratch.per_page = 0
+
+        while ("slot_%d" % __scratch.per_page) in hotspots:
+            __scratch.per_page += 1
+
+        __scratch.pages = 1
+
+        while ("page_%d" % __scratch.pages) in hotspots:
+            __scratch.pages += 1
+
+        __scratch.pages -= 1
+
+    def _file_picker_pages():
+
+        rv = [ ]
+
         if config.has_autosave:
-            pages.append("page_auto")
+            rv.append("page_auto")
+
         if config.has_quicksave:
-            pages.append("page_quick")
-        for i in range(1, _ls_state.pages + 1):
-            pages.append("page_%d" % i)
-        return pages
+            rv.append("page_quick")
 
-    def _ls_format_entry(slot_name, extra_info, mtime):
-        formatted_time = time.strftime(config.time_format, time.localtime(mtime))
-        body = config.file_entry_format % {
-            "time": formatted_time,
-            "save_name": extra_info,
-        }
-        return "%s. %s" % (slot_name, body)
+        for i in range(1, __scratch.pages + 1):
+            rv.append("page_%d" % i)
 
-    def _ls_collect_saves():
-        saved_games = renpy.list_saved_games(regexp=r"(auto-|quick-)?[0-9]+")
-        newest_fn = None
-        newest_mtime = None
-        save_info = {}
+        return rv
 
-        for fn, extra_info, screenshot, mtime in saved_games:
-            thumb = _ls_process_screenshot(screenshot)
-            save_info[fn] = (extra_info, thumb, mtime)
-            if not fn.startswith("auto-") and (newest_mtime is None or mtime > newest_mtime):
-                newest_fn = fn
-                newest_mtime = mtime
 
-        return save_info, newest_fn
+    # This displays a file picker that can chose a save file from
+    # the list of save files.
+    def _file_picker(screen, save):
 
-screen file_picker_screen(mode="load"):
-    tag menu
+        if not __scratch.initialized:
+            __scratch.initialized = True
+            _file_picker_init()
 
-    default save_mode = (mode == "save")
-    default page_index = _ls_state.file_picker_page
+        # The number of slots in a page.
+        file_page_length = __scratch.per_page
 
-    $ ground_img = _ls_resolve_variant(config.load_save_ground, mode)
-    $ idle_img = _ls_resolve_variant(config.load_save_idle, mode) or ground_img
-    $ hover_img = _ls_resolve_variant(config.load_save_hover, mode) or idle_img
-    $ sel_idle_img = _ls_resolve_variant(config.load_save_selected_idle, mode) or idle_img
-    $ sel_hover_img = _ls_resolve_variant(config.load_save_selected_hover, mode) or hover_img
+        update = True
 
-    $ hotspot_list = list(_ls_resolve_variant(config.load_save_hotspots, mode) or ())
-    $ hotspot_map = {name: (x1, y1, x2 - x1, y2 - y1) for x1, y1, x2, y2, name in hotspot_list}
+        while True:
 
-    $ save_info, newest_fn = _ls_collect_saves()
+            if update:
 
-    if page_index is None:
-        $ page_index = _ls_file_page(newest_fn) if newest_fn else _ls_file_page("1")
-    if page_index < 0:
-        $ page_index = 0
+                update = False
 
-    $ _ls_state.file_picker_page = page_index
-    $ page_files = _ls_page_files(page_index)
-    $ nav_pages = _ls_pages()
+                saved_games = renpy.list_saved_games(regexp=r'(auto-|quick-)?[0-9]+')
 
-    use game_menu_navigation(current_screen=mode)
+                newest = None
+                newest_mtime = None
+                save_info = { }
 
-    imagemap:
-        style "imagemap"
-        ground ground_img
-        idle idle_img
-        hover hover_img
-        selected_idle sel_idle_img
-        selected_hover sel_hover_img
+                for fn, extra_info, screenshot, mtime in saved_games:
+                    screenshot = _file_picker_process_screenshot(screenshot)
+                    save_info[fn] = (extra_info, screenshot, mtime)
 
-        # Previous page button
-        if "previous" in hotspot_map:
-            $ px, py, pw, ph = hotspot_map["previous"]
-            hotspot:
-                style "imagemap_button"
-                area (px, py, pw, ph)
-                sensitive (page_index > 0)
-                action Return(("fppdelta", -1))
+                    if not fn.startswith("auto-") and mtime > newest_mtime:
+                        newest = fn
+                        newest_mtime = mtime
 
-        # Page selector buttons (page_auto, page_quick, page_1, ...)
-        for idx, page_name in enumerate(nav_pages):
-            if page_name in hotspot_map:
-                $ qx, qy, qw, qh = hotspot_map[page_name]
-                hotspot:
-                    style "imagemap_button"
-                    area (qx, qy, qw, qh)
-                    selected (page_index == idx)
-                    action Return(("fppset", idx))
+                # The index of the first entry in the page.
+                fpp = __scratch.file_picker_page
 
-        # Next page button
-        if "next" in hotspot_map:
-            $ nx, ny, nw, nh = hotspot_map["next"]
-            hotspot:
-                style "imagemap_button"
-                area (nx, ny, nw, nh)
-                action Return(("fppdelta", 1))
+                if fpp is None:
 
-        # Save / load slots
-        for slot_idx, (filename, slot_label, is_readonly) in enumerate(page_files):
-            $ slot_key = "slot_%d" % slot_idx
-            if slot_key in hotspot_map:
-                $ sx, sy, sw, sh = hotspot_map[slot_key]
-                $ has_file = filename in save_info
-                $ can_click = (not is_readonly) if save_mode else has_file
-                $ is_newest = (has_file and newest_fn == filename)
+                    if newest:
+                        fpp = _file_picker_file_page(newest)
+                    else:
+                        fpp = _file_picker_file_page("1")
 
-                hotspot:
-                    style "imagemap_button"
-                    area (sx, sy, sw, sh)
-                    selected is_newest
-                    sensitive can_click
-                    action (Return(("return", filename)) if can_click else NullAction())
-                    if has_file and not is_readonly:
-                        key "save_delete" action Return(("unlink", filename))
 
-                fixed:
-                    pos (sx, sy)
-                    xysize (sw, sh)
+            if fpp < 0:
+                fpp = 0
 
-                    if not config.disable_thumbnails:
-                        if has_file:
-                            $ _extra, thumb_img, _mtime = save_info[filename]
-                            window:
-                                style style.file_picker_ss_window[slot_idx]
-                                add thumb_img
-                        elif config.load_save_empty_thumbnail:
-                            window:
-                                style style.file_picker_ss_window[slot_idx]
-                                add config.load_save_empty_thumbnail
+            __scratch.file_picker_page = fpp
 
-                    window:
-                        style style.file_picker_text_window[slot_idx]
-                        if has_file:
-                            $ extra_info, _thumb, mtime = save_info[filename]
-                            text _ls_format_entry(slot_label, extra_info, mtime):
-                                style style.file_picker_text[slot_idx]
-                        else:
-                            text (slot_label + ". " + _("Empty Slot.") + "\n"):
-                                style style.file_picker_empty_slot[slot_idx]
+            ime = _ImageMapper(
+                screen,
+                config.load_save_ground,
+                config.load_save_idle,
+                config.load_save_hover,
+                config.load_save_selected_idle,
+                config.load_save_selected_hover,
+                config.load_save_hotspots,
+                variant=screen)
+
+
+            def tb(enabled, label, clicked, selected):
+
+                if not enabled:
+                    return
+
+                ime.button(label, clicked, selected)
+
+            # Previous
+            tb(fpp > 0, 'previous', Return(("fppdelta", -1)), selected=False)
+
+            # Quick Access
+            for i, name in enumerate(_file_picker_pages()):
+                tb(True, name, Return(("fppset", i)), fpp == i)
+
+            # Next
+            tb(True, 'next', Return(("fppdelta", +1)), False)
+
+            slots = [ ]
+
+            for i, (filename, name, ro) in enumerate(_file_picker_page_files(fpp)):
+                clicked = Return(("return", filename))
+
+                if filename not in save_info:
+                    if (not save) or ro:
+                        clicked = None
+
+                    slot = _build_new_slot(ime, i, name, clicked)
+                else:
+                    if save and ro:
+                        clicked = None
+
+                    extra_info, screenshot, mtime = save_info[filename]
+                    slot = _build_savefile_slot(
+                        ime,
+                        i,
+                        name,
+                        extra_info,
+                        screenshot,
+                        mtime,
+                        newest == filename,
+                        clicked)
+
+                if slot is not None:
+                    slots.append(slot)
+
+            ime.close()
+
+            use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
+            if ime.show_default_nav and not use_sl2_nav:
+                layout.navigation(screen)
+
+            renpy.show_screen(
+                "_imagemap_load_save",
+                ime=ime,
+                slots=slots,
+                use_sl2_nav=use_sl2_nav,
+                _transient=True)
+
+            result = ui.interact(mouse="gamemenu")
+            type, value = result
+
+            if type == "unlink":
+                if layout.yesno_prompt(screen, layout.DELETE_SAVE):
+                    renpy.unlink_save(value)
+                    update = True
+
+            if type == "return":
+                return value
+
+            if type == "fppdelta":
+                fpp += value
+
+            if type == "fppset":
+                fpp = value
+
+screen _imagemap_load_save(ime, slots, use_sl2_nav=True):
+
+    use _imagemap_contents(ime, use_sl2_nav=use_sl2_nav)
+
+    for slot in slots:
+        $ idx = slot["index"]
+
+        fixed xpos slot["x1"] ypos slot["y1"] xmaximum slot["w"] ymaximum slot["h"]:
+            if slot["saved"]:
+                if not config.disable_thumbnails:
+                    window style style.file_picker_ss_window[idx]:
+                        add slot["screenshot"]
+
+                window style style.file_picker_text_window[idx]:
+                    text slot["text"] style style.file_picker_text[idx]
+            else:
+                if not config.disable_thumbnails and config.load_save_empty_thumbnail:
+                    window style style.file_picker_ss_window[idx]:
+                        add config.load_save_empty_thumbnail
+
+                window style style.file_picker_text_window[idx]:
+                    text (slot["name"] + ". " + _(u"Empty Slot.") + "\n") style style.file_picker_empty_slot[idx]
+
 
 label save_screen:
-    python:
-        if not _ls_state.initialized:
-            _ls_init()
 
+    python hide:
         while True:
-            result = renpy.call_screen("file_picker_screen", mode="save")
-            if not isinstance(result, tuple):
-                return
+            fn = _file_picker("save", True)
 
-            action_type, value = result
+            if renpy.can_load(fn):
+                if not layout.yesno_prompt("save", layout.OVERWRITE_SAVE):
+                    continue
 
-            if action_type == "unlink":
-                if renpy.call_screen("yesno_prompt", message=layout.DELETE_SAVE):
-                    renpy.unlink_save(value)
-                continue
+            renpy.save(fn, extra_info=store.save_name)
 
-            if action_type == "fppdelta":
-                _ls_state.file_picker_page = max(0, (_ls_state.file_picker_page or 0) + value)
-                continue
-
-            if action_type == "fppset":
-                _ls_state.file_picker_page = value
-                continue
-
-            if action_type == "return":
-                fn = value
-                if renpy.can_load(fn):
-                    if not renpy.call_screen("yesno_prompt", message=layout.OVERWRITE_SAVE):
-                        continue
-                renpy.save(fn, extra_info=store.save_name)
-                return
 
 label load_screen:
-    python:
-        if not _ls_state.initialized:
-            _ls_init()
 
+    python hide:
         while True:
-            result = renpy.call_screen("file_picker_screen", mode="load")
-            if not isinstance(result, tuple):
-                return
+            fn = _file_picker("load", False)
 
-            action_type, value = result
+            if _load_prompt:
+                if not layout.yesno_prompt("load",  layout.LOADING):
+                    continue
 
-            if action_type == "unlink":
-                if renpy.call_screen("yesno_prompt", message=layout.DELETE_SAVE):
-                    renpy.unlink_save(value)
-                continue
-
-            if action_type == "fppdelta":
-                _ls_state.file_picker_page = max(0, (_ls_state.file_picker_page or 0) + value)
-                continue
-
-            if action_type == "fppset":
-                _ls_state.file_picker_page = value
-                continue
-
-            if action_type == "return":
-                fn = value
-                if _load_prompt:
-                    if not renpy.call_screen("yesno_prompt", message=layout.LOADING):
-                        continue
-                renpy.load(fn)
+            renpy.load(fn)

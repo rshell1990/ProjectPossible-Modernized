@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file handles imagemap caching.
 
@@ -103,6 +123,7 @@ class ImageMapCache(renpy.object.Object):
         if rv is not None:
             return rv
 
+        assert self.md5 is not None
         self.md5.update(repr(d.identity).encode("utf-8"))
         self.md5.update(repr(rect).encode("utf-8"))
 
@@ -118,7 +139,7 @@ class ImageMapCache(renpy.object.Object):
     def layout(self):
         self.areas.sort()
         self.areas.reverse()
-        self.cache_rect = [ None ] * len(self.areas)
+        self.cache_rect = [ None ] * len(self.areas)  # type: list
 
         # The width of the cache image.
         width = self.areas[0][0]
@@ -181,6 +202,7 @@ class ImageMapCache(renpy.object.Object):
         if not self.areas:
             return
 
+        assert self.md5 is not None
         filename = "im-%s-%x.png" % (self.md5.hexdigest(), self.image_file_hash())
 
         if renpy.game.preferences.language:

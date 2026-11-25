@@ -1,4 +1,4 @@
-﻿# Copyright 2017 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2017 Tom Rothamel <pytom@bishoujo.us>
 
 # Permission to use, copy, modify, and/or distribute this software for
 # non-commerical purposes is hereby granted, provided that the above
@@ -139,7 +139,7 @@ init python in director:
     # Initialize the state object if it doesn't exist.
     if state is None:
 
-        state = renpy.NoRollback()
+        state = NoRollback()
 
         # Is the directory currently active.
         state.active = False

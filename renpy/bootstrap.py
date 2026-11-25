@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
@@ -15,79 +35,71 @@ old_stderr = sys.stderr
 
 if PY2:
     sys_executable = sys.executable
-    reload(sys) # type: ignore[reportUndefinedVariable]
-    sys.setdefaultencoding("utf-8") # type: ignore[attr-defined] # @UndefinedVariable
+    reload(sys)
+    sys.setdefaultencoding("utf-8") # @UndefinedVariable
     sys.executable = sys_executable
 
 sys.stdout = old_stdout
 sys.stderr = old_stderr
 
 import renpy.error
-import renpy.arguments
-import renpy.game
-import renpy.config
-import renpy.loader
-import renpy.main
-import renpy.display.tts
-import renpy.display.im
-import renpy.audio.audio
 
 # Extra things used for distribution.
 
 
 def extra_imports():
-    import datetime; datetime
-    import encodings.ascii; encodings.ascii
-    import encodings.utf_8; encodings.utf_8
-    import encodings.zlib_codec; encodings.zlib_codec
-    import encodings.unicode_escape; encodings.unicode_escape
-    import encodings.string_escape; encodings.string_escape # type: ignore[reportMissingImports]
-    import encodings.raw_unicode_escape; encodings.raw_unicode_escape
-    import encodings.mbcs; encodings.mbcs
-    import encodings.utf_16; encodings.utf_16
-    import encodings.utf_16_be; encodings.utf_16_be
-    import encodings.utf_16_le; encodings.utf_16_le
-    import encodings.utf_32_be; encodings.utf_32_be
-    import encodings.latin_1; encodings.latin_1
-    import encodings.hex_codec; encodings.hex_codec
-    import encodings.base64_codec; encodings.base64_codec
-    import encodings.idna; encodings.idna
-    import math; math
-    import glob; glob
-    import pickle; pickle
-    import difflib; difflib
-    import shutil; shutil
-    import tarfile; tarfile
-    import bz2; bz2 # @UnresolvedImport
-    import webbrowser; webbrowser
-    import posixpath; posixpath
-    import ctypes; ctypes
-    import ctypes.wintypes; ctypes.wintypes
-    import argparse; argparse
-    import compiler; compiler # type: ignore[reportMissingImports]
-    import textwrap; textwrap
-    import copy; copy
-    import urllib; urllib
-    import urllib2; urllib2 # type: ignore[reportMissingImports]
-    import codecs; codecs
-    import rsa; rsa # type: ignore[reportMissingImports]
-    import decimal; decimal
-    import plistlib; plistlib
-    import _renpysteam; _renpysteam # type: ignore[reportMissingImports]
-    import compileall; compileall
-    import cProfile; cProfile
-    import pstats; pstats
-    import _ssl; _ssl
-    import SimpleHTTPServer; SimpleHTTPServer # type: ignore[reportMissingImports]
-    import wave; wave
-    import sunau; sunau # type: ignore[reportMissingImports]
+    import datetime; _ = datetime
+    import encodings.ascii; _ = encodings.ascii
+    import encodings.utf_8; _ = encodings.utf_8
+    import encodings.zlib_codec; _ = encodings.zlib_codec
+    import encodings.unicode_escape; _ = encodings.unicode_escape
+    import encodings.string_escape; _ = encodings.string_escape
+    import encodings.raw_unicode_escape; _ = encodings.raw_unicode_escape
+    import encodings.mbcs; _ = encodings.mbcs
+    import encodings.utf_16; _ = encodings.utf_16
+    import encodings.utf_16_be; _ = encodings.utf_16_be
+    import encodings.utf_16_le; _ = encodings.utf_16_le
+    import encodings.utf_32_be; _ = encodings.utf_32_be
+    import encodings.latin_1; _ = encodings.latin_1
+    import encodings.hex_codec; _ = encodings.hex_codec
+    import encodings.base64_codec; _ = encodings.base64_codec
+    import encodings.idna; _ = encodings.idna
+    import math; _ = math
+    import glob; _ = glob
+    import pickle; _ = pickle
+    import difflib; _ = difflib
+    import shutil; _ = shutil
+    import tarfile; _ = tarfile
+    import bz2; _ = bz2 # @UnresolvedImport
+    import webbrowser; _ = webbrowser
+    import posixpath; _ = posixpath
+    import ctypes; _ = ctypes
+    import ctypes.wintypes; _ = ctypes.wintypes
+    import argparse; _ = argparse
+    import compiler; _ = compiler
+    import textwrap; _ = textwrap
+    import copy; _ = copy
+    import urllib; _ = urllib
+    import urllib2; _ = urllib2
+    import codecs; _ = codecs
+    import rsa; _ = rsa
+    import decimal; _ = decimal
+    import plistlib; _ = plistlib
+    import _renpysteam; _ = _renpysteam
+    import compileall; _ = compileall
+    import cProfile; _ = cProfile
+    import pstats; _ = pstats
+    import _ssl; _ = _ssl
+    import SimpleHTTPServer; _ = SimpleHTTPServer
+    import wave; _ = wave
+    import sunau; _ = sunau
 
     # Used by requests.
-    import cgi; cgi # type: ignore[reportMissingImports]
-    import Cookie; Cookie # type: ignore[reportMissingImports]
-    import hmac; hmac
-    import Queue; Queue # type: ignore[reportMissingImports]
-    import uuid; uuid
+    import cgi; _ = cgi
+    import Cookie; _ = Cookie
+    import hmac; _ = hmac
+    import Queue; _ = Queue
+    import uuid; _ = uuid
 
 
 class NullFile(io.IOBase):
@@ -121,7 +133,8 @@ trace_local = None
 
 def trace_function(frame, event, arg):
     fn = os.path.basename(frame.f_code.co_filename)
-    trace_file.write("{} {} {} {}\n".format(fn, frame.f_lineno, frame.f_code.co_name, event))
+    if trace_file is not None:
+        trace_file.write("{} {} {} {}\n".format(fn, frame.f_lineno, frame.f_code.co_name, event))
     return trace_local
 
 
@@ -255,7 +268,7 @@ def bootstrap(renpy_base):
     # directory, we won't get the libraries in the PATH, and hence pygame
     # won't import.)
     try:
-        import pygame_sdl2 # type: ignore[reportMissingImports]
+        import pygame_sdl2
         if not ("pygame" in sys.modules):
             pygame_sdl2.import_as_pygame()
     except:
@@ -277,7 +290,7 @@ You may be using a system install of python. Please run {0}.sh,
 
     # Ditto for the Ren'Py module.
     try:
-        import _renpy; _renpy # type: ignore[reportMissingImports]
+        import _renpy; _ = _renpy
     except:
         print("""\
 Could not import _renpy. Please ensure that this program has been built
@@ -306,7 +319,7 @@ You may be using a system install of python. Please run {0}.sh,
                 renpy.config.renpy_base = renpy_base
                 renpy.config.basedir = basedir
                 renpy.config.gamedir = gamedir
-                setattr(renpy.config, "args", [])
+                renpy.config.args = [ ]
 
                 if renpy.android:
                     renpy.config.logdir = os.environ['ANDROID_PUBLIC']
@@ -334,9 +347,8 @@ You may be using a system install of python. Please run {0}.sh,
                 exit_status = e.status
 
                 if e.relaunch:
-                    renpy_executable = getattr(sys, "renpy_executable", None)
-                    if renpy_executable:
-                        subprocess.Popen([renpy_executable] + sys.argv[1:])
+                    if hasattr(sys, "renpy_executable"):
+                        subprocess.Popen([sys.renpy_executable] + sys.argv[1:])
                     else:
                         subprocess.Popen([sys.executable, "-EO"] + sys.argv)
 

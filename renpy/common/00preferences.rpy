@@ -1,3 +1,23 @@
+﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1500 python:
 
@@ -116,13 +136,13 @@ init -1500 python:
         * Preference("automatic move", "disable") - Disable automatic mouse mode.
         * Preference("automatic move", "toggle") - Toggle automatic mouse mode.
 
-        * Preference("wait for voice", "enable") - Wait for the currently playing voice to complete before auto-forwarding.
+        * Preference("wait for voice", "enable")  - Wait for the currently playing voice to complete before auto-forwarding.
         * Preference("wait for voice", "disable") - Do not wait for the currently playing voice to complete before auto-forwarding.
-        * Preference("wait for voice", "toggle") - Toggle wait voice.
+        * Preference("wait for voice", "toggle")  - Toggle wait voice.
 
-        * Preference("voice sustain", "enable") - Sustain voice past the current interaction.
+        * Preference("voice sustain", "enable")  - Sustain voice past the current interaction.
         * Preference("voice sustain", "disable") - Don't sustain voice past the current interaction.
-        * Preference("voice sustain", "toggle") - Toggle voice sustain.
+        * Preference("voice sustain", "toggle")  - Toggle voice sustain.
 
         * Preference("music mute", "enable") - Mute the music mixer.
         * Preference("music mute", "disable") - Un-mute the music mixer.
@@ -192,9 +212,12 @@ init -1500 python:
         * Preference("system cursor", "disable") - Use cursor defined in config.mouse.
         * Preference("system cursor", "toggle") - Toggle system cursor.
 
+
         * Preference("high contrast text", "enable") - Enables white text on a black background.
         * Preference("high contrast text", "disable") - Disables high contrast text.
         * Preference("high contrast text", "toggle") - Toggles high contrast text.
+
+
 
         Values that can be used with bars are:
 
@@ -329,6 +352,7 @@ init -1500 python:
                     return SetField(_preferences, "afm_enable", False)
                 elif value == "toggle":
                     return ToggleField(_preferences, "afm_enable"), _("Auto forward")
+
 
             elif name == _("auto-forward after click"):
 
@@ -475,6 +499,7 @@ init -1500 python:
                 elif value == "toggle":
                     return [ ToggleField(_preferences, "high_contrast"), _DisplayReset() ]
 
+
             mixer_names = {
                 "music" : "music",
                 "sound" : "sfx",
@@ -523,7 +548,7 @@ init -1500 python:
                     return ToggleMute(mixer), alt
 
             else:
-                raise Exception("Preference(%r, %r) is unknown." % (name, value))
+                raise Exception("Preference(%r, %r) is unknown." % (name , value))
 
         rv = get()
 
@@ -562,6 +587,7 @@ init -1500 python:
 
     import os
     config.self_voicing_stops_afm = not ("RENPY_SELF_VOICING_AFM" in os.environ)
+
 
 init -1500:
 

@@ -1,15 +1,29 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
-from typing import Any
 
 import os
 import re
-import renpy.config
-import renpy.game as game
-game: Any
-import renpy.parser
-import renpy.minstore
 
 import renpy.translation
 
@@ -73,15 +87,15 @@ class String(object):
         self.comment = comment
 
         # The elided filename, and if this is in the common directory.
-        from renpy.translation import generation
-
-        self.elided, self.common = generation.shorten_filename(self.filename)
+        self.elided, self.common = renpy.translation.generation.shorten_filename(self.filename)
 
         if self.common:
             pl = COMMON_PRIORITIES
         else:
             pl = REGULAR_PRIORITIES
 
+        priority = 0
+        launcher_file = ""
         for prefix, priority, launcher_file in pl:
             if self.elided.startswith(prefix):
                 break
@@ -106,7 +120,7 @@ def scan_strings(filename):
 
     rv = [ ]
 
-    for line, s in game.script.translator.additional_strings[filename]: # @UndefinedVariable
+    for line, s in renpy.game.script.translator.additional_strings[filename]: # @UndefinedVariable
         rv.append(String(filename, line, s, False))
 
     for _filename, lineno, text in renpy.parser.list_logical_lines(filename):
@@ -177,9 +191,7 @@ def scan(min_priority=0, max_priority=299, common_only=False):
     of String objects.
     """
 
-    from renpy.translation import generation
-
-    filenames = generation.translate_list_files()
+    filenames = renpy.translation.generation.translate_list_files()
 
     strings = [ ]
 

@@ -1,7 +1,29 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This module handles the logging of messages to a file.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
+from renpy.compat import PY2, basestring, str, pystr, range, bord, bchr, tobytes, chr
+
 import os.path
 import traceback
 import platform
@@ -13,7 +35,6 @@ import io
 import encodings.latin_1 # @UnusedImport
 
 import renpy.config
-import renpy.util
 
 real_stdout = sys.stdout
 real_stderr = sys.stderr
@@ -127,6 +148,10 @@ class LogFile(object):
 
         if self.open():
 
+            f = self.file
+            if not f or isinstance(f, bool):
+                return
+
             if not self.raw_write:
                 try:
                     s = s % args
@@ -135,14 +160,13 @@ class LogFile(object):
 
                 s += "\n"
 
-            if isinstance(s, bytes):
+            if not isinstance(s, str):
                 s = s.decode("latin-1")
 
-            if self.file is not None and self.file is not False:
-                getattr(self.file, "write")(s)
+            f.write(s)
 
-            if self.flush and self.file is not None and self.file is not False:
-                getattr(self.file, "flush")()
+            if self.flush:
+                f.flush()
 
     def exception(self):
         """
@@ -198,11 +222,6 @@ class TimeLog(list):
 
 
 class StdioRedirector(object):
-
-    real_file = real_stdout
-
-    def get_callbacks(self):
-        return [ ]
 
     def __init__(self):
         self.buffer = ''

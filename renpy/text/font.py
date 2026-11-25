@@ -1,23 +1,37 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
-import pygame_sdl2 as pygame # type: ignore[reportMissingImports]
-from typing import TYPE_CHECKING, Any
+import pygame_sdl2 as pygame
 
 try:
     import xml.etree.ElementTree as etree
 except:
-    pass
+    etree = None
 
 import renpy.display
-import renpy.config
-import renpy.loader
-import renpy.display.im
-import renpy.display.pgrender
-import renpy.display.scale
-import renpy.text.ftfont as ftfont # type: ignore[reportMissingImports]
-import renpy.text.textsupport as textsupport # type: ignore[reportMissingImports]
+import renpy.text.ftfont as ftfont
+import renpy.text.textsupport as textsupport
 
 ftfont.init() # @UndefinedVariable
 
@@ -60,16 +74,6 @@ class ImageFont(object):
     # advance - The advance of each character.
     # offsets - The x and y offsets of each character.
     # chars - A map from a character to the surface containing that character.
-
-    if TYPE_CHECKING:
-        baseline: Any
-        height: Any
-        width: Any
-        advance: Any
-        kerns: Any
-        default_kern: Any
-        offsets: Any
-        chars: Any
 
     def glyphs(self, s):
 
@@ -131,8 +135,7 @@ class ImageFont(object):
             if renpy.config.recolor_sfonts:
                 if color != WHITE or black_color != BLACK:
                     new_surf = renpy.display.pgrender.surface(char_surf.get_size(), True)
-                    module: Any = getattr(renpy.display, "module")
-                    module.twomap(char_surf, new_surf, color, black_color)
+                    renpy.display.module.twomap(char_surf, new_surf, color, black_color)
 
                     char_surf = new_surf
 
@@ -258,6 +261,9 @@ class MudgeFont(ImageFont):
         surf = renpy.display.im.Image(self.filename).load(unscaled=True)
 
         # Parse the xml file.
+        if etree is None:
+            raise Exception("xml.etree.ElementTree is required to load MudgeFont.")
+
         with renpy.loader.load(self.xml) as f:
             tree = etree.fromstring(f.read())
 
@@ -864,6 +870,11 @@ class FontGroup(object):
         if self.char_map:
             s = [ ord(i) for i in s ]
             s = "".join(chr(self.char_map.get(i, i)) for i in s)
+
+        if not s:
+            return
+
+        font = None
 
         for i, c in enumerate(s):
 

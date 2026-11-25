@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains functions that can be used to display a UI on the
 # screen.  The UI isn't implemented here (rather, in
@@ -9,23 +29,10 @@
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
+import builtins
 import sys
 import renpy.display
-import renpy.display.layout
-import renpy.config
-import renpy.exports
-import renpy.game
-import renpy.object
 import renpy.text
-import renpy.easy
-import renpy.style
-import renpy.ui
-import renpy.display.behavior
-import renpy.display.focus
-import renpy.display.im
-import renpy.display.layout
-import renpy.display.motion
-import renpy.text.text
 
 from renpy.display.behavior import is_selected, is_sensitive
 
@@ -44,9 +51,11 @@ class Action(renpy.object.Object):
     alt = None
 
     def get_sensitive(self):
+        # type: () -> bool
         return True
 
     def get_selected(self):
+        # type: () -> bool
         return False
 
     def get_tooltip(self):
@@ -59,6 +68,7 @@ class Action(renpy.object.Object):
         return
 
     def __call__(self):
+        # type: () -> object
         raise Exception("Not implemented")
 
 
@@ -217,7 +227,7 @@ class ChildOrFixed(Addable):
 
 
 # A stack of things we can add to.
-stack = [ ]
+stack = [ ]  # type: list[Addable]
 
 # A stack of open ui.ats.
 at_stack = [ ]
@@ -236,7 +246,7 @@ def reset():
     global at_stack
     global imagemap_stack
 
-    stack = [ Layer('transient') ]
+    stack = [ Layer('transient') ]  # type: list[Addable]
     at_stack = [ ]
     imagemap_stack = [ ]
 
@@ -288,17 +298,9 @@ def interact(type='misc', roll_forward=None, **kwargs): # @ReservedAssignment
     if at_stack:
         raise Exception("ui.interact called with non-empty at stack.")
 
-    context = renpy.game.context()
-    if context is None:
-        raise Exception("Interaction requires an active game context.")
-
-    interface = renpy.game.interface
-    if interface is None:
-        raise Exception("Interaction requires an initialized interface.")
-
-    context.info._current_interact_type = type
-    rv = interface.interact(roll_forward=roll_forward, **kwargs)
-    context.info._last_interact_type = type
+    renpy.game.context().info._current_interact_type = type
+    rv = renpy.game.interface.interact(roll_forward=roll_forward, **kwargs)
+    renpy.game.context().info._last_interact_type = type
 
     if renpy.exports.in_fixed_rollback() and roll_forward is not None:
         return roll_forward
@@ -440,16 +442,15 @@ screen = None
 
 class Wrapper(renpy.object.Object):
 
-    def __reduce__(self):
-        if PY2:
-            return bytes(self.name)
-        else:
-            return self.name
+    def __reduce__(self):  # type: ignore[override]
+        if self.name is None:
+            raise Exception("Wrapper has no name.")
+        return pystr(self.name)
 
     def __init__(self, function, one=False, many=False, imagemap=False, replaces=False, style=None, **kwargs):
 
         # The name assigned to this wrapper. This is used to serialize us correctly.
-        self.name = None
+        self.name = None  # type: builtins.str | None
 
         # The function to call.
         self.function = function
@@ -483,8 +484,6 @@ class Wrapper(renpy.object.Object):
         at_list = kwargs.pop("at", [ ])
         if not isinstance(at_list, (list, tuple)):
             at_list = [ at_list ]
-        elif isinstance(at_list, tuple):
-            at_list = list(at_list)
 
         style_prefix = stack[-1].style_prefix
 
@@ -514,7 +513,7 @@ class Wrapper(renpy.object.Object):
             if widget_id in screen.hidden_widgets:
                 do_add = False
 
-        if old_transfers and screen is not None:
+        if old_transfers:
             old_main = screen.old_widgets.get(widget_id, None)
 
             if self.replaces and old_main is not None:
@@ -530,11 +529,11 @@ class Wrapper(renpy.object.Object):
         try:
             w = self.function(*args, **keyword)
         except TypeError as e:
-            etype, e, tb = sys.exc_info(); etype
+            _etype, exc, tb = sys.exc_info()
 
-            if tb is not None and tb.tb_next is None:
-                if e.args:
-                    e.args = (e.args[0].replace("__call__", "ui." + self.name),)
+            if tb is not None and tb.tb_next is None and exc is not None and exc.args:
+                name = self.name or ""
+                exc.args = (exc.args[0].replace("__call__", "ui." + name),)
 
             del tb # Important! Prevents memory leaks via our frame.
             raise
@@ -542,7 +541,7 @@ class Wrapper(renpy.object.Object):
         main = w._main or w
 
         # Migrate the focus.
-        if (old_main is not None) and (screen is not None) and (not screen.hiding):
+        if (old_main is not None) and (not screen.hiding):
             renpy.display.focus.replaced_by[id(old_main)] = main
 
         # Wrap the displayable based on the at_list and at_stack.
@@ -711,11 +710,7 @@ class ChoiceActionBase(Action):
         if not self.location:
             return None
 
-        persistent = renpy.game.persistent
-        if persistent is None:
-            return None
-
-        return getattr(persistent, "_chosen", None)
+        return renpy.game.persistent._chosen
 
     def get_chosen(self):
         if self.chosen is None:
@@ -945,10 +940,7 @@ def _imagebutton(idle_image=None,
             return b
 
         if auto is not None:
-            imagemap_auto_function = getattr(renpy.config, "imagemap_auto_function", None)
-            if imagemap_auto_function is None:
-                return None
-            rv = imagemap_auto_function(auto, name)
+            rv = renpy.config.imagemap_auto_function(auto, name)
             if rv is not None:
                 return rv
 
@@ -1427,7 +1419,7 @@ returns = renpy.curry.curry(_returns)
 def _jumps(label, transition=None):
 
     if isinstance(transition, basestring):
-        transition = getattr(renpy.config, transition)
+        transition = getattr(renpy.config, pystr(transition))
 
     if transition is not None:
         renpy.exports.transition(transition)

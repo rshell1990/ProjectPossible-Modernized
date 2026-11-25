@@ -1,3 +1,23 @@
+﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains a number of definitions of standard
 # locations and transitions. We've moved them into the common
@@ -352,8 +372,8 @@ init -1400:
     define hpunch = Move((15, 0), (-15, 0), .10, bounce=True, repeat=True, delay=.275)
 
     # These use the ImageDissolve to do some nifty effects.
-    define blinds = ImageDissolve(Tile("blindstile.png"), 1.0, 8)
-    define squares = ImageDissolve(Tile("squarestile.png"), 1.0, 256)
+    define blinds = ImageDissolve(im.Tile("blindstile.png"), 1.0, 8)
+    define squares = ImageDissolve(im.Tile("squarestile.png"), 1.0, 256)
 
     transform Swing(delay=1.0, vertical=False, reverse=False, background="#000", flatten=True, new_widget=None, old_widget=None):
         delay delay
@@ -418,14 +438,14 @@ init -1400:
 init -1400:
 
     # The default narrator.
-    define default_narrator = Character(None, kind=adv, what_style='say_thought')
+    define _narrator = Character(None, kind=adv, what_style='say_thought')
     define centered = Character(None, what_style="centered_text", window_style="centered_window", statement_name="say-centered")
     define vcentered = Character(None, what_style="centered_vtext", window_style="centered_window", statement_name="say-centered")
 
 
 init 1400 python:
     if not hasattr(store, 'narrator'):
-        narrator = default_narrator
+        narrator = _narrator
 
     renpy.pure('narrator')
     renpy.pure('name_only')

@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains code for initializing and managing the display
 # window.
@@ -27,10 +47,12 @@ try:
     import android # @UnresolvedImport
     android.init # Check to see if we have the right module.
 except:
-    android = None
+    android = None  # type: ignore
 
 if renpy.emscripten:
     import emscripten
+else:
+    emscripten = None  # type: ignore
 
 TIMEEVENT = pygame.event.register("TIMEEVENT")
 PERIODIC = pygame.event.register("PERIODIC")
@@ -887,7 +909,7 @@ class SceneLists(renpy.object.Object):
             for i in renpy.config.overlay_layers:
                 self.clear(i)
 
-            self.replace_transient(prefix=None)
+            self.replace_transient(prefix=None)  # type: ignore
 
             self.focused = None
 
@@ -906,7 +928,7 @@ class SceneLists(renpy.object.Object):
             self.music = None
             self.focused = None
 
-    def replace_transient(self, prefix="hide"):
+    def replace_transient(self, prefix="hide"):  # type: ignore
         """
         Replaces the contents of the transient display list with
         a copy of the master display list. This is used after a
@@ -1824,7 +1846,7 @@ class Renderer(object):
         Moves the mouse to the virtual coordinates `x` and `y`.
         """
 
-        x, y = self.untranslate_point(x, y)
+        x, y = self.untranslate_point(x, y)  # type: ignore
         pygame.mouse.set_pos([x, y])
 
     def screenshot(self, surftree):
@@ -2270,7 +2292,7 @@ class Interface(object):
         self.set_icon()
 
         if renpy.android:
-            android.wakelock(True)
+            android.wakelock(True)  # type: ignore
 
         # Block events we don't use.
         for i in pygame.event.get_standard_events():
@@ -2528,7 +2550,7 @@ class Interface(object):
         renpy.game.persistent._gl2 = renpy.config.gl2
 
         if renpy.android:
-            android.init()
+            android.init()  # type: ignore
             pygame.event.get()
 
     def draw_screen(self, root_widget, fullscreen_video, draw):
@@ -2549,7 +2571,7 @@ class Interface(object):
             renpy.display.draw.draw_screen(surftree)
 
         if renpy.emscripten:
-            emscripten.sleep(0)
+            emscripten.sleep(0)  # type: ignore
 
         now = time.time()
 
@@ -2660,7 +2682,7 @@ class Interface(object):
         try:
             renpy.display.scale.image_save_unscaled(window, filename)
             if renpy.emscripten:
-                emscripten.run_script(r'''FSDownload('%s');''' % filename)
+                emscripten.run_script(r'''FSDownload('%s');''' % filename)  # type: ignore
             return True
         except:
             if renpy.config.debug:
@@ -2709,6 +2731,9 @@ class Interface(object):
             renpy.store._history = False
 
             PPP("empty window")
+
+            old_say_attributes = None  # type: ignore
+            old_temporary_attributes = None  # type: ignore
 
             try:
 
@@ -2820,7 +2845,7 @@ class Interface(object):
         """
 
         if renpy.emscripten:
-            emscripten.sleep(0)
+            emscripten.sleep(0)  # type: ignore
 
         if self.pushed_event:
             return self.pushed_event
@@ -2844,7 +2869,7 @@ class Interface(object):
         """
 
         if renpy.emscripten:
-            emscripten.sleep(0)
+            emscripten.sleep(0)  # type: ignore
 
         if self.pushed_event:
             rv = self.pushed_event
@@ -2872,14 +2897,14 @@ class Interface(object):
 
         if renpy.emscripten:
 
-            emscripten.sleep(0)
+            emscripten.sleep(0)  # type: ignore
 
             while True:
                 ev = pygame.event.poll()
                 if ev.type != pygame.NOEVENT:
                     break
 
-                emscripten.sleep(1)
+                emscripten.sleep(1)  # type: ignore
 
         else:
             ev = pygame.event.wait()
@@ -3010,7 +3035,7 @@ class Interface(object):
         if interaction and (mouse_kind is None):
             mouse_kind = self.mouse
 
-        if cache_only and (mouse_kind not in self.cursor_cache):
+        if cache_only and (mouse_kind not in self.cursor_cache):  # type: ignore
             mouse_kind = 'default'
 
         if mouse_kind == 'default':
@@ -3124,7 +3149,7 @@ class Interface(object):
         renpy.audio.audio.pause_all()
 
         if renpy.android:
-            android.wakelock(False)
+            android.wakelock(False)  # type: ignore
 
         pygame.time.set_timer(PERIODIC, 0)
         pygame.time.set_timer(REDRAW, 0)
@@ -3154,7 +3179,7 @@ class Interface(object):
         renpy.audio.audio.unpause_all()
 
         if renpy.android:
-            android.wakelock(True)
+            android.wakelock(True)  # type: ignore
 
         # Reset the display so we get the GL context back.
         self.display_reset = True
@@ -3254,7 +3279,7 @@ class Interface(object):
         else:
             self.maximum_framerate_time = max(self.maximum_framerate_time, get_time() + t)
 
-    def interact(self, clear=True, suppress_window=False, trans_pause=False, pause=None, **kwargs):
+    def interact(self, clear=True, suppress_window=False, trans_pause=False, pause=None, **kwargs):  # type: ignore
         """
         This handles an interaction, restarting it if necessary. All of the
         keyword arguments are passed off to interact_core.
@@ -3301,11 +3326,13 @@ class Interface(object):
 
             pause_start = get_time()
 
+            rv = None  # type: ignore
+
             while repeat:
-                repeat, rv = self.interact_core(preloads=preloads, trans_pause=trans_pause, pause=pause, pause_start=pause_start, **kwargs)
+                repeat, rv = self.interact_core(preloads=preloads, trans_pause=trans_pause, pause=pause, pause_start=pause_start, **kwargs)  # type: ignore
                 self.start_interact = False
 
-            return rv
+            return rv  # type: ignore
 
         finally:
 
@@ -3449,8 +3476,8 @@ class Interface(object):
                       mouse='default',
                       preloads=[],
                       roll_forward=None,
-                      pause=False,
-                      pause_start=0,
+                      pause=False,  # type: ignore
+                      pause_start=0,  # type: ignore
                       ):
         """
         This handles one cycle of displaying an image to the user,

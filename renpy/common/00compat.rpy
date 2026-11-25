@@ -1,11 +1,23 @@
-
-default library = config
-default left = None
-default center = None
-default truecenter = None
-default right = None
-default offscreenleft = None
-default offscreenright = None
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1900 python:
 
@@ -28,18 +40,17 @@ init -1900 python:
             layout.compat()
 
         if version <= (6, 9, 1):
-            store.library = config
+            renpy.store.library = renpy.store.config
 
         if version <= (6, 9, 3):
 
             # Before 6.10, these were positions, rather than transforms.
-            global left, center, truecenter, right, offscreenleft, offscreenright
-            left = Position(xalign=0.0)
-            center = Position(xalign=0.5)
-            truecenter = Position(xalign=0.5, yalign=0.5)
-            right = Position(xalign=1.0)
-            offscreenleft = Position(xpos=0.0, xanchor=1.0)
-            offscreenright = Position(xpos=1.0, xanchor=0.0)
+            renpy.store.left = Position(xalign=0.0)
+            renpy.store.center = Position(xalign=0.5)
+            renpy.store.truecenter = Position(xalign=0.5, yalign=0.5)
+            renpy.store.right = Position(xalign=1.0)
+            renpy.store.offscreenleft = Position(xpos=0.0, xanchor=1.0)
+            renpy.store.offscreenright = Position(xpos=1.0, xanchor=0.0)
 
         if version <= (6, 10, 2):
             # Before 6.11, we used the image placement to handle

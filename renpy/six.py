@@ -37,17 +37,6 @@ PY2 = sys.version_info[0] == 2
 PY3 = sys.version_info[0] == 3
 PY34 = sys.version_info[0:2] >= (3, 4)
 
-try:
-    import builtins as _builtins
-except ImportError:
-    import __builtin__ as _builtins  # type: ignore[import-not-found]
-
-basestring = getattr(_builtins, "basestring", (str, bytes))
-long = getattr(_builtins, "long", int)
-unicode = getattr(_builtins, "unicode", str)
-unichr = getattr(_builtins, "unichr", chr)
-file = getattr(_builtins, "file", object)
-
 if PY3:
     string_types = str,
     integer_types = int,
@@ -59,7 +48,7 @@ if PY3:
 else:
     string_types = basestring,
     integer_types = (int, long)
-    class_types = (type, getattr(types, "ClassType", type))
+    class_types = (type, types.ClassType)
     text_type = unicode
     binary_type = str
 
@@ -98,9 +87,6 @@ class _LazyDescr(object):
 
     def __init__(self, name):
         self.name = name
-
-    def _resolve(self):
-        raise AttributeError("Lazy descriptor has not been resolved.")
 
     def __get__(self, obj, tp):
         result = self._resolve()
@@ -199,17 +185,6 @@ class _SixMetaPathImporter(object):
         if fullname in self.known_modules:
             return self
         return None
-
-    def find_spec(self, fullname, path=None, target=None):
-        finder = self.find_module(fullname, path)
-        if finder is None:
-            return None
-
-        try:
-            from importlib.util import spec_from_loader
-            return spec_from_loader(fullname, finder)
-        except ImportError:
-            return None
 
     def __get_module(self, fullname):
         try:
@@ -332,6 +307,7 @@ if sys.platform == "win32":
         MovedModule("winreg", "_winreg"),
     ]
 
+attr = None
 for attr in _moved_attributes:
     setattr(_MovedItems, attr.name, attr)
     if isinstance(attr, MovedModule):
@@ -376,6 +352,7 @@ _urllib_parse_moved_attributes = [
     MovedAttribute("uses_query", "urlparse", "urllib.parse"),
     MovedAttribute("uses_relative", "urlparse", "urllib.parse"),
 ]
+attr = None
 for attr in _urllib_parse_moved_attributes:
     setattr(Module_six_moves_urllib_parse, attr.name, attr)
 del attr
@@ -396,6 +373,7 @@ _urllib_error_moved_attributes = [
     MovedAttribute("HTTPError", "urllib2", "urllib.error"),
     MovedAttribute("ContentTooShortError", "urllib", "urllib.error"),
 ]
+attr = None
 for attr in _urllib_error_moved_attributes:
     setattr(Module_six_moves_urllib_error, attr.name, attr)
 del attr
@@ -448,6 +426,7 @@ _urllib_request_moved_attributes = [
     MovedAttribute("parse_http_list", "urllib2", "urllib.request"),
     MovedAttribute("parse_keqv_list", "urllib2", "urllib.request"),
 ]
+attr = None
 for attr in _urllib_request_moved_attributes:
     setattr(Module_six_moves_urllib_request, attr.name, attr)
 del attr
@@ -469,6 +448,7 @@ _urllib_response_moved_attributes = [
     MovedAttribute("addinfo", "urllib", "urllib.response"),
     MovedAttribute("addinfourl", "urllib", "urllib.response"),
 ]
+attr = None
 for attr in _urllib_response_moved_attributes:
     setattr(Module_six_moves_urllib_response, attr.name, attr)
 del attr
@@ -487,6 +467,7 @@ class Module_six_moves_urllib_robotparser(_LazyModule):
 _urllib_robotparser_moved_attributes = [
     MovedAttribute("RobotFileParser", "robotparser", "urllib.robotparser"),
 ]
+attr = None
 for attr in _urllib_robotparser_moved_attributes:
     setattr(Module_six_moves_urllib_robotparser, attr.name, attr)
 del attr
@@ -548,22 +529,22 @@ else:
     _func_globals = "func_globals"
 
 
-try:
+if sys.version_info >= (2, 6):
     advance_iterator = next
-except NameError:
+else:
     def advance_iterator(it):
         return it.next()
 next = advance_iterator
 
 
-try:
+if sys.version_info < (3, 0) or sys.version_info >= (3, 2):
     callable = callable
-except NameError:
+else:
     def callable(obj):
         return any("__call__" in klass.__dict__ for klass in type(obj).__mro__)
 
 
-if PY3:
+if sys.version_info[0] >= 3:
     def get_unbound_function(unbound):
         return unbound
 
@@ -586,10 +567,7 @@ else:
     class Iterator(object):
 
         def next(self):
-            next_method = getattr(type(self), "__next__", None)
-            if next_method is None:
-                raise StopIteration
-            return next_method(self)
+            return type(self).__next__(self)
 
     callable = callable
 _add_doc(get_unbound_function,
@@ -649,7 +627,7 @@ _add_doc(iterlists,
          "Return an iterator over the (key, [values]) pairs of a dictionary.")
 
 
-if PY3:
+if sys.version_info[0] >= 3:
     def b(s):
         return s.encode("latin-1")
 
@@ -687,14 +665,9 @@ else:
 
     def indexbytes(buf, i):
         return ord(buf[i])
-    iterbytes = functools.partial(getattr(itertools, "imap", map), ord)
-    try:
-        import StringIO  # type: ignore[import-not-found]
-        StringIO = BytesIO = StringIO.StringIO
-    except ImportError:
-        import io
-        StringIO = io.StringIO
-        BytesIO = io.BytesIO
+    iterbytes = functools.partial(itertools.imap, ord)
+    import StringIO
+    StringIO = BytesIO = StringIO.StringIO
     _assertCountEqual = "assertItemsEqual"
     _assertRaisesRegex = "assertRaisesRegexp"
     _assertRegex = "assertRegexpMatches"
@@ -714,7 +687,7 @@ def assertRegex(self, *args, **kwargs):
     return getattr(self, _assertRegex)(*args, **kwargs)
 
 
-if PY3:
+if sys.version_info[0] >= 3:
     exec_ = getattr(moves.builtins, "exec")
 
     def reraise(tp, value, tb=None):
@@ -770,7 +743,11 @@ else:
         raise value
 
 
-print_ = getattr(moves.builtins, "print", None)
+if sys.version_info[0] >= 3:
+    import builtins as _builtins
+    print_ = _builtins.print
+else:
+    print_ = getattr(moves.builtins, "print", None)
 if print_ is None:
     def print_(*args, **kwargs):
         """The new-style print function for Python 2.4 and 2.5."""
@@ -860,7 +837,9 @@ def with_metaclass(meta, *bases):
             return meta(name, bases, d)
 
         @classmethod
-        def __prepare__(cls, name, this_bases):
+        def __prepare__(cls, name, this_bases, **kwds):
+            if kwds:
+                return meta.__prepare__(name, bases, **kwds)
             return meta.__prepare__(name, bases)
     return type.__new__(metaclass, 'temporary_class', (), {})
 
@@ -917,7 +896,7 @@ def ensure_str(s, encoding='utf-8', errors='strict'):
         raise TypeError("not expecting type '%s'" % type(s))
     if PY2 and isinstance(s, text_type):
         s = s.encode(encoding, errors)
-    elif PY3 and isinstance(s, bytes):
+    elif PY3 and isinstance(s, binary_type):
         s = s.decode(encoding, errors)
     return s
 
@@ -933,7 +912,7 @@ def ensure_text(s, encoding='utf-8', errors='strict'):
       - `str` -> `str`
       - `bytes` -> decoded to `str`
     """
-    if isinstance(s, bytes):
+    if isinstance(s, binary_type):
         return s.decode(encoding, errors)
     elif isinstance(s, text_type):
         return s
@@ -971,15 +950,17 @@ if globals().get("__spec__") is not None:
 # happen if six is removed from sys.modules and then reloaded. (Setuptools does
 # this for some reason.)
 if sys.meta_path:
+    i = None
+    importer = None
     for i, importer in enumerate(sys.meta_path):
         # Here's some real nastiness: Another "instance" of the six module might
         # be floating around. Therefore, we can't use isinstance() to check for
         # the six meta path importer, since the other six instance will have
         # inserted an importer with different class.
         if (type(importer).__name__ == "_SixMetaPathImporter" and
-                getattr(importer, "name", None) == __name__):
+                importer.name == __name__):
             del sys.meta_path[i]
             break
     del i, importer
 # Finally, add the importer to the meta path import hook.
-sys.meta_path.append(_importer)
+sys.meta_path.append(_importer)  # type: ignore[arg-type]

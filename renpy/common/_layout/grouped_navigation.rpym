@@ -1,76 +1,95 @@
-﻿# Modernized game menu navigation screen for Ren'Py 7 / 8+
-# Note: Standard modern Ren'Py templates define `screen navigation()` in `screens.rpy`.
-# Rename or merge carefully if your project uses a standard template.
-
-define gui.gm_nav_frame_xalign = 0.5
-define gui.gm_nav_frame_ypos = 0.98
-define gui.gm_nav_frame_yanchor = 1.0
-define gui.gm_nav_inner_box_xalign = 0.5
-define config.navigation_per_group = 4
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init python:
-    def _gm_nav_eval(expr, default=True):
-        if expr is None:
-            return default
-        if isinstance(expr, bool):
-            return expr
-        if isinstance(expr, basestring):
-            return bool(renpy.python.py_eval(expr))
-        return bool(expr)
 
-    def _gm_nav_root_style(screen_name):
-        # Supports style.gm_root[screen_name] if present, with safe fallback.
-        try:
-            root_style = style.gm_root[screen_name]
-            return root_style.name if hasattr(root_style, "name") else root_style
-        except Exception:
-            return "gm_root"
+    layout.provides('navigation')
 
-screen game_menu_navigation(current_screen=None):
+    style.gm_nav_frame = Style(style.menu_frame, help="game menu navigation frame")
+    style.gm_nav_inner_box = Style(style.hbox, help="inner box containing game menu navigation buttons")
+    style.gm_nav_outer_box = Style(style.vbox, help="outer box containing game menu navigation buttons")
 
-    tag menu
+    style.gm_nav_button = Style(style.button, help="game menu navigation button")
+    style.gm_nav_button_text = Style(style.button_text, help="game menu navigation button (text)")
 
-    style_prefix "gm_nav"
+    style.gm_nav_button.size_group = "gm_nav_button"
 
-    # Game menu backdrop (uses gm_root[current_screen] when available)
-    window:
-        style _gm_nav_root_style(current_screen)
+    style.gm_nav_frame.xalign = 0.5
+    style.gm_nav_frame.ypos = 0.98
+    style.gm_nav_frame.yanchor = 1.0
+
+    style.gm_nav_inner_box.xalign = 0.5
+
+    config.navigation_per_group = 4
+
+    def _grouped_nav_rows():
+        nav_rows = [ ]
+        current_row = [ ]
+
+        for i, e in enumerate(config.game_menu):
+
+            if len(e) == 4:
+                key, label, clicked, enabled = e
+                shown = "True"
+            else:
+                key, label, clicked, enabled, shown = e
+
+            if not eval(shown):
+                continue
+
+            if current_row and (i % config.navigation_per_group == 0):
+                nav_rows.append(current_row)
+                current_row = [ ]
+
+            current_row.append((key, label, clicked, eval(enabled)))
+
+        if current_row:
+            nav_rows.append(current_row)
+
+        return nav_rows
+
+    def navigation(screen=None):
+        renpy.show_screen("_layout_navigation", nav_screen=screen, _transient=True)
+
+    navigation._is_sl2 = True
+    layout.navigation = navigation
+
+screen _layout_navigation(nav_screen=None):
+
+    # Display the game menu background
+    window style style.gm_root[nav_screen]:
         null
 
-    if current_screen is not None:
-        frame:
-            style "gm_nav_frame"
-            xalign gui.gm_nav_frame_xalign
-            ypos gui.gm_nav_frame_ypos
-            yanchor gui.gm_nav_frame_yanchor
+    if nav_screen is not None:
 
-            vbox:
-                id "gm_nav"
-                style "gm_nav_outer_box"
+        # Display the navigation frame.
+        frame style "gm_nav_frame":
+            vbox focus "gm_nav" style "gm_nav_outer_box":
 
-                $ visible_entries = []
-                for entry in config.game_menu:
-                    if len(entry) == 4:
-                        $ nav_key, nav_label, nav_clicked, nav_enabled = entry
-                        $ nav_shown = True
-                    else:
-                        $ nav_key, nav_label, nav_clicked, nav_enabled, nav_shown = entry
-
-                    if _gm_nav_eval(nav_shown, True):
-                        $ visible_entries.append((nav_key, nav_label, nav_clicked, nav_enabled))
-
-                for group_start in range(0, len(visible_entries), config.navigation_per_group):
-                    hbox:
-                        style "gm_nav_inner_box"
-                        xalign gui.gm_nav_inner_box_xalign
-
-                        for nav_key, nav_label, nav_clicked, nav_enabled in visible_entries[group_start:group_start + config.navigation_per_group]:
-                            $ is_selected = (current_screen == nav_key)
-                            $ is_enabled = _gm_nav_eval(nav_enabled, True)
-
-                            textbutton _(nav_label):
-                                style "gm_nav_button"
-                                text_style "gm_nav_button_text"
-                                selected is_selected
+                for row in _grouped_nav_rows():
+                    hbox style "gm_nav_inner_box":
+                        for key, label, clicked, is_enabled in row:
+                            button:
+                                style style.gm_nav_button[label]
+                                selected (nav_screen == key) and is_enabled
                                 sensitive is_enabled
-                                action nav_clicked
+                                action (clicked if is_enabled else None)
+                                text _(label) style style.gm_nav_button_text[label]

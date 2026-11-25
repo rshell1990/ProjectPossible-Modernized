@@ -1,81 +1,111 @@
-﻿# Modernized imagemap navigation for Ren'Py 7 / 8+
-# Note: Standard modern Ren'Py templates define `screen navigation()` in `screens.rpy`.
-# Rename or merge carefully if your project uses a standard template.
-
-define config.navigation_ground = None
-define config.navigation_idle = None
-define config.navigation_hover = None
-define config.navigation_selected_idle = None
-define config.navigation_selected_hover = None
-define config.navigation_hotspots = None
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init python:
-    def _img_nav_eval_bool(expr, default=True):
-        if isinstance(expr, bool):
-            return expr
-        if isinstance(expr, basestring):
-            return bool(renpy.python.py_eval(expr))
-        return bool(expr) if expr is not None else default
 
-    def _img_nav_root_style(screen_name):
-        try:
-            root_style = style.gm_root[screen_name]
-            return root_style.name if hasattr(root_style, "name") else root_style
-        except Exception:
-            return "gm_root"
+    layout.provides('navigation')
 
-    def _img_nav_build_items(current_screen):
-        if current_screen is None:
-            return []
+    # The ground image.
+    config.navigation_ground = None
 
-        gm = {}
-        for entry in config.game_menu:
-            screen_name = entry[0]
-            btn_name = entry[1]
-            act = entry[2]
-            enable = entry[3] if len(entry) > 3 else True
-            gm[btn_name] = (screen_name, act, enable)
+    # The idle image.
+    config.navigation_idle = None
 
-        items = []
-        for (x0, y0, x1, y1, name) in (config.navigation_hotspots or ()):
+    # The hover image.
+    config.navigation_hover = None
+
+    # The selected idle image.
+    config.navigation_selected_idle = None
+
+    # The selected hover image.
+    config.navigation_selected_hover = None
+
+    # The hotspots. Each hotspot is defined by a tuple giving:
+    # - The x-coordinate of the left side.
+    # - The y-coordinate of the top side.
+    # - The x-coordinate of the right side.
+    # - The y-coordinate of the bottoms side.
+    # - The name of the game menu button this is equivalent to.
+    config.navigation_hotspots = None
+
+    def _imagemap_nav_items(screen):
+        # A map from button name to game menu information.
+        gm = dict()
+
+        for e in config.game_menu:
+            screen_ = e[0]
+            name_ = e[1]
+            act = e[2]
+            enable = e[3]
+
+            gm[name_] = (screen_, act, enable)
+
+        items = [ ]
+
+        for (x0, y0, x1, y1, name) in config.navigation_hotspots:
+
             if name not in gm:
                 raise Exception("%r was used in a game menu hotspot, but isn't the name of a game menu button." % name)
 
-            screen_name, act, enable = gm[name]
-            if not _img_nav_eval_bool(enable, True):
+            screen_, act, enable = gm[name]
+
+            if not eval(enable):
                 continue
 
-            items.append({
-                "name": name,
-                "area": (x0, y0, x1 - x0, y1 - y0),
-                "selected": (screen_name == current_screen),
-                "action": act,
-            })
+            if screen_ == screen:
+                idle = config.navigation_selected_idle
+                hover = config.navigation_selected_hover
+            else:
+                idle = config.navigation_idle
+                hover = config.navigation_hover
+
+            items.append((x0, y0, x1 - x0, y1 - y0, idle, hover, act))
 
         return items
 
-screen imagemap_navigation(current_screen=None):
+    def _navigation(screen=None):
+        renpy.show_screen("_layout_navigation", nav_screen=screen, _transient=True)
 
-    tag menu
+    _navigation._is_sl2 = True
+    layout.navigation = _navigation
 
-    $ nav_items = _img_nav_build_items(current_screen)
+screen _layout_navigation(nav_screen=None):
 
-    window:
-        style _img_nav_root_style(current_screen)
+    # Display the game menu background
+    window style style.gm_root[nav_screen]:
         null
 
-    if current_screen is not None:
-        imagemap:
-            style "imagemap"
-            ground config.navigation_ground
-            idle config.navigation_idle
-            hover config.navigation_hover
-            selected_idle config.navigation_selected_idle
-            selected_hover config.navigation_selected_hover
+    if nav_screen is not None:
 
-            for item in nav_items:
-                hotspot:
+        fixed style "imagemap":
+            add config.navigation_ground
+
+            for x0, y0, w, h, idle, hover, act in _imagemap_nav_items(nav_screen):
+                imagebutton:
+                    idle Crop((x0, y0, w, h), idle)
+                    hover Crop((x0, y0, w, h), hover)
+                    action act
                     style "imagemap_button"
-                    area item["area"]
-                    selected item["selected"]
-                    action item["action"]
+                    xpos x0
+                    ypos y0
+                    xanchor 0
+                    yanchor 0
+                    focus_mask True

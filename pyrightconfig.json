@@ -1,0 +1,38 @@
+{
+    // Configuration for analyzing the Ren'Py engine source.
+    // The bundled source is Python 2/3 compatible; the game itself runs on the
+    // Ren'Py runtime (python 2.7 or 3.x), not on the local venv interpreter.
+    // This keeps most inference working without spurious syntax errors.
+    "pythonVersion": "3.12",
+    "pythonPlatform": "Windows",
+    // Extra roots so submodules resolve.
+    "extraPaths": [
+        "."
+    ],
+    "exclude": [
+        "lib",
+        ".venv",
+        "game",
+        "Rubbish"
+    ],
+    // Ren'Py loads several modules dynamically at runtime:
+    // * pygame_sdl2 and _renpy are compiled into the Ren'Py runtime
+    //   (librenpython.dll) and are never statically importable.
+    // * renpy.config, renpy.game, renpy.exports, renpy.loader, etc. are
+    //   injected into the renpy package by renpy.bootstrap during startup,
+    //   before any game code runs.
+    // Silence exactly those rule categories project-wide rather than
+    // sprinkling ignore comments over the engine.
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none",
+    "reportAttributeAccessIssue": "none",
+    "reportUndefinedVariable": "none",
+    "reportUnsupportedDunderAll": "none",
+    // Keep useful checks enabled.
+    "reportArgumentType": "warning",
+    "reportCallIssue": "warning",
+    "reportGeneralTypeIssues": "warning",
+    "reportUnusedImport": "none",
+    "reportUnusedVariable": "none",
+    "useLibraryCodeForTypes": true
+}

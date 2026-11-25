@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ##############################################################################
 # Definitions of screen language statements.
@@ -5,22 +25,9 @@
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
-import renpy
 import renpy.display
-import renpy.display.behavior
-import renpy.display.dragdrop
-import renpy.display.layout
-import renpy.display.motion
-import renpy.display.render # type: ignore[import-not-found]
-import renpy.easy
 import renpy.text.text
 import renpy.sl2
-import renpy.sl2.slparser
-import renpy.ui
-import renpy.atl
-import renpy.object
-
-from typing import Any
 
 from renpy.sl2.slparser import Positional, Keyword, Style, PrefixStyle, add
 from renpy.sl2.slparser import DisplayableParser, many
@@ -65,27 +72,25 @@ class ShowIf(renpy.display.layout.Container):
 
     def per_interact(self):
         if self.pending_event:
-            child = self.child
-            assert child is not None
-            child.set_transform_event(self.pending_event)
+            self.child.set_transform_event(self.pending_event)
             self.pending_event = None
 
     def render(self, width, height, st, at):
-        child = self.child
-        assert child is not None
 
-        if isinstance(child, renpy.display.motion.Transform):
+        cr = None
+
+        if isinstance(self.child, renpy.display.motion.Transform):
             if self.condition or self.show_child:
-                cr = renpy.display.render.render(child, width, height, st, at)
-                self.show_child = self.condition or not child.hide_response
+                cr = renpy.display.render.render(self.child, width, height, st, at)
+                self.show_child = self.condition or not self.child.hide_response
         else:
             if self.condition:
-                cr = renpy.display.render.render(child, width, height, st, at)
+                cr = renpy.display.render.render(self.child, width, height, st, at)
                 self.show_child = True
             else:
                 self.show_child = False
 
-        if self.show_child:
+        if self.show_child and cr is not None:
             cw, ch = cr.get_size()
             rv = renpy.display.render.Render(cw, ch)
             rv.blit(cr, (0, 0), focus=self.condition)
@@ -97,17 +102,13 @@ class ShowIf(renpy.display.layout.Container):
         return rv
 
     def event(self, ev, x, y, st):
-        child = self.child
-        assert child is not None
         if self.condition:
-            return child.event(ev, x, y, st)
+            return self.child.event(ev, x, y, st)
         else:
             return None
 
     def get_placement(self):
-        child = self.child
-        assert child is not None
-        return child.get_placement()
+        return self.child.get_placement()
 
     def _tts(self):
         if self.condition:
@@ -232,7 +233,7 @@ add(text_text_properties)
 
 def sl2bar(context=None, **properties):
     range = 1 # @ReservedAssignment
-    value = 0 # type: Any
+    value = 0
     width = None
     height = None
 
@@ -247,8 +248,8 @@ def sl2bar(context=None, **properties):
 
     if "style" not in properties:
         if isinstance(value, renpy.ui.BarValue):
-            assert context is not None
-            style = renpy.ui.combine_style(context.style_prefix, value.get_style()[0])
+            style_prefix = context.style_prefix if context is not None else None
+            style = renpy.ui.combine_style(style_prefix, value.get_style()[0])
             properties["style"] = style
 
     return renpy.display.behavior.Bar(range, value, width, height, vertical=False, **properties)
@@ -267,7 +268,7 @@ add(bar_properties)
 
 def sl2vbar(context=None, **properties):
     range = 1 # @ReservedAssignment
-    value = 0 # type: Any
+    value = 0
     width = None
     height = None
 
@@ -282,8 +283,8 @@ def sl2vbar(context=None, **properties):
 
     if "style" not in properties:
         if isinstance(value, renpy.ui.BarValue):
-            assert context is not None
-            style = renpy.ui.combine_style(context.style_prefix, value.get_style()[1])
+            style_prefix = context.style_prefix if context is not None else None
+            style = renpy.ui.combine_style(style_prefix, value.get_style()[1])
             properties["style"] = style
 
     return renpy.display.behavior.Bar(range, value, width, height, vertical=True, **properties)
@@ -308,7 +309,7 @@ def sl2viewport(context=None, **kwargs):
     sl.displayable can use.
     """
 
-    d = renpy.ui.detached() # type: Any
+    d = renpy.ui.detached()
 
     if context is not None:
         renpy.ui.stack[-1].style_prefix = context.style_prefix
@@ -317,7 +318,7 @@ def sl2viewport(context=None, **kwargs):
 
     renpy.ui.stack.pop()
 
-    rv = d.child # type: Any
+    rv = d.child
 
     if vp is not rv:
         rv._main = vp
@@ -333,7 +334,7 @@ def sl2vpgrid(context=None, **kwargs):
     sl.displayable can use.
     """
 
-    d = renpy.ui.detached() # type: Any
+    d = renpy.ui.detached()
 
     if context is not None:
         renpy.ui.stack[-1].style_prefix = context.style_prefix
@@ -342,7 +343,7 @@ def sl2vpgrid(context=None, **kwargs):
 
     renpy.ui.stack.pop()
 
-    rv = d.child # type: Any
+    rv = d.child
 
     if vp is not rv:
         rv._main = vp
@@ -436,18 +437,17 @@ for i in renpy.atl.PROPERTIES:
 
 
 def sl2add(d, replaces=None, scope=None, **kwargs):
-    from renpy.sl2 import slast
 
     if d is None:
-        return slast.NO_DISPLAYABLE
+        return renpy.sl2.slast.NO_DISPLAYABLE
 
-    displayable = renpy.easy.displayable(d, scope=scope) # type: Any
+    d = renpy.easy.displayable(d, scope=scope)
 
-    if displayable._duplicatable:
-        displayable = displayable._duplicate(None)
-        displayable._unique()
+    if d._duplicatable:
+        d = d._duplicate(None)
+        d._unique()
 
-    rv = displayable
+    rv = d
 
     Transform = renpy.display.motion.Transform
 
@@ -456,8 +456,8 @@ def sl2add(d, replaces=None, scope=None, **kwargs):
         rv.take_execution_state(replaces)
 
     if kwargs:
-        rv = Transform(child=displayable, **kwargs)
-        rv._main = displayable
+        rv = Transform(child=d, **kwargs)
+        rv._main = d
 
     return rv
 

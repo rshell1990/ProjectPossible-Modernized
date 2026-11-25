@@ -1,8 +1,28 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This module contains the parser for the Ren'Py script language. It's
 # called when parsing is necessary, and creates an AST from the script.
 
-from __future__ import division, absolute_import, with_statement, print_function, unicode_literals  # type: ignore[assignment]
+from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import codecs
@@ -13,21 +33,6 @@ import contextlib
 
 import renpy.display
 import renpy.test
-import renpy.exports
-import renpy.config
-import renpy.game
-import renpy.scriptedit
-import renpy.ast
-import renpy.atl
-import renpy.add_from
-import renpy.error
-import renpy.screenlang
-import renpy.style  # type: ignore[import-not-found]
-import renpy.python
-import renpy.store  # type: ignore[import-not-found]
-import renpy.sl2.slparser
-import renpy.test.testparser
-import renpy.display.error
 
 import renpy.ast as ast
 import renpy.sl2
@@ -35,7 +40,7 @@ import renpy.sl2
 # A list of parse error messages.
 parse_errors = [ ]
 
-from renpy.parsersupport import match_logical_word  # type: ignore[import-not-found]
+from renpy.parsersupport import match_logical_word
 
 
 def get_line_text(filename, lineno):
@@ -49,8 +54,7 @@ def get_line_text(filename, lineno):
 
     try:
         line = linecache.getline(full_filename, lineno) or "\n"
-        if isinstance(line, bytes):
-            line = line.decode("utf-8")
+        line = line.decode("utf-8")
     except:
         line = "\n"
 
@@ -126,9 +130,6 @@ def unicode_filename(fn):
     Converts the supplied filename to unicode.
     """
 
-    if fn is None:
-        return ""
-
     if isinstance(fn, str):
         return fn
 
@@ -176,7 +177,7 @@ def elide_filename(fn):
     original_fn = fn
     fn = fn.replace("\\", "/")
 
-    for d in [ renpy.config.basedir or "", renpy.config.renpy_base or "" ]:
+    for d in [ renpy.config.basedir, renpy.config.renpy_base ]:
         d = os.path.abspath(d).replace("\\", "/") + "/"
         if fn.startswith(d):
             rv = fn[len(d):]
@@ -190,11 +191,11 @@ def elide_filename(fn):
 def unelide_filename(fn):
     fn = os.path.normpath(fn)
 
-    fn1 = os.path.join(renpy.config.basedir or "", fn)
+    fn1 = os.path.join(renpy.config.basedir, fn)
     if os.path.exists(fn1):
         return fn1
 
-    fn2 = os.path.join(renpy.config.renpy_base or "", fn)
+    fn2 = os.path.join(renpy.config.renpy_base, fn)
     if os.path.exists(fn2):
         return fn2
 
@@ -266,6 +267,9 @@ def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
 
     renpy.scriptedit.files.add(filename)
 
+    start_number = number
+    line = [ ]
+
     # Looping over the lines in the file.
     while pos < len_data:
 
@@ -296,7 +300,7 @@ def list_logical_lines(filename, filedata=None, linenumber=1, add_lines=False):
                 line = ''.join(line)
 
                 # If not blank...
-                if not re.match(u"^\s*$", line):
+                if not re.match(r"^\s*$", line):
 
                     # Add to the results.
                     rv.append((filename, start_number, line))
@@ -837,8 +841,9 @@ class Lexer(object):
 
                 if group2:
                     return chr(int(m.group(2), 16))
-            return c
-            return m.group(0)
+                return c
+            else:
+                return c
 
         if not raw:
 
@@ -892,7 +897,9 @@ class Lexer(object):
 
                 if group2:
                     return chr(int(m.group(2), 16))
-            return c
+                return c
+            else:
+                return c
 
         if not raw:
 
@@ -1007,7 +1014,7 @@ class Lexer(object):
                 self.pos = old_pos
                 return None
         else:
-            if self.match('\.'):
+            if self.match(r'\.'):
                 # full global.local name
                 if declare and global_name != self.global_label:
                     self.pos = old_pos
@@ -1738,7 +1745,7 @@ def parse_parameters(l):
 
     while True:
 
-        if l.match('\)'):
+        if l.match(r'\)'):
             break
 
         if l.match(r'\*\*'):
@@ -1815,7 +1822,7 @@ def parse_arguments(l):
 
     while True:
 
-        if l.match('\)'):
+        if l.match(r'\)'):
             break
 
         if l.match(r'\*\*'):
@@ -2057,7 +2064,7 @@ def call_statement(l, loc):
 
     arguments = parse_arguments(l)
 
-    rv = [ ast.Call(loc, target, expression, arguments) ]
+    rv = [ ast.Call(loc, target, expression, arguments) ]  # type: list[ast.Node]
 
     if l.keyword('from'):
         name = l.require(l.label_name_declare)
@@ -2182,7 +2189,7 @@ def hide_statement(l, loc):
 
 
 @statement("with")
-def with_statement(l, loc):
+def parse_with_statement(l, loc):
     expr = l.require(l.simple_expression)
     l.expect_eol()
     l.expect_noblock('with statement')
@@ -2321,7 +2328,7 @@ def transform_statement(l, loc):
 
     atl = renpy.atl.parse_atl(l.subblock_lexer())
 
-    rv = ast.Transform(loc, name, atl, parameters)  # type: ignore[arg-type]
+    rv = ast.Transform(loc, name, atl, parameters or ast.Transform.default_parameters)
 
     if not l.init:
         rv = ast.Init(loc, [ rv ], priority + l.init_offset)
@@ -2437,8 +2444,9 @@ def init_statement(l, loc):
 
     else:
 
+        old_init = l.init
+
         try:
-            old_init = l.init
             l.init = True
 
             block = [ parse_statement(l) ]
@@ -2557,13 +2565,7 @@ def translate_strings(init_loc, language, l):
         s = s.strip()
 
         try:
-            bc = compile(
-                s,
-                "<string>",
-                "eval",
-                flags=renpy.python.new_compile_flags,
-                dont_inherit=True,
-            )
+            bc = compile(s, "<string>", "eval", renpy.python.new_compile_flags, True)
             return eval(bc, renpy.store.__dict__)
         except:
             ll.error('could not parse string')
@@ -2588,6 +2590,7 @@ def translate_strings(init_loc, language, l):
                 ll.error('no string to translate')
 
             newloc = ll.get_location()
+            new = None
             try:
                 new = parse_string(ll.rest())
             except:
@@ -2628,8 +2631,8 @@ def translate_statement(l, loc):
         return translate_strings(loc, language, l)
 
     elif identifier == "python":
+        old_init = l.init
         try:
-            old_init = l.init
             l.init = True
 
             block = [ python_statement(l, loc) ]
@@ -2638,8 +2641,8 @@ def translate_statement(l, loc):
             l.init = old_init
 
     elif identifier == "style":
+        old_init = l.init
         try:
-            old_init = l.init
             l.init = True
 
             block = [ style_statement(l, loc) ]
@@ -2676,18 +2679,18 @@ def style_statement(l, loc):
             if parent is not None:
                 l.error("parent clause appears twice.")
 
-            setattr(rv, "parent", l.require(l.word))
+            rv.parent = l.require(l.word)
             return True
 
         if l.keyword("clear"):
-            setattr(rv, "clear", True)
+            rv.clear = True
             return True
 
         if l.keyword("take"):
-            if getattr(rv, "take", None) is not None:
+            if rv.take is not None:
                 l.error("take clause appears twice.")
 
-            setattr(rv, "take", l.require(l.name))
+            rv.take = l.require(l.name)
             return True
 
         if l.keyword("del"):
@@ -2696,14 +2699,14 @@ def style_statement(l, loc):
             if propname not in renpy.style.prefixed_all_properties: # @UndefinedVariable
                 l.error("style property %s is not known." % propname)
 
-            getattr(rv, "delattr").append(propname)
+            rv.delattr.append(propname)
             return True
 
         if l.keyword("variant"):
-            if getattr(rv, "variant", None) is not None:
+            if rv.variant is not None:
                 l.error("variant clause appears twice.")
 
-            setattr(rv, "variant", l.require(l.simple_expression))
+            rv.variant = l.require(l.simple_expression)
 
             return True
 
@@ -2713,11 +2716,10 @@ def style_statement(l, loc):
             if (propname != "properties") and (propname not in renpy.style.prefixed_all_properties): # @UndefinedVariable
                 l.error("style property %s is not known." % propname)
 
-            properties = getattr(rv, "properties")
-            if propname in properties:
+            if propname in rv.properties:
                 l.error("style property %s appears twice." % propname)
 
-            properties[propname] = l.require(l.simple_expression)
+            rv.properties[propname] = l.require(l.simple_expression)
 
             return True
 
@@ -3021,8 +3023,8 @@ def report_parse_errors():
     renpy.display.error.report_parse_errors(full_text, error_fn)
 
     try:
-        if getattr(renpy.game.args, "command", None) == "run":
-            renpy.exports.launch_editor([ error_fn ], 1, transient=True)
+        if renpy.game.args.command == "run": # @UndefinedVariable
+            renpy.exports.launch_editor([ error_fn ], 1, transient=1)
     except:
         pass
 

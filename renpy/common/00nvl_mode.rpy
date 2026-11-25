@@ -1,3 +1,23 @@
+﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This is an implementation of NVL-mode, which can be used to show
 # dialogue in a fullscreen way, like NVL-style games. Multiple lines
@@ -23,8 +43,6 @@
 # The language of the entries in nvl_list. If the language changes, this
 # is updated and the list is reset.
 default _nvl_language = None
-default nvl_list = None
-default nvl_variant = None
 
 init -1500 python:
 
@@ -79,6 +97,12 @@ init -1500 python:
     # The maximum number of entries in nvl_list.
     config.nvl_list_length = None
 
+    # A list of arguments that have been passed to nvl_record_show.
+    nvl_list = None
+
+    # If set, then all of the nvl-specific style get indexed with this.
+    nvl_variant = None
+
     # Returns the appropriate variant style.
     def __s(s):
         if nvl_variant:
@@ -117,7 +141,7 @@ init -1500 python:
                 window_id = "window"
 
                 for k, v in kwargs["properties"].items():
-                    widget_properties[k + str(i)] = v
+                    widget_properties[k + str(i)] =  v
 
             else:
 
@@ -126,7 +150,7 @@ init -1500 python:
                 window_id = "window%d" % i
 
                 for k, v in kwargs["properties"].items():
-                    widget_properties[k] = v
+                    widget_properties[k] =  v
 
             widget_properties[who_id] = kwargs["who_args"]
             widget_properties[what_id] = kwargs["what_args"]
@@ -189,8 +213,8 @@ init -1500 python:
             nvl_window = __s(style.nvl_window)
             nvl_vbox = __s(style.nvl_vbox)
 
-        ui.start(renpy.display.layout.Window, style=nvl_window)
-        ui.start(renpy.display.layout.VBox, style=nvl_vbox)
+        ui.window(style=nvl_window)
+        ui.vbox(style=nvl_vbox)
 
         rv = None
 
@@ -200,7 +224,7 @@ init -1500 python:
 
             who, what, kw = i
             kw = dict(kw)
-            kw.setdefault("show_say_vbox_properties", { 'box_layout' : 'horizontal' }),
+            kw.setdefault("show_say_vbox_properties",  { 'box_layout' : 'horizontal' }),
             rv = config.nvl_show_display_say(who, what, variant=nvl_variant, **kw)
 
         ui.close()
@@ -269,12 +293,12 @@ init -1500 python:
     class NVLCharacter(ADVCharacter):
 
         def __init__(self,
-            who=renpy.character.NotSet,
-            kind=None,
-            **properties):
+                    who=renpy.character.NotSet,
+                    kind=None,
+                    **properties):
 
             if kind is None:
-                kind = globals().get("nvl", adv)
+                kind = store.nvl
 
             if "clear" in properties:
                 self.clear = properties.pop("clear")
@@ -431,6 +455,7 @@ init -1500 python:
             define menu = nvl_menu
         """
 
+
         renpy.mode('nvl_menu')
         renpy.shown_window()
 
@@ -469,8 +494,8 @@ init -1500 python:
         ui.clear()
         ui.close()
 
-        ui.start(renpy.display.layout.Window, style=__s(style.nvl_window))
-        ui.start(renpy.display.layout.VBox, style=__s(style.nvl_vbox))
+        ui.window(style=__s(style.nvl_window))
+        ui.vbox(style=__s(style.nvl_vbox))
 
         for i in nvl_list:
             if not i:
@@ -478,16 +503,16 @@ init -1500 python:
 
             who, what, kw = i
             kw = dict(kw)
-            kw.setdefault("show_say_vbox_properties", { 'box_layout' : 'horizontal' }),
+            kw.setdefault("show_say_vbox_properties",  { 'box_layout' : 'horizontal' }),
             rv = renpy.show_display_say(who, what, **kw)
 
         renpy.display_menu(items, interact=False,
-            window_style=__s(style.nvl_menu_window),
-            choice_style=__s(style.nvl_menu_choice),
-            choice_chosen_style=__s(style.nvl_menu_choice_chosen),
-            choice_button_style=__s(style.nvl_menu_choice_button),
-            choice_chosen_button_style=__s(style.nvl_menu_choice_chosen_button),
-        )
+                        window_style=__s(style.nvl_menu_window),
+                        choice_style=__s(style.nvl_menu_choice),
+                        choice_chosen_style=__s(style.nvl_menu_choice_chosen),
+                        choice_button_style=__s(style.nvl_menu_choice_button),
+                        choice_chosen_button_style=__s(style.nvl_menu_choice_chosen_button),
+                        )
 
         ui.close()
 
@@ -543,14 +568,14 @@ python early hide:
         nvl_hide(eval(trans))
 
     renpy.statements.register("nvl show",
-        parse=parse_nvl_show_hide,
-        execute=execute_nvl_show,
-        lint=lint_nvl_show_hide)
+                            parse=parse_nvl_show_hide,
+                            execute=execute_nvl_show,
+                            lint=lint_nvl_show_hide)
 
     renpy.statements.register("nvl hide",
-        parse=parse_nvl_show_hide,
-        execute=execute_nvl_hide,
-        lint=lint_nvl_show_hide)
+                            parse=parse_nvl_show_hide,
+                            execute=execute_nvl_hide,
+                            lint=lint_nvl_show_hide)
 
     def parse_nvl_clear(l):
         if not l.eol():
@@ -565,7 +590,7 @@ python early hide:
         scry.nvl_clear = True
 
     renpy.statements.register('nvl clear',
-        parse=parse_nvl_clear,
-        execute=execute_nvl_clear,
-        scry=scry_nvl_clear,
-        translatable=True)
+                            parse=parse_nvl_clear,
+                            execute=execute_nvl_clear,
+                            scry=scry_nvl_clear,
+                            translatable=True)

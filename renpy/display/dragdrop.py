@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # TODO: Use overlap (rather than simple pointer location) to determine
 # drag and drop.
@@ -321,11 +341,11 @@ class Drag(renpy.display.core.Displayable, renpy.python.RevertableObject):
         linear move.
         """
 
-        if type(x) is float:
-            x = int(x * self.parent_width)
+        if type(x) is float:  # type: ignore
+            x = int(x * self.parent_width)  # type: ignore
 
-        if type(y) is float:
-            y = int(y * self.parent_height)
+        if type(y) is float:  # type: ignore
+            y = int(y * self.parent_height)  # type: ignore
 
         self.target_x = x
         self.target_y = y
@@ -498,9 +518,9 @@ class Drag(renpy.display.core.Displayable, renpy.python.RevertableObject):
             self.y = self.target_y
         else:
             # Snap in progress
-            done = (at - self.at) / (self.target_at - self.at)
-            self.x = absolute(self.x + done * (self.target_x - self.x))
-            self.y = absolute(self.y + done * (self.target_y - self.y))
+            done = (at - self.at) / (self.target_at - self.at)  # type: ignore
+            self.x = absolute(self.x + done * (self.target_x - self.x))  # type: ignore
+            self.y = absolute(self.y + done * (self.target_y - self.y))  # type: ignore
             redraw(self, 0)
 
         if self.draggable or self.clicked is not None:
@@ -550,13 +570,16 @@ class Drag(renpy.display.core.Displayable, renpy.python.RevertableObject):
     def event(self, ev, x, y, st):
 
         if not self.is_focused():
-            return self.child.event(ev, x, y, st)
+            return self.child.event(ev, x, y, st)  # type: ignore
 
         # Mouse, in parent-relative coordinates.
         par_x = int(self.last_x + x)
         par_y = int(self.last_y + y)
 
         grabbed = (renpy.display.focus.get_grab() is self)
+
+        joined = [ ]  # type: ignore
+        joined_offsets = [ ]  # type: ignore
 
         if (self.alternate is not None) and renpy.display.touch and map_event(ev, "drag_activate"):
             self.click_time = st
@@ -629,7 +652,7 @@ class Drag(renpy.display.core.Displayable, renpy.python.RevertableObject):
 
                 raise renpy.display.core.IgnoreEvent()
 
-            return self.child.event(ev, x, y, st)
+            return self.child.event(ev, x, y, st)  # type: ignore
 
         # Handle moves by moving things relative to the grab point.
         if ev.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP, pygame.MOUSEBUTTONDOWN):
@@ -647,8 +670,8 @@ class Drag(renpy.display.core.Displayable, renpy.python.RevertableObject):
             if self.drag_moved:
                 for i, xo, yo in joined_offsets:
 
-                    new_x = int(par_x - self.grab_x + xo)
-                    new_y = int(par_y - self.grab_y + yo)
+                    new_x = int(par_x - self.grab_x + xo)  # type: ignore
+                    new_y = int(par_y - self.grab_y + yo)  # type: ignore
 
                     if not self.drag_offscreen:
                         new_x = max(new_x, 0)

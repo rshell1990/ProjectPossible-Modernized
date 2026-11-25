@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This contains code for different save locations. A save location is a place
 # where we store save data, and can retrieve it from.
@@ -12,12 +32,6 @@ import zipfile
 import json
 
 import renpy.display
-import renpy.display.im
-import renpy.config
-import renpy.exports
-import renpy.loadsave
-import renpy.persistent
-import renpy.util
 import threading
 
 from renpy.loadsave import clear_slot, safe_rename
@@ -85,7 +99,7 @@ class FileLocation(object):
         """
 
         if renpy.emscripten:
-            import emscripten  # type: ignore[import-not-found]
+            import emscripten # @UnresolvedImport
             emscripten.syncfs()
 
     def scan(self):
@@ -454,8 +468,10 @@ class MultiLocation(object):
 
     def load(self, slotname):
         l = self.newest(slotname)
+
         if l is None:
-            return None
+            raise Exception("Save slot %r does not exist." % (slotname,))
+
         return l.load(slotname)
 
     def unlink(self, slotname):
@@ -523,9 +539,7 @@ def run_scan_thread():
     while not quit_scan_thread:
 
         try:
-            location = renpy.loadsave.location
-            if location is not None:
-                location.scan()
+            renpy.loadsave.location.scan() # @UndefinedVariable
         except:
             pass
 
@@ -554,10 +568,7 @@ def init():
 
     # 2. Game-local savedir.
     if (not renpy.mobile) and (not renpy.macapp):
-        gamedir = renpy.config.gamedir
-        if gamedir is None:
-            return
-        path = os.path.join(gamedir, "saves")
+        path = os.path.join(renpy.config.gamedir, "saves")
         location.add(FileLocation(path))
 
     # Scan the location once.

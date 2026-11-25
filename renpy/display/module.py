@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file mediates access to the _renpy module, which is a C module that
 # allows us to enhance the feature set of pygame in a renpy specific way.
@@ -5,7 +25,7 @@
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
-import pygame_sdl2; pygame_sdl2
+import pygame_sdl2; _ = pygame_sdl2
 import renpy.display
 import _renpy
 
@@ -87,20 +107,20 @@ def byte_offset(src):
 
     global bo_cache
 
-    if bo_cache is None:
-        bo_cache = [ bo32[i] for i in src.get_masks() ]
+    rv = bo_cache
 
-    return bo_cache
+    if rv is None:
+        rv = [ bo32[i] for i in src.get_masks() ]
+        bo_cache = rv
+
+    return rv
 
 
 def endian_order(src, r, g, b, a):
 
-    if bo_cache is None:
-        byte_offset(src)
-
     rv = [ a, a, a, a ]
 
-    for i, index_i in zip((r, g, b, a), bo_cache):
+    for i, index_i in zip((r, g, b, a), byte_offset(src)):
         rv[index_i] = i
 
     return rv
@@ -199,9 +219,9 @@ def alpha_munge(src, dst, amap):
 
 def bilinear_scale(src, dst, sx=0, sy=0, sw=None, sh=None, dx=0, dy=0, dw=None, dh=None, precise=0):
 
-    if sw is None:
+    if sw is None or sh is None:
         sw, sh = src.get_size()
-    if dw is None:
+    if dw is None or dh is None:
         dw, dh = dst.get_size()
 
     while True:
@@ -240,7 +260,7 @@ def colormatrix(src, dst, matrix):
     c = [ matrix[0:5], matrix[5:10], matrix[10:15], matrix[15:20] ]
     offs = byte_offset(src)
 
-    o = [ None ] * 4
+    o = [ 0 ] * 4
     for i in range(0, 4):
         o[offs[i]] = i
 

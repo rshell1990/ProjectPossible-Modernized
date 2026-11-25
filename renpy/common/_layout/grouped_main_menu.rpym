@@ -1,75 +1,97 @@
-﻿# Modernized main menu screen for Ren'Py 7 / 8+
-# Note: Standard modern Ren'Py templates define `screen main_menu()` in `screens.rpy`.
-# Rename this screen/label or merge carefully if you use a standard template.
-
-define gui.mm_frame_xalign = 0.5
-define gui.mm_frame_yalign = 0.98
-define gui.mm_inner_box_xalign = 0.5
-define config.main_menu_per_group = 2
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init python:
-    def _mm_eval(expr, default=True):
-        if expr is None:
-            return default
-        if isinstance(expr, bool):
-            return expr
-        if isinstance(expr, basestring):
-            return bool(renpy.python.py_eval(expr))
-        return bool(expr)
 
-    def _mm_action(clicked):
-        # String targets in legacy config.main_menu jump out of context to a label.
-        if isinstance(clicked, basestring):
-            return Start(clicked) if clicked == "start" else renpy.curried_call_in_new_context(clicked)
-        return clicked
+    layout.provides('main_menu')
 
-screen main_menu_screen():
+    style.mm_menu_frame = Style(style.menu_frame, help="frame containing main menu")
+    style.mm_outer_box = Style(style.vbox, help="outer box containing main menu buttons")
+    style.mm_inner_box = Style(style.hbox, help="inner box containing main menu buttons")
 
-    tag menu
+    style.mm_button = Style(style.button, help="main menu button")
+    style.mm_button_text = Style(style.button_text, help="main menu button (text)")
 
-    style_prefix "mm"
+    style.mm_menu_frame.xalign = 0.5
+    style.mm_menu_frame.yalign = 0.98
+    style.mm_inner_box.xalign = 0.5
 
-    # Main menu background (inherits/uses mm_root style if defined)
-    window:
-        style "mm_root"
+    config.main_menu_per_group = 2
+
+
+    def _grouped_main_menu_rows():
+        rows = [ ]
+        current_row = [ ]
+
+        for i, e in enumerate(config.main_menu):
+
+            if len(e) == 3:
+                label, clicked, enabled = e
+                shown = "True"
+            else:
+                label, clicked, enabled, shown = e
+
+            if not eval(shown):
+                continue
+
+            if current_row and (i % config.main_menu_per_group == 0):
+                rows.append(current_row)
+                current_row = [ ]
+
+            # This checks to see if clicked is a string. If so, we want clicked
+            # to jump us out of the current context.
+            if isinstance(clicked, basestring):
+                clicked = renpy.curry(renpy.jump_out_of_context)(clicked)
+
+            current_row.append((label, clicked, eval(enabled)))
+
+        if current_row:
+            rows.append(current_row)
+
+        return rows
+
+screen _grouped_main_menu():
+
+    key "game_menu" action NullAction()
+
+    # Show the background.
+    window style "mm_root":
         null
 
-    frame:
-        style "mm_menu_frame"
-        xalign gui.mm_frame_xalign
-        yalign gui.mm_frame_yalign
+    frame style "mm_menu_frame":
+        vbox style "mm_outer_box":
 
-        vbox:
-            style "mm_outer_box"
-
-            $ visible_entries = []
-            for entry in config.main_menu:
-                if len(entry) == 3:
-                    $ btn_label, btn_clicked, btn_enabled = entry
-                    $ btn_shown = True
-                else:
-                    $ btn_label, btn_clicked, btn_enabled, btn_shown = entry
-
-                if _mm_eval(btn_shown, True):
-                    $ visible_entries.append((btn_label, btn_clicked, btn_enabled))
-
-            for group_start in range(0, len(visible_entries), config.main_menu_per_group):
-                hbox:
-                    style "mm_inner_box"
-                    xalign gui.mm_inner_box_xalign
-
-                    for btn_label, btn_clicked, btn_enabled in visible_entries[group_start:group_start + config.main_menu_per_group]:
-                        $ is_enabled = _mm_eval(btn_enabled, True)
-                        $ action = _mm_action(btn_clicked)
-
-                        textbutton _(btn_label):
-                            style "mm_button"
-                            text_style "mm_button_text"
+            for row in _grouped_main_menu_rows():
+                hbox style "mm_inner_box":
+                    for label, clicked, is_enabled in row:
+                        button:
+                            style style.mm_button[label]
                             sensitive is_enabled
-                            action action
+                            action (clicked if is_enabled else None)
+                            text _(label) style style.mm_button_text[label]
 
 label main_menu_screen:
-    $ renpy.scene("master")
-    $ renpy.show_screen("main_menu_screen")
-    $ ui.interact(mouse="mainmenu")
+
+    python hide:
+        renpy.show_screen("_grouped_main_menu", _transient=True)
+        ui.interact(mouse="mainmenu")
+
     return

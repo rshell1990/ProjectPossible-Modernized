@@ -49,6 +49,7 @@ def path_to_saves(gamedir, save_directory=None):
             os.path.join(os.environ["ANDROID_PUBLIC"], "saves"),
             ]
 
+        rv = paths[-1]
         for rv in paths:
             if os.path.isdir(rv) and test_writable(rv):
                 break
@@ -130,7 +131,8 @@ def path_to_renpy_base():
 # Doing the version check this way also doubles as an import of ast,
 # which helps py2exe et al.
 try:
-    import ast; ast
+    import ast
+    _ = ast
 except:
     print("Ren'Py requires at least python 2.6.")
     sys.exit(0)

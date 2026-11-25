@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file handles argument parsing. Argument parsing takes place in
 # two phases. In the first phase, we only parse the arguments that are
@@ -12,16 +32,10 @@ from renpy.compat import *
 import argparse
 import os
 import renpy
-import renpy.game
-import renpy.warp
-import renpy.config
-import renpy.loadsave
-import renpy.persistent
-import renpy.lint
 
 try:
     import site
-    site._renpy_argv_emulation() # type: ignore[attr-defined] # @UndefinedVariable
+    site._renpy_argv_emulation() # @UndefinedVariable
 except:
     pass
 
@@ -125,15 +139,14 @@ class ArgumentParser(argparse.ArgumentParser):
         if second_pass:
             self.add_argument("-h", "--help", action="help", help="Displays this help message, then exits.")
 
-            game_args = getattr(renpy.game, "args", None)
-            command = getattr(game_args, "command", "run")
+            command = renpy.game.args.command # @UndefinedVariable
             self.group = self.add_argument_group("{0} command arguments".format(command), description)
 
     def add_argument(self, *args, **kwargs):
         if self.group is self:
-            argparse.ArgumentParser.add_argument(self, *args, **kwargs)
+            return argparse.ArgumentParser.add_argument(self, *args, **kwargs)
         else:
-            self.group.add_argument(*args, **kwargs)
+            return self.group.add_argument(*args, **kwargs)
 
     def parse_args(self, *args, **kwargs):
         rv = argparse.ArgumentParser.parse_args(self, *args, **kwargs)
@@ -218,9 +231,7 @@ def rmpersistent():
 
     takes_no_arguments("Deletes the persistent data.")
 
-    location = getattr(renpy.loadsave, "location", None)
-    if location is not None:
-        location.unlink_persistent()
+    renpy.loadsave.location.unlink_persistent()
     renpy.persistent.should_save_persistent = False
 
     return False
@@ -282,10 +293,9 @@ def post_init():
     if execution should continue and False otherwise.
     """
 
-    game_args = getattr(renpy.game, "args", None)
-    command = getattr(game_args, "command", "run")
+    command = renpy.game.args.command # @UndefinedVariable
 
-    if command == "run" and getattr(game_args, "lint", False):
+    if command == "run" and renpy.game.args.lint: # @UndefinedVariable
         command = "lint"
 
     if command not in commands:

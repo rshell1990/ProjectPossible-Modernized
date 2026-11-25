@@ -1,9 +1,29 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains functions that load and save the game state.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
-from future.utils import reraise  # type: ignore[import-not-found]
+from future.utils import reraise
 
 import io
 import zipfile
@@ -15,13 +35,6 @@ import os
 import sys
 
 import renpy
-import renpy.config
-import renpy.game
-import renpy.python
-import renpy.store  # type: ignore[import-not-found]
-import renpy.exports
-import renpy.object
-import renpy.error
 
 import pickle
 import renpy.compat.pickle as cPickle
@@ -78,9 +91,9 @@ def save_dump(roots, log):
 
         elif isinstance(o, basestring):
             if len(o) <= 80:
-                o_repr = repr(o)
+                o_repr = repr(o).encode("utf-8")
             else:
-                o_repr = repr(o[:80] + "...")
+                o_repr = repr(o[:80] + "...").encode("utf-8")
 
         elif isinstance(o, (tuple, list)):
             o_repr = "<" + o.__class__.__name__ + ">"
@@ -126,6 +139,8 @@ def save_dump(roots, log):
                 reduction = o.__reduce_ex__(2)
             except:
                 reduction = [ ]
+                if isinstance(o_repr, bytes):
+                    o_repr = o_repr.decode("utf-8", "replace")
                 o_repr = "BAD REDUCTION " + o_repr
 
             # Gets an element from the reduction, or o if we don't have
@@ -378,18 +393,14 @@ def save(slotname, extra_info='', mutate_flag=False):
     if mutate_flag:
         renpy.python.mutate_flag = False
 
-    log = renpy.game.log
-    if log is None:
-        raise SaveAbort()
-
-    roots = log.freeze(None)
+    roots = renpy.game.log.freeze(None)
 
     if renpy.config.save_dump:
-        save_dump(roots, log)
+        save_dump(roots, renpy.game.log)
 
     logf = io.BytesIO()
     try:
-        dump((roots, log), logf)
+        dump((roots, renpy.game.log), logf)
     except:
 
         t, e, tb = sys.exc_info()
@@ -397,28 +408,24 @@ def save(slotname, extra_info='', mutate_flag=False):
         if mutate_flag:
             reraise(t, e, tb)
 
+        bad = None
         try:
-            bad = find_bad_reduction(roots, log)
+            bad = find_bad_reduction(roots, renpy.game.log)
         except:
             reraise(t, e, tb)
 
         if bad is None:
             reraise(t, e, tb)
 
-        error_args = getattr(e, "args", None)
-        if error_args:
-            error_args = (error_args[0] + ' (perhaps {})'.format(bad),) + error_args[1:]
-            setattr(e, "args", error_args)
+        if e is not None and e.args:
+            e.args = (e.args[0] + ' (perhaps {})'.format(bad),) + e.args[1:]
 
         reraise(t, e, tb)
 
     if mutate_flag and renpy.python.mutate_flag:
         raise SaveAbort()
 
-    interface = renpy.game.interface
-    if interface is None:
-        raise SaveAbort()
-    screenshot = interface.get_screenshot()
+    screenshot = renpy.game.interface.get_screenshot()
 
     json = { "_save_name" : extra_info, "_renpy_version" : list(renpy.version_tuple), "_version" : renpy.config.version }
 
@@ -428,9 +435,9 @@ def save(slotname, extra_info='', mutate_flag=False):
     json = json_dumps(json)
 
     sr = SaveRecord(screenshot, extra_info, json, logf.getvalue())
-    save_location = _get_location()
-    save_location.save(slotname, sr)
-    save_location.scan()
+    location.save(slotname, sr)
+
+    location.scan()
     clear_slot(slotname)
 
 
@@ -472,7 +479,7 @@ def autosave_thread_function(take_screenshot):
     finally:
         autosave_not_running.set()
         if renpy.emscripten:
-            import emscripten  # type: ignore[import-not-found]
+            import emscripten
             emscripten.syncfs()
 
 
@@ -583,7 +590,7 @@ def scan_saved_game(slotname):
         return None
 
     json = c.get_json()
-    if not isinstance(json, dict):
+    if json is None:
         return None
 
     extra_info = json.get("_save_name", "")
@@ -618,7 +625,7 @@ def list_saved_games(regexp=r'.', fast=False):
     """
 
     # A list of save slots.
-    slots = _get_location().list()
+    slots = location.list()
 
     if regexp is not None:
         slots = [ i for i in slots if re.match(regexp, i) ]
@@ -636,7 +643,7 @@ def list_saved_games(regexp=r'.', fast=False):
 
         if c is not None:
             json = c.get_json()
-            if isinstance(json, dict):
+            if json is not None:
                 extra_info = json.get("_save_name", "")
             else:
                 extra_info = ""
@@ -659,7 +666,7 @@ def list_slots(regexp=None):
     """
 
     # A list of save slots.
-    slots = _get_location().list()
+    slots = location.list()
 
     if regexp is not None:
         slots = [ i for i in slots if re.match(regexp, i) ]
@@ -689,7 +696,7 @@ def newest_slot(regexp=None):
         max_mtime = 0
         rv = None
 
-        slots = _get_location().list()
+        slots = location.list()
 
         for i in slots:
 
@@ -763,7 +770,7 @@ def load(filename):
     successfully, this function never returns.
     """
 
-    roots, log = loads(_get_location().load(filename))
+    roots, log = loads(location.load(filename))
     log.unfreeze(roots, label="_after_load")
 
 
@@ -774,7 +781,7 @@ def unlink_save(filename):
     Deletes the save slot with the given name.
     """
 
-    _get_location().unlink(filename)
+    location.unlink(filename)
     clear_slot(filename)
 
 
@@ -786,7 +793,7 @@ def rename_save(old, new):
     exist.)
     """
 
-    _get_location().rename(old, new)
+    location.rename(old, new)
 
     clear_slot(old)
     clear_slot(new)
@@ -800,7 +807,7 @@ def copy_save(old, new):
     exist.)
     """
 
-    _get_location().copy(old, new)
+    location.copy(old, new)
     clear_slot(new)
 
 
@@ -851,7 +858,7 @@ class Cache(object):
         rv = self.mtime
 
         if rv is unknown:
-            rv = self.mtime = _get_location().mtime(self.slotname)
+            rv = self.mtime = location.mtime(self.slotname)
 
         return rv
 
@@ -860,7 +867,7 @@ class Cache(object):
         rv = self.json
 
         if rv is unknown:
-            rv = self.json = _get_location().json(self.slotname)
+            rv = self.json = location.json(self.slotname)
 
         return rv
 
@@ -869,7 +876,7 @@ class Cache(object):
         rv = self.screenshot
 
         if rv is unknown:
-            rv = self.screenshot = _get_location().screenshot(self.slotname)
+            rv = self.screenshot = location.screenshot(self.slotname)
 
         return self.screenshot
 
@@ -936,14 +943,6 @@ def init():
 # Save locations are places where saves are saved to or loaded from, or a
 # collection of such locations. This is the default save location.
 location = None
-
-
-def _get_location():
-    save_location = location
-    if save_location is None:
-        raise Exception("The save location is not initialized.")
-    return save_location
-
 
 if False:
     location = renpy.savelocation.FileLocation("blah")

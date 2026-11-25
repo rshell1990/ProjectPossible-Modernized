@@ -1,52 +1,93 @@
-﻿# Modernized yes/no prompt screen for Ren'Py 7 / 8+
-# Note: In standard modern Ren'Py projects, `screen yesno(message, yes_action, no_action)`
-# already exists in `screens.rpy`. Rename or merge carefully if your project defines one.
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-define gui.yesno_frame_xmargin = 0.05
-define gui.yesno_frame_ypos = 0.1
-define gui.yesno_frame_yanchor = 0.0
-define gui.yesno_frame_ypadding = 0.05
+init python hide:
 
-define gui.yesno_vbox_spacing = 30
-define gui.yesno_button_spacing = 100
+    layout.provides('yesno_prompt')
 
-screen yesno_prompt(message):
+    # Define styles
+    style.yesno_frame = Style(style.menu_frame, help="frame containing a yes/no prompt and yes/no buttons")
+    style.yesno_frame_vbox = Style(style.vbox, help="box separating yes/no prompt from yes/no buttons")
 
-    modal True
+    style.yesno_prompt = Style(style.prompt, help="a yes/no prompt")
+    style.yesno_prompt_text = Style(style.prompt_text, help="a yes/no prompt (text)")
 
-    zorder 200
+    style.yesno_button_hbox = Style(style.hbox, help="the box separating yes and no buttons")
+    style.yesno_button = Style(style.button, help="a yes or no button")
+    style.yesno_button_text = Style(style.button_text, help="a yes or no button (text)")
 
-    style_prefix "yesno"
+    # Alter styles.
+    style.yesno_frame.xfill = True
+    style.yesno_frame.xmargin = .05
+    style.yesno_frame.ypos = .1
+    style.yesno_frame.yanchor = 0
+    style.yesno_frame.ypadding = .05
 
-    on "show" action Function(renpy.transition, config.intra_transition)
-    on "hide" action Function(renpy.transition, config.intra_transition)
+    style.yesno_frame_vbox.xalign = 0.5
+    style.yesno_frame_vbox.yalign = 0.5
+    style.yesno_frame_vbox.box_spacing = 30
 
-    frame:
-        xfill True
-        xmargin gui.yesno_frame_xmargin
-        ypos gui.yesno_frame_ypos
-        yanchor gui.yesno_frame_yanchor
-        ypadding gui.yesno_frame_ypadding
+    style.yesno_button_hbox.xalign = 0.5
+    style.yesno_button_hbox.spacing = 100
 
-        vbox:
-            xalign 0.5
-            yalign 0.5
-            spacing gui.yesno_vbox_spacing
+    style.yesno_button.size_group = "yesno"
 
-            label _(message):
-                style "yesno_prompt_text"
-                xalign 0.5
+    def yesno_prompt(screen, message):
+        renpy.transition(config.intra_transition)
 
-            hbox:
-                xalign 0.5
-                spacing gui.yesno_button_spacing
+        use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
+        if not use_sl2_nav:
+            layout.navigation(screen)
 
-                textbutton _("Yes"):
-                    style "yesno_button"
-                    text_style "yesno_button_text"
+        renpy.show_screen(
+            "_classic_yesno_prompt",
+            nav_screen=screen,
+            message=message,
+            use_sl2_nav=use_sl2_nav,
+            _transient=True)
+
+        rv = ui.interact(mouse="gamemenu")
+        renpy.transition(config.intra_transition)
+        return rv
+
+    layout.yesno_prompt = yesno_prompt
+
+screen _classic_yesno_prompt(nav_screen, message, use_sl2_nav=True):
+
+    if use_sl2_nav:
+        use _layout_navigation(nav_screen)
+
+    window style "yesno_frame":
+        vbox style "yesno_frame_vbox":
+
+            window style style.yesno_prompt[message]:
+                text _(message) style style.yesno_prompt_text[message]
+
+            hbox style "yesno_button_hbox":
+                button:
+                    style style.yesno_button[u"Yes"]
                     action Return(True)
-
-                textbutton _("No"):
-                    style "yesno_button"
-                    text_style "yesno_button_text"
+                    text _(u"Yes") style style.yesno_button_text[u"Yes"]
+                button:
+                    style style.yesno_button[u"No"]
                     action Return(False)
+                    text _(u"No") style style.yesno_button_text[u"No"]
+

@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This module contains code to support user-defined statements.
 
@@ -5,9 +25,6 @@ from __future__ import division, absolute_import, with_statement, print_function
 from renpy.compat import *
 
 import renpy
-import renpy.ast
-import renpy.exports
-import renpy.parser
 
 # The statement registry. It's a map from tuples giving the prefixes of
 # statements to dictionaries giving the methods used for that statement.
@@ -175,10 +192,11 @@ def register(
     # The function that is called to create an ast.UserStatement.
     def parse_user_statement(l, loc):
 
+        old_subparses = l.subparses
+
         try:
             renpy.exports.push_error_handler(l.error)
 
-            old_subparses = l.subparses
             l.subparses = [ ]
 
             text = l.text
@@ -196,9 +214,7 @@ def register(
 
             start_line = l.line
 
-            if parse is None:
-                raise Exception("Statement has no parse function.")
-            parsed = name, parse(l)
+            parsed = name, (parse(l) if parse is not None else None)
 
             if l.line == start_line:
                 l.advance()
@@ -206,7 +222,7 @@ def register(
             rv = renpy.ast.UserStatement(loc, text, subblock, parsed)
             rv.translatable = translatable
             rv.translation_relevant = bool(translation_strings)
-            setattr(rv, "code_block", code_block)
+            rv.code_block = code_block
             rv.subparses = l.subparses
 
         finally:
@@ -226,7 +242,8 @@ def register(
 
     # The function that is called to get our parse data.
     def parse_data(l):
-        return (name, registry[name]["parse"](l))
+        parse_fn = registry[name]["parse"]
+        return (name, parse_fn(l) if parse_fn is not None else None)
 
     parsers.add(name, parse_data)
 
@@ -246,6 +263,7 @@ def parse(node, line, subblock):
         pf = parsers.parse(l)
         if pf is None:
             l.error("Could not find user-defined statement at runtime.")
+            return None
 
         return pf(l)
 

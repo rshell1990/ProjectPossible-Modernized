@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains the new image code, which includes provisions for
 # size-based caching and constructing images from operations (like
@@ -15,6 +35,7 @@ import threading
 import time
 import io
 import os.path
+from collections import deque
 
 
 # This is an entry in the image cache.
@@ -68,8 +89,8 @@ class Cache(object):
         # A map from Image object to CacheEntry.
         self.cache = { }
 
-        # A list of Image objects that we want to preload.
-        self.preloads = [ ]
+        # A deque of Image objects that we want to preload.
+        self.preloads = deque()
 
         # False if this is not the first preload in this tick.
         self.first_preload_in_tick = True
@@ -108,7 +129,7 @@ class Cache(object):
         # is first.
         #
         # This is only updated when config.developer is True.
-        self.load_log = [ ]
+        self.load_log = deque(maxlen=100)
 
     def get_total_size(self):
         """
@@ -168,7 +189,7 @@ class Cache(object):
 
         self.lock.acquire()
 
-        self.preloads = [ ]
+        self.preloads.clear()
         self.pin_cache = { }
         self.cache = { }
         self.first_preload_in_tick = True
@@ -199,7 +220,7 @@ class Cache(object):
 
         with self.lock:
             self.time += 1
-            self.preloads = [ ]
+            self.preloads.clear()
             self.first_preload_in_tick = True
             self.added.clear()
 
@@ -211,7 +232,7 @@ class Cache(object):
     # The preload thread can deal with this update, so we don't need
     # to lock things.
     def end_tick(self):
-        self.preloads = [ ]
+        self.preloads.clear()
 
     # This returns the pygame surface corresponding to the provided
     # image. It also takes care of updating the age of images in the
@@ -359,7 +380,8 @@ class Cache(object):
         """
 
         # If we're within the limit, return.
-        if self.get_total_size() <= self.cache_limit:
+        total_size = self.get_total_size()
+        if total_size <= self.cache_limit:
             return True
 
         # If we're outside the cache limit, we need to go and start
@@ -373,10 +395,11 @@ class Cache(object):
                 return False
 
             # Otherwise, kill off the given cache entry.
+            total_size -= ce.size()
             self.kill(ce)
 
             # If we're in the limit, we're done.
-            if self.get_total_size() <= self.cache_limit:
+            if total_size <= self.cache_limit:
                 break
 
         return True
@@ -478,12 +501,12 @@ class Cache(object):
                         for i in self.preloads:
                             renpy.display.ic_log.write("Overfull %r", i)
 
-                    self.preloads = [ ]
+                    self.preloads.clear()
 
                     break
 
             try:
-                image = self.preloads.pop(0)
+                image = self.preloads.popleft()
 
                 if image not in self.preload_blacklist:
                     try:
@@ -536,10 +559,7 @@ class Cache(object):
 
         preload = (threading.current_thread() is self.preload_thread)
 
-        self.load_log.insert(0, (time.time(), filename, preload))
-
-        while len(self.load_log) > 100:
-            self.load_log.pop()
+        self.load_log.appendleft((time.time(), filename, preload))
 
 
 # The cache object.
@@ -652,10 +672,11 @@ class Image(ImageBase):
             try:
                 filelike = renpy.loader.load(self.filename)
                 filename = self.filename
-            except renpy.webloader.DownloadNeeded as exception:
-                renpy.webloader.enqueue(exception.relpath, 'image', self.filename)
+            except renpy.webloader.DownloadNeeded as e:
+                exception = e
+                renpy.webloader.enqueue(e.relpath, 'image', self.filename)
                 # temporary placeholder:
-                filelike = open(os.path.join('_placeholders', exception.relpath), 'rb')
+                filelike = open(os.path.join('_placeholders', e.relpath), 'rb')
                 filename = 'use_png_format.png'
 
             with filelike as f:

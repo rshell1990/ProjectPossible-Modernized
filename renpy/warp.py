@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This code implements the ability to "warp" to a given location in
 # the Ren'Py source code, given the filename and line number of the
@@ -6,14 +26,11 @@
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
+import builtins
 import renpy
-import renpy.ast
-import renpy.config
-import renpy.exports
-import renpy.game
 import operator
 
-warp_spec: object = None
+warp_spec = None  # type: builtins.str | None
 
 
 def warp():
@@ -30,11 +47,6 @@ def warp():
     if spec is None:
         return None
 
-    if not isinstance(spec, str):
-        raise Exception("Invalid warp location.")
-
-    spec = str(spec)
-
     if ':' not in spec:
         raise Exception('No : found in warp location.')
 
@@ -47,16 +59,12 @@ def warp():
     if not filename.startswith("game/"):
         filename = "game/" + filename
 
-    script = getattr(renpy.game, "script", None)
-    if script is None:
-        return None
-
     # First, compute for each statement reachable from a scene statement,
     # one statement that reaches that statement.
 
     prev = { }
 
-    seenset = set(script.namemap.values())
+    seenset = set(renpy.game.script.namemap.values())
 
     # This is called to indicate that next can be executed following node.
     def add(node, next):  # @ReservedAssignment
@@ -97,8 +105,8 @@ def warp():
                     add(n, i[2][0])
 
         if isinstance(n, renpy.ast.Jump):
-            if not n.expression and n.target in script.namemap:
-                add(n, script.namemap[n.target])
+            if not n.expression and n.target in renpy.game.script.namemap:
+                add(n, renpy.game.script.namemap[n.target])
                 continue
 
         if isinstance(n, renpy.ast.While):

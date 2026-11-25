@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains some miscellaneous displayables that involve images.
 # Most of the guts of this file have been moved into im.py, with only some
@@ -343,7 +363,7 @@ class ImageReference(renpy.display.core.Displayable):
         if self.target is None:
             self.find_target()
 
-        return self.target._target()
+        return self.target._target()  # type: ignore
 
     def find_target(self):
 
@@ -385,8 +405,8 @@ class ImageReference(renpy.display.core.Displayable):
 
         try:
 
-            a = self._args.copy(name=name, args=args)
-            self.target = target._duplicate(a)
+            a = self._args.copy(name=name, args=args)  # type: ignore
+            self.target = target._duplicate(a)  # type: ignore
 
         except Exception as e:
 
@@ -397,7 +417,7 @@ class ImageReference(renpy.display.core.Displayable):
             return False
 
         # Copy the old transform over.
-        new_transform = self.target._target()
+        new_transform = self.target._target()  # type: ignore
 
         if isinstance(new_transform, renpy.display.transform.Transform):
             if self.old_transform is not None:
@@ -434,14 +454,14 @@ class ImageReference(renpy.display.core.Displayable):
         if self.target is None:
             self.find_target()
 
-        self._duplicatable = self.target._duplicatable
+        self._duplicatable = self.target._duplicatable  # type: ignore
 
     def _in_current_store(self):
 
         if self.target is None:
             self.find_target()
 
-        target = self.target._in_current_store()
+        target = self.target._in_current_store()  # type: ignore
 
         if target is self.target:
             return self
@@ -460,19 +480,19 @@ class ImageReference(renpy.display.core.Displayable):
         if self.target is None:
             self.find_target()
 
-        return self.target._hide(st, at, kind)
+        return self.target._hide(st, at, kind)  # type: ignore
 
     def set_transform_event(self, event):
         if self.target is None:
             self.find_target()
 
-        return self.target.set_transform_event(event)
+        return self.target.set_transform_event(event)  # type: ignore
 
     def event(self, ev, x, y, st):
         if self.target is None:
             self.find_target()
 
-        return self.target.event(ev, x, y, st)
+        return self.target.event(ev, x, y, st)  # type: ignore
 
     def render(self, width, height, st, at):
         if self.target is None:
@@ -485,9 +505,9 @@ class ImageReference(renpy.display.core.Displayable):
             self.find_target()
 
         if not renpy.config.imagereference_respects_position:
-            return self.target.get_placement()
+            return self.target.get_placement()  # type: ignore
 
-        xpos, ypos, xanchor, yanchor, xoffset, yoffset, subpixel = self.target.get_placement()
+        xpos, ypos, xanchor, yanchor, xoffset, yoffset, subpixel = self.target.get_placement()  # type: ignore
 
         if xpos is None:
             xpos = self.style.xpos
@@ -692,19 +712,19 @@ class DynamicImage(renpy.display.core.Displayable):
         if self.target is None:
             self.find_target()
 
-        return self.target._hide(st, at, kind)
+        return self.target._hide(st, at, kind)  # type: ignore
 
     def set_transform_event(self, event):
         if self.target is None:
             self.find_target()
 
-        return self.target.set_transform_event(event)
+        return self.target.set_transform_event(event)  # type: ignore
 
     def event(self, ev, x, y, st):
         if self.target is None:
             self.find_target()
 
-        return self.target.event(ev, x, y, st)
+        return self.target.event(ev, x, y, st)  # type: ignore
 
     def render(self, width, height, st, at):
         if self.target is None:
@@ -716,7 +736,7 @@ class DynamicImage(renpy.display.core.Displayable):
         if self.target is None:
             self.find_target()
 
-        return self.target.get_placement()
+        return self.target.get_placement()  # type: ignore
 
     def visit(self):
 
@@ -732,7 +752,7 @@ class DynamicImage(renpy.display.core.Displayable):
             self.find_target()
 
         if old_target is not self.target:
-            self.target.visit_all(lambda i : i.per_interact())
+            self.target.visit_all(lambda i : i.per_interact())  # type: ignore
 
 
 class ShownImageInfo(renpy.object.Object):
@@ -976,7 +996,7 @@ class ShownImageInfo(renpy.object.Object):
                     max_len = len_attrs
                     matches = [ ]
 
-                matches.append((tag,) + attrs)
+                matches.append((tag,) + attrs)  # type: ignore
 
         if matches is None:
             return None

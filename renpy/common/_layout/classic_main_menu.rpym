@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init python:
 
@@ -11,54 +31,52 @@ init python:
 
     style.mm_button.size_group = "mm"
 
-    style.mm_menu_frame.xpos = 5.0 / 6.0
+    style.mm_menu_frame.xpos = 5.0/6.0
     style.mm_menu_frame.xanchor = 0.5
     style.mm_menu_frame.ypos = 0.9
     style.mm_menu_frame.yanchor = 1.0
 
-    def _main_menu_eval(value, default=False):
-        if value is None:
-            return default
-        if callable(value):
-            return bool(value())
-        if isinstance(value, basestring):
-            try:
-                return bool(renpy.python.py_eval(value))
-            except Exception:
-                return default
-        return bool(value)
+    def _classic_mm_items():
+        items = [ ]
+        for e in config.main_menu:
+            if len(e) == 3:
+                label, clicked, enabled = e
+                shown = "True"
+            else:
+                label, clicked, enabled, shown = e
 
-screen classic_main_menu():
-    tag menu
-    modal True
+            if not eval(shown):
+                continue
+
+            is_enabled = eval(enabled)
+            if isinstance(clicked, basestring):
+                clicked = renpy.curry(renpy.jump_out_of_context)(clicked)
+
+            items.append((label, clicked if is_enabled else None, is_enabled))
+        return items
+
+screen _classic_main_menu(mm_items=None):
 
     key "game_menu" action NullAction()
 
-    window:
-        style "mm_root"
-        add Null()
+    # Show the background.
+    window style "mm_root":
+        null
 
-    frame:
-        style "mm_menu_frame"
+    frame style "mm_menu_frame":
+        vbox style "mm_menu_frame_box":
 
-        vbox:
-            style "mm_menu_frame_box"
-
-            for entry in config.main_menu:
-                if len(entry) == 3:
-                    $ label, action, enabled = entry
-                    $ shown = True
-                else:
-                    $ label, action, enabled, shown = entry
-
-                if _main_menu_eval(shown, True):
-                    textbutton _(label):
-                        style "mm_button"
-                        text_style "mm_button_text"
-                        sensitive _main_menu_eval(enabled, True)
-                        action (Jump(action) if isinstance(action, basestring) else action)
-
+            for label, clicked, is_enabled in (mm_items if mm_items is not None else _classic_mm_items()):
+                button:
+                    style style.mm_button[label]
+                    sensitive is_enabled
+                    action clicked
+                    text _(label) style style.mm_button_text[label]
 
 label main_menu_screen:
-    $ renpy.call_screen("classic_main_menu")
+
+    python hide:
+        renpy.show_screen("_classic_main_menu", mm_items=_classic_mm_items(), _transient=True)
+        ui.interact(mouse="mainmenu")
+
     return

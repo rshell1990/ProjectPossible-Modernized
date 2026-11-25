@@ -1,3 +1,23 @@
+﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1500 python:
 
@@ -13,35 +33,35 @@ init -1500 python:
     @renpy.pure
     class ShowMenu(Action, DictEquality):
         """
-            :doc: menu_action
+        :doc: menu_action
 
-            Causes us to enter the game menu, if we're not there already. If we
-            are in the game menu, then this shows a screen or jumps to a label.
+        Causes us to enter the game menu, if we're not there already. If we
+        are in the game menu, then this shows a screen or jumps to a label.
 
-            `screen` is usually the name of a screen, which is shown using
-            the screen mechanism. If the screen doesn't exist, then "_screen"
-            is appended to it, and that label is jumped to.
+        `screen` is usually the name of a screen, which is shown using
+        the screen mechanism. If the screen doesn't exist, then "_screen"
+        is appended to it, and that label is jumped to.
 
-            If the optional keyword argument `_transition` is given, the
-            menu will change screens using the provided transition.
-            If not manually specified, the default transition is
-            `config.intra_transition`.
+        If the optional keyword argument `_transition` is given, the
+        menu will change screens using the provided transition.
+        If not manually specified, the default transition is
+        `config.intra_transition`.
 
-            * ShowMenu("load")
-            * ShowMenu("save")
-            * ShowMenu("preferences")
+        * ShowMenu("load")
+        * ShowMenu("save")
+        * ShowMenu("preferences")
 
-            This can also be used to show user-defined menu screens. For
-            example, if one has a "stats" screen defined, one can
-            show as part of the game menu using:
+        This can also be used to show user-defined menu screens. For
+        example, if one has a "stats" screen defined, one can
+        show as part of the game menu using:
 
-            * ShowMenu("stats")
+        * ShowMenu("stats")
 
-            ShowMenu without an argument will enter the game menu at the
-            default screen, taken from _game_menu_screen.
+        ShowMenu without an argument will enter the game menu at the
+        default screen, taken from _game_menu_screen.
 
-            Extra arguments and keyword arguments are passed on to the screen
-            """
+        Extra arguments and keyword arguments are passed on to the screen
+        """
         transition = None  # For save compatability; see renpy#2376
 
         def __init__(self, screen=None, *args, **kwargs):

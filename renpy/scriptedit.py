@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains code to add and remove statements from the AST
 # and the textual representation of Ren'Py code.
@@ -6,14 +26,6 @@ from __future__ import division, absolute_import, with_statement, print_function
 from renpy.compat import *
 
 import renpy
-import renpy.config
-import renpy.loader
-import renpy.parser
-import renpy.game
-import renpy.ast
-import renpy.exports
-
-game = getattr(renpy, "game")
 import re
 import codecs
 
@@ -51,7 +63,6 @@ class Line(object):
 
         # The text of the line.
         self.text = ''
-        self.full_text = ''
 
     def __repr__(self):
         return "<Line {}:{} {!r}>".format(self.filename, self.number, self.text)
@@ -239,7 +250,7 @@ def nodes_on_line(filename, linenumber):
 
     rv = [ ]
 
-    for i in game.script.all_stmts:
+    for i in renpy.game.script.all_stmts:
         if (i.filename == filename) and (i.linenumber == linenumber) and (i.rollback != "never"):
             rv.append(i)
 
@@ -254,7 +265,7 @@ def nodes_on_line_at_or_after(filename, linenumber):
     ensure_loaded(filename)
 
     lines = [ i.linenumber
-              for i in game.script.all_stmts
+              for i in renpy.game.script.all_stmts
               if (i.filename == filename)
               if (i.linenumber >= linenumber)
               if (i.rollback != "never") ]
@@ -312,7 +323,7 @@ def adjust_ast_linenumbers(filename, linenumber, offset):
         The amount to adjust by. Positive numbers increase the line
     """
 
-    for i in game.script.all_stmts:
+    for i in renpy.game.script.all_stmts:
         if (i.filename == filename) and (i.linenumber >= linenumber):
             i.linenumber += offset
 
@@ -328,24 +339,24 @@ def add_to_ast_before(code, filename, linenumber):
 
     adjust_ast_linenumbers(old.filename, linenumber, 1)
 
-    block, _init = game.script.load_string(old.filename, code, linenumber=linenumber)
+    block, _init = renpy.game.script.load_string(old.filename, code, linenumber=linenumber)
 
     # Remove the return statement at the end of the block.
     ret_stmt = block.pop()
-    game.script.all_stmts.remove(ret_stmt)
+    renpy.game.script.all_stmts.remove(ret_stmt)
 
     if not block:
         return
 
-    for i in game.script.all_stmts:
+    for i in renpy.game.script.all_stmts:
         i.replace_next(old, block[0])
 
     renpy.ast.chain_block(block, old)
 
-    for i in game.contexts:
+    for i in renpy.game.contexts:
         i.replace_node(old, block[0])
 
-    game.log.replace_node(old, block[0])
+    renpy.game.log.replace_node(old, block[0])
 
 
 def can_add_before(filename, linenumber):
@@ -378,7 +389,7 @@ def remove_from_ast(filename, linenumber):
 
     new_stmts = [ ]
 
-    for i in game.script.all_stmts:
+    for i in renpy.game.script.all_stmts:
         if i in nodes:
             continue
 
@@ -386,9 +397,9 @@ def remove_from_ast(filename, linenumber):
 
         new_stmts.append(i)
 
-    game.script.all_stmts = new_stmts
+    renpy.game.script.all_stmts = new_stmts
 
-    namemap = game.script.namemap
+    namemap = renpy.game.script.namemap
 
     # This is fairly slow - when we remove a node, we have to replace it with
     # the next node. But if we then remove the next node, we have to replace it
@@ -409,7 +420,7 @@ def test_add():
     s = "'Hello world %f'" % serial
     serial += 1
 
-    node = game.script.lookup(game.context().current)
+    node = renpy.game.script.lookup(renpy.game.context().current)
     filename = node.filename
     linenumber = node.linenumber
 
@@ -420,7 +431,7 @@ def test_add():
 
 def test_remove():
 
-    node = game.script.lookup(game.context().current)
+    node = renpy.game.script.lookup(renpy.game.context().current)
     filename = node.filename
     linenumber = node.linenumber
 

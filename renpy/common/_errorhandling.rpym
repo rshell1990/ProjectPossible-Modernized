@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
 # This file contains the code for in-game Ren'Py error handling. It's a
 # module (as opposed to a .rpy file) because that allows us to ensure
@@ -23,7 +43,7 @@ init python hide:
 
     config.init_system_styles = init_system_styles
 
-init label _errorhandling:
+init:
 
     python in gui:
         from store import config
@@ -31,7 +51,7 @@ init label _errorhandling:
         def _scale(n):
             return int(min(n * config.screen_width / 960, n * config.screen_height / 720))
 
-        _wide = (config.screen_width >  (config.screen_height * 1.5))
+        _wide = (config.screen_width > (config.screen_height * 1.5))
 
     style _default:
 
@@ -139,6 +159,33 @@ init label _errorhandling:
         style.image = style._default
         style.fixed = style._default
 
+        def _errorhandling_rescale():
+            gui._wide = (config.screen_width > (config.screen_height * 1.5))
+
+            style._default.size = gui._scale(16)
+
+            style._frame.xpadding = gui._scale(150 if gui._wide else 15)
+            style._frame.ypadding = gui._scale(15)
+
+            style._button.ypadding = gui._scale(6)
+            style._button_text.size = gui._scale(22)
+            style._small_button_text.size = gui._scale(16)
+
+            style._radio_button.selected_background = Solid("#468", xsize=gui._scale(5), ysize=gui._scale(22), yalign=0.5)
+            style._radio_button.selected_hover_background = Solid("#24C", xsize=gui._scale(5), ysize=gui._scale(22), yalign=0.5)
+            style._radio_button.left_padding = gui._scale(15)
+            style._radio_button.ypadding = gui._scale(2)
+
+            style._label.top_margin = gui._scale(10)
+            style._label.bottom_margin = gui._scale(15)
+            style._label_text.size = gui._scale(30)
+
+            style._bar.ysize = gui._scale(20)
+            style._vbar.xsize = gui._scale(20)
+
+            style._scrollbar.ymaximum = gui._scale(10)
+            style._vscrollbar.xmaximum = gui._scale(10)
+
         ##########################################################################
 
     style _frame is _default:
@@ -231,11 +278,13 @@ init label _errorhandling:
         color "#468"
         hover_color Color("#24C")
 
+label _errorhandling:
+    $ _errorhandling_rescale()
     return
 
-# Invokes _errorhandling when this is first loaded.
+# Invokes _errorhanding when this is first loaded.
 init:
-    call expression "_errorhandling"
+    call _errorhandling
 
 # Early hyperlink support.
 init python:

@@ -1,6 +1,29 @@
-﻿init python:
-    # Preserve legacy style names and positioning properties
-    style.gm_nav_frame = Style(style.frame, help="game menu navigation frame")
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+init python:
+
+    layout.provides('navigation')
+
+    style.gm_nav_frame = Style(style.menu_frame, help="game menu navigation frame")
     style.gm_nav_box = Style(style.vbox, help="box containing game menu navigation buttons")
 
     style.gm_nav_button = Style(style.button, help="game menu navigation button")
@@ -8,51 +31,49 @@
 
     style.gm_nav_button.size_group = "gm_nav_button"
 
-    style.gm_nav_frame.xpos = 5.0 / 6.0
+    style.gm_nav_frame.xpos = 5.0/6.0
     style.gm_nav_frame.xanchor = 0.5
     style.gm_nav_frame.ypos = 0.95
     style.gm_nav_frame.yanchor = 1.0
 
-    def _eval_nav_cond(cond, default=False):
-        if cond is None:
-            return default
+    def _classic_nav_items(screen):
+        items = [ ]
+        for e in config.game_menu:
+            if len(e) == 4:
+                key, label, clicked, enabled = e
+                shown = "True"
+            else:
+                key, label, clicked, enabled, shown = e
 
-        if callable(cond):
-            return bool(cond())
+            if not eval(shown):
+                continue
 
-        if isinstance(cond, basestring):
-            try:
-                return bool(renpy.python.py_eval(cond))
-            except Exception:
-                return default
+            is_enabled = eval(enabled)
+            items.append((label, (screen == key) and is_enabled, is_enabled, clicked if is_enabled else None))
+        return items
 
-        return bool(cond)
+    def _navigation(screen=None):
+        renpy.show_screen("_layout_navigation", nav_screen=screen, _transient=True)
 
-screen navigation(current_screen=None):
-    # Game menu background root container
-    window:
-        style style.gm_root[current_screen]
+    _navigation._is_sl2 = True
+    layout.navigation = _navigation
+
+screen _layout_navigation(nav_screen=None):
+
+    # Display the game menu background
+    window style style.gm_root[nav_screen]:
         null
 
-    if current_screen is not None:
-        frame:
-            style "gm_nav_frame"
+    if nav_screen is not None:
 
-            vbox:
-                id "gm_nav"
-                style "gm_nav_box"
+        # Display the navigation frame.
+        frame style "gm_nav_frame":
+            vbox focus "gm_nav" style "gm_nav_box":
 
-                for entry in config.game_menu:
-                    if len(entry) == 4:
-                        $ key, label, clicked, enabled = entry
-                        $ shown = True
-                    else:
-                        $ key, label, clicked, enabled, shown = entry
-
-                    if _eval_nav_cond(shown, True):
-                        textbutton _(label):
-                            style "gm_nav_button"
-                            text_style "gm_nav_button_text"
-                            selected (current_screen == key)
-                            sensitive _eval_nav_cond(enabled, True)
-                            action clicked
+                for label, is_selected, is_enabled, clicked in _classic_nav_items(nav_screen):
+                    button:
+                        style style.gm_nav_button[label]
+                        selected is_selected
+                        sensitive is_enabled
+                        action clicked
+                        text _(label) style style.gm_nav_button_text[label]

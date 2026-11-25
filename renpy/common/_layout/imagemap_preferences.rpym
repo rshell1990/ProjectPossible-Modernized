@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init python:
 
@@ -37,6 +57,7 @@ init python:
 
     __curried_set = renpy.curry(__set)
 
+
     def __show_preferences():
 
         ime = _ImageMapper(
@@ -65,13 +86,13 @@ init python:
         pref("All Messages", "skip_unseen", True)
 
         if not main_menu:
-            ime.button("Begin Skipping", ui.jumps("_return_skipping"), False)
+            ime.button("Begin Skipping", Jump("_return_skipping"), False)
 
         pref("Stop Skipping", "skip_after_choices", False)
         pref("Keep Skipping", "skip_after_choices", True)
 
         if renpy.display.joystick.enabled or config.always_has_joystick:
-            ime.button("Joystick", ui.jumps("joystick_preferences_screen"), False)
+            ime.button("Joystick", Jump("joystick_preferences_screen"), False)
 
         def play_sound():
             renpy.music.play(config.sample_sound, channel="sound")
@@ -117,10 +138,8 @@ init python:
 
         def set_music(v):
             _preferences.set_volume('music', v / 128.0)
-
         def set_sound(v):
             _preferences.set_volume('sfx', v / 128.0)
-
         def set_voice(v):
             _preferences.set_volume('voice', v / 128.0)
 
@@ -132,7 +151,22 @@ init python:
             ime.bar("Voice Volume", 128, int(_preferences.get_volume('voice') * 128), set_voice)
 
         ime.close()
+
+        use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
+        if ime.show_default_nav and not use_sl2_nav:
+            layout.navigation("preferences")
+
+        renpy.show_screen(
+            "_imagemap_preferences",
+            ime=ime,
+            use_sl2_nav=use_sl2_nav,
+            _transient=True)
+
         ui.interact(mouse="gamemenu")
+
+screen _imagemap_preferences(ime, use_sl2_nav=True):
+
+    use _imagemap_contents(ime, use_sl2_nav=use_sl2_nav)
 
 label preferences_screen:
 

@@ -74,7 +74,7 @@ init -1500 python:
                     c = c + (0, 0)
 
                 return ( to_abs_(c[0], sizes[0]) - to_abs_(c[2], sizes[2]),
-                            to_abs_(c[1], sizes[1]) - to_abs_(c[3], sizes[3]) )
+                        to_abs_(c[1], sizes[1]) - to_abs_(c[3], sizes[3]) )
 
             for p in self.points:
                 for i in range(1, len(p)):

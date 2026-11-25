@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
@@ -287,7 +307,7 @@ def draw_special(what, dest, x, y):
         ramp = b"\x00" * 256
 
         for i in range(0, ramplen):
-            ramp += bchr(255 * i // ramplen)
+            ramp += bytes(bytearray([255 * i // ramplen]))
 
         ramp += b"\xff" * 256
 
@@ -377,6 +397,8 @@ def draw(dest, clip, what, xo, yo, screen):
             dw = dx1 - dx0
             dh = dy1 - dy0
         else:
+            dx0 = 0
+            dy0 = 0
             dw, dh = dest.get_size()
 
         if xo >= 0:
@@ -497,6 +519,8 @@ def draw_transformed(dest, clip, what, xo, yo, alpha, forward, reverse):
             dh = dy1 - dy0
 
         else:
+            dx0 = 0
+            dy0 = 0
             dw, dh = dest.get_size()
 
         x0, y0 = 0.0, 0.0
@@ -699,6 +723,7 @@ class SWDraw(object):
         width, height = virtual_size
 
         # Set up scaling, if necessary.
+        assert self.display_info is not None
         screen_width = self.display_info.current_w
         screen_height = self.display_info.current_h
 
@@ -842,6 +867,7 @@ class SWDraw(object):
             pygame.display.update(updates)
 
         else:
+            assert self.screen is not None
             renpy.display.scale.smoothscale(self.window, self.screen.get_size(), self.screen)
 
             pygame.display.flip()

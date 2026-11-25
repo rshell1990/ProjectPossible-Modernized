@@ -1,15 +1,28 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
 
 import renpy
-import renpy.config
-import renpy.display
-import renpy.display.predict
-import renpy.exports
-import renpy.game
-import renpy.object
-import renpy.python
 import os.path
 import sys
 import types
@@ -52,7 +65,7 @@ def get_path(fn):
 
 
 if renpy.android:
-    import android.apk  # type: ignore[import-not-found]
+    import android.apk
 
     expansion = os.environ.get("ANDROID_EXPANSION", None)
     if expansion is not None:
@@ -360,7 +373,7 @@ def scandirfiles_from_remote_file(add, seen):
     index_filename = os.path.join(renpy.config.gamedir, 'renpyweb_remote_files.txt')
     if os.path.exists(index_filename):
         files = game_files
-        with open(index_filename, 'rb') as remote_index:
+        with io.open(index_filename, 'r', encoding='utf-8') as remote_index:
             while True:
                 f = remote_index.readline()
                 metadata = remote_index.readline()
@@ -463,6 +476,7 @@ class SubFile(object):
 
         if self.f is None:
             self.open()
+        assert self.f is not None
 
         maxlength = self.length - self.offset
 
@@ -487,6 +501,7 @@ class SubFile(object):
 
         if self.f is None:
             self.open()
+        assert self.f is not None
 
         maxlength = self.length - self.offset
         if length is not None:
@@ -525,7 +540,7 @@ class SubFile(object):
 
             if length is not None:
                 length -= len(l)
-                if l < 0:
+                if length < 0:
                     break
 
             rv.append(l)
@@ -555,6 +570,7 @@ class SubFile(object):
 
         if self.f is None:
             self.open()
+        assert self.f is not None
 
         if whence == 0:
             offset = offset
@@ -586,11 +602,9 @@ class SubFile(object):
         raise Exception("Write not supported by SubFile")
 
 
-open_file = open
-
 if "RENPY_FORCE_SUBFILE" in os.environ:
 
-    def open_file(name, mode):
+    def _open_subfile(name, mode="rb"):
         f = open(name, mode)
 
         f.seek(0, 2)
@@ -598,6 +612,10 @@ if "RENPY_FORCE_SUBFILE" in os.environ:
         f.seek(0, 0)
 
         return SubFile(f, 0, length, '')
+
+    open_file = _open_subfile
+else:
+    open_file = open
 
 # A list of callbacks to open an open python file object of the given type.
 file_open_callbacks = [ ]
@@ -639,8 +657,9 @@ def load_from_filesystem(name):
 
     if not renpy.config.force_archives:
         try:
-            fn = transfn(name)
-            return open_file(fn, "rb")
+            fn = _find_on_disk(name)
+            if fn is not None:
+                return open_file(fn, "rb")
         except:
             pass
 
@@ -743,26 +762,35 @@ def check_name(name):
             raise Exception("Filenames may not contain relative directories like '.' and '..': %r" % name)
 
 
+_prefix_cache = { }
+
+
 def get_prefixes(tl=True):
     """
-    Returns a list of prefixes to search for files.
+    Returns a sequence of prefixes to search for files.
     """
 
-    rv = [ ]
-
     if tl:
-        preferences = renpy.game.preferences
-        language = preferences.language if preferences is not None else None # @UndefinedVariable
+        language = renpy.game.preferences.language # @UndefinedVariable
     else:
         language = None
 
-    for prefix in renpy.config.search_prefixes:
+    key = (tl, language, renpy.config.tl_directory, tuple(renpy.config.search_prefixes))
+    rv = _prefix_cache.get(key)
+    if rv is not None:
+        return rv
+
+    built = [ ]
+
+    for prefix in key[3]:
 
         if language is not None:
-            rv.append(renpy.config.tl_directory + "/" + language + "/" + prefix)
+            built.append(key[2] + "/" + language + "/" + prefix)
 
-        rv.append(prefix)
+        built.append(prefix)
 
+    rv = tuple(built)
+    _prefix_cache[key] = rv
     return rv
 
 
@@ -786,38 +814,80 @@ def load(name, tl=True):
     raise IOError("Couldn't find file '%s'." % name)
 
 
+def _normalize_name(name):
+    return lower_map.get(unicodedata.normalize('NFC', name.lower()), name)
+
+
+def _find_on_disk(name, register_auto=True, normalized=False):
+    name = name.lstrip('/')
+
+    if renpy.config.reject_backslash and "\\" in name:
+        raise Exception("Backslash in filename, use '/' instead: %r" % name)
+
+    if not normalized:
+        name = _normalize_name(name)
+
+    if isinstance(name, bytes):
+        name = name.decode("utf-8")
+
+    for d in renpy.config.searchpath:
+        fn = os.path.join(renpy.config.basedir, d, name)
+
+        if register_auto:
+            add_auto(fn)
+
+        if os.path.isfile(fn):
+            return fn
+
+    return None
+
+
 def loadable_core(name):
     """
     Returns True if the name is loadable with load, False if it is not.
     """
 
-    name = lower_map.get(unicodedata.normalize('NFC', name.lower()), name)
+    rv = loadable_cache.get(name)
+    if rv is not None:
+        return rv
 
-    if name in loadable_cache:
-        return loadable_cache[name]
+    norm = _normalize_name(name)
+
+    if norm != name:
+        rv = loadable_cache.get(norm)
+        if rv is not None:
+            loadable_cache[name] = rv
+            return rv
 
     try:
-        transfn(name)
+        fn = _find_on_disk(norm, register_auto=False, normalized=True)
+    except:
+        fn = None
+
+    if fn is not None:
+        loadable_cache[norm] = True
         loadable_cache[name] = True
         return True
-    except:
-        pass
 
     for apk in apks:
-        prefixed_name = "/".join("x-" + i for i in name.split("/"))
+        prefixed_name = "/".join("x-" + i for i in norm.split("/"))
         if prefixed_name in apk.info:
+            loadable_cache[norm] = True
             loadable_cache[name] = True
             return True
 
     for _prefix, index in archives:
-        if name in index:
+        if norm in index:
+            loadable_cache[norm] = True
             loadable_cache[name] = True
             return True
 
-    if name in remote_files:
-        loadable_cache[name] = True
-        return name
+    if norm in remote_files:
+        loadable_cache[norm] = norm
+        loadable_cache[name] = norm
+        return norm
 
+    loadable_cache[norm] = False
     loadable_cache[name] = False
     return False
 
@@ -842,28 +912,14 @@ def transfn(name):
     searched directories.
     """
 
-    name = name.lstrip('/')
-
-    if renpy.config.reject_backslash and "\\" in name:
-        raise Exception("Backslash in filename, use '/' instead: %r" % name)
-
-    name = lower_map.get(unicodedata.normalize('NFC', name.lower()), name)
-
-    if isinstance(name, bytes):
-        name = name.decode("utf-8")
-
-    for d in renpy.config.searchpath:
-        fn = os.path.join(renpy.config.basedir, d, name)
-
-        add_auto(fn)
-
-        if os.path.isfile(fn):
-            return fn
+    fn = _find_on_disk(name)
+    if fn is not None:
+        return fn
 
     raise Exception("Couldn't find file '%s'." % name)
 
 
-hash_cache = {}
+hash_cache = dict()
 
 
 def get_hash(name):
@@ -943,6 +999,8 @@ class RenpyImporter(object):
     def load_module(self, fullname):
 
         filename = self.translate(fullname, self.prefix)
+        if filename is None:
+            raise ImportError(fullname)
 
         pyname = pystr(fullname)
 
@@ -954,6 +1012,8 @@ class RenpyImporter(object):
         if filename.endswith("__init__.py"):
             mod.__path__ = [ filename[:-len("__init__.py")] ]
 
+        code = None
+
         for encoding in [ "utf-8", "latin-1" ]:
 
             try:
@@ -964,12 +1024,13 @@ class RenpyImporter(object):
                 source = source.encode("raw_unicode_escape")
                 source = source.replace(b"\r", b"")
 
-                code = compile(source, filename, 'exec', renpy.python.old_compile_flags, 1)
+                code = compile(source, filename, 'exec', renpy.python.old_compile_flags, True)
                 break
             except:
                 if encoding == "latin-1":
                     raise
 
+        assert code is not None
         exec(code, mod.__dict__)
 
         return sys.modules[fullname]
@@ -993,7 +1054,7 @@ def add_python_directory(path):
     if path and not path.endswith("/"):
         path = path + "/"
 
-    sys.meta_path.insert(0, RenpyImporter(path))
+    sys.meta_path.insert(0, RenpyImporter(path))  # type: ignore[arg-type]
 
 
 def init_importer():
@@ -1088,10 +1149,11 @@ def auto_thread_function():
             if mtime is auto_blacklisted:
                 continue
 
-            if auto_mtime(fn) != mtime:
+            new_mtime = auto_mtime(fn)
+            if new_mtime != mtime:
 
                 with auto_lock:
-                    if auto_mtime(fn) != auto_mtimes[fn]:
+                    if new_mtime != auto_mtimes[fn]:
                         needs_autoreload.add(fn)
 
 

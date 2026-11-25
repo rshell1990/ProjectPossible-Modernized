@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
@@ -5,6 +25,7 @@ from renpy.compat import *
 # This file contains displayables that move, zoom, rotate, or otherwise
 # transform displayables. (As well as displayables that support them.)
 import math
+import builtins
 import types # @UnresolvedImport
 
 import renpy.display # @UnusedImport
@@ -70,7 +91,7 @@ def first_not_none(*args):
     for i in args:
         if i is not None:
             return i
-    return i
+    return None
 
 
 class TransformState(renpy.object.Object):
@@ -723,10 +744,10 @@ class Transform(Container):
         children = self.children
         offsets = self.offsets
 
-        if not offsets:
+        if not isinstance(children, list) or not offsets:
             return None
 
-        for i in range(len(self.children) - 1, -1, -1):
+        for i in range(len(children) - 1, -1, -1):
 
             d = children[i]
             xo, yo = offsets[i]
@@ -908,7 +929,7 @@ uniforms = set()
 gl_properties = set()
 
 
-def add_property(name, atl=any_object, default=None, diff=2):
+def add_property(name, atl=any_object, default=None, diff=2):  # type: (builtins.str, object, object, int | None) -> None
     """
     Adds an ATL property.
     """

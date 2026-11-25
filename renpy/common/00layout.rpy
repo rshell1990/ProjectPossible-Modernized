@@ -1,3 +1,23 @@
+﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init -1400 python:
 
@@ -137,14 +157,14 @@ init -1400 python hide:
 
     @layout
     def button(label,
-                type=None,
-                selected=False,
-                enabled=True,
-                clicked=None,
-                hovered=None,
-                unhovered=None,
-                index=None,
-                **properties):
+            type=None,
+            selected=False,
+            enabled=True,
+            clicked=None,
+            hovered=None,
+            unhovered=None,
+            index=None,
+            **properties):
 
         """
         label - The label of this button. Will be translated if necessary.
@@ -179,16 +199,10 @@ init -1400 python hide:
         button_style = getattr(style, button_style)[index]
         text_style = getattr(style, text_style)[index]
 
-        return renpy.add(TextButton(
-            _(label),
-            style=button_style,
-            text_style=text_style,
-            role=role,
-            clicked=clicked,
-            hovered=hovered,
-            unhovered=unhovered,
-            **properties
-        ))
+        rv = ui.button(style=button_style, role=role, clicked=clicked, hovered=hovered, unhovered=unhovered, **properties)
+        ui.text(_(label), style=text_style)
+
+        return rv
 
     @layout
     def label(label, type, suffix="label", index=None, **properties):
@@ -203,11 +217,8 @@ init -1400 python hide:
             label_style = style.label[index]
             text_style = style.label_text[index]
 
-        renpy.add(Window(
-            Text(_(label), style=text_style),
-            style=label_style,
-            **properties
-        ))
+        ui.window(style=label_style, **properties)
+        ui.text(_(label), style=text_style)
 
     @layout
     def prompt(label, type, index=None, **properties):
@@ -216,8 +227,10 @@ init -1400 python hide:
     @layout
     def list(entries, clicked=None, hovered=None, unhovered=None, selected=None, **properties):
 
+        ui.window(style=style.list, **properties)
+        ui.vbox(style=style.list_box)
+
         size_group = str(id(entries))
-        rows = [ ]
 
         for i, (spacers, content) in enumerate(entries):
             if clicked is not None:
@@ -240,28 +253,25 @@ init -1400 python hide:
             else:
                 role = ""
 
-            children = [
-                Window(Null(), style=style.list_spacer)
-                for _ in range(spacers)
-            ]
-            children.append(Text(content, style=style.list_text))
+            ui.button(style=style.list_row[i%2],
+                    clicked=new_clicked,
+                    hovered=new_hovered,
+                    unhovered=new_unhovered,
+                    role=role,
+                    size_group=size_group,
+                    )
 
-            row = HBox(*children, style=style.list_row_box)
-            rows.append(Button(
-                row,
-                style=style.list_row[i % 2],
-                clicked=new_clicked,
-                hovered=new_hovered,
-                unhovered=new_unhovered,
-                role=role,
-                size_group=size_group,
-            ))
+            ui.hbox(style=style.list_row_box)
 
-        renpy.add(Window(
-            VBox(*rows, style=style.list_box),
-            style=style.list,
-            **properties
-        ))
+            for j in range(0, spacers):
+                ui.window(style=style.list_spacer)
+                ui.null()
+
+            ui.text(content, style=style.list_text)
+
+            ui.close() # row
+
+        ui.close() # vbox
 
     ##########################################################################
     # Misc.
@@ -406,7 +416,7 @@ init -1400 python hide:
 
     @layout
     def imagemap_load_save(ground, idle, hover, selected_idle, selected_hover,
-                            hotspots, variant=None):
+                        hotspots, variant=None):
 
         renpy.load_module("_layout/imagemap_load_save")
 

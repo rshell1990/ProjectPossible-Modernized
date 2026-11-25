@@ -1,135 +1,285 @@
-﻿# Modernized scrollable Load / Save file picker using Ren'Py built-in File* actions
-# Note: Standard modern Ren'Py templates define `screen save()` and `screen load()`
-# in `screens.rpy`. Rename or merge carefully if your project uses a standard template.
-
-define _load_prompt = True
-define config.load_save_slots = 50
-define config.load_save_auto_slots = 5
-define config.load_save_quick_slots = 5
-define config.time_format = "%b %d, %H:%M"
-define config.file_entry_format = "%(time)s\n%(save_name)s"
-define config.thumbnail_width = 320
-define config.thumbnail_height = 240
-define config.load_save_empty_thumbnail = None
-
-define gui.file_picker_frame_xmaximum = 0.5
-define gui.file_picker_frame_xmargin = 6
-define gui.file_picker_frame_ymargin = 6
-define gui.file_picker_entry_yminimum = 58
-define gui.thumbnail_frame_ymargin = 6
-define gui.thumbnail_frame_xpos = 0.75
-define gui.thumbnail_frame_xanchor = 0.5
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 init python:
-    def _fp_built_in_slots():
-        # Ren'Py's File* actions use 1-based slot numbers on the active page.
-        slots = []
-        for idx in range(1, config.load_save_slots + 1):
-            slots.append((idx, str(idx), False))
 
-        if config.has_quicksave:
-            for idx in range(1, config.load_save_quick_slots + 1):
-                slots.append((idx, _("q") + str(idx), True))
+    layout.provides('load_save')
 
-        if config.has_autosave:
-            for idx in range(1, config.load_save_auto_slots + 1):
-                slots.append((idx, _("a") + str(idx), True))
+    # Store some global information that won't be saved.
+    __session = object()
+    __session.scrollbar_position = None
 
-        return slots
+    # Should we prompt to load?
+    _load_prompt = True
 
-screen scroll_file_picker_builtin(mode="load"):
+    # The number of normal save slots.
+    config.load_save_slots = 50
 
-    tag menu
+    # The number of autosave slots.
+    config.load_save_auto_slots = 5
 
-    default save_mode = (mode == "save")
-    default hovered_slot = None
-    default hovered_readonly = False
-    default yadj = ui.adjustment()
+    # The number of quicksave slots.
+    config.load_save_quick_slots = 5
 
-    $ slot_defs = _fp_built_in_slots()
-    $ current_page = FileCurrentPage()
+    # How we format time in a file entry.
+    config.time_format = "%b %d, %H:%M"
 
-    use game_menu_navigation(current_screen=mode)
+    # How we format a file entry.
+    config.file_entry_format = "%(time)s\n%(save_name)s"
 
-    frame:
-        style "file_picker_frame"
-        xmaximum gui.file_picker_frame_xmaximum
-        xmargin gui.file_picker_frame_xmargin
-        ymargin gui.file_picker_frame_ymargin
-        yfill True
+    # Set the default size of thumbnails.
+    config.thumbnail_width = 320
+    config.thumbnail_height = 240
 
-        hbox:
-            style "file_picker_side"
+    # The default empty slot thumbnail.
+    config.load_save_empty_thumbnail = None
 
-            viewport:
-                style "file_picker_viewport"
-                yadjustment yadj
-                mousewheel True
+    # Styles.
+    style.file_picker_frame = Style(style.frame, help="frame containing the file picker")
+    style.file_picker_side = Style(style.default, help="ui.side containing the file picker and the scrollbars")
+    style.file_picker_viewport = Style(style.viewport, help="viewport containing the file picker entries")
+    style.file_picker_box = Style(style.vbox, help="box containing the file picker entries")
+    style.file_picker_entry = Style(style.large_button, help="the buttons containing information about each file")
+    style.file_picker_text = Style(style.large_button_text, help="the text inside a file picker entry.")
+    style.file_picker_scrollbar = Style(style.vscrollbar, help="the text inside a file picker entry.")
 
-                vbox:
-                    style "file_picker_box"
+    style.thumbnail_frame = Style(style.frame, help="the style of the frame containing a thumbnail")
 
-                    for slot_num, slot_label, is_special_page in slot_defs:
-                        $ has_file = FileLoadable(slot_num)
-                        $ is_newest = FileNewest(slot_num)
-                        $ slot_time = FileTime(slot_num, format=config.time_format, empty="")
-                        $ slot_name = FileSaveName(slot_num)
-                        $ slot_thumb = FileScreenshot(slot_num)
-                        $ can_click = (not is_special_page) if save_mode else has_file
 
-                        button:
-                            style style.file_picker_entry[slot_num - 1]
-                            xfill True
-                            yminimum gui.file_picker_entry_yminimum
-                            selected is_newest
-                            sensitive can_click
-                            action (FileAction(slot_num) if can_click else NullAction())
-                            hovered [
-                                SetScreenVariable("hovered_slot", slot_num),
-                                SetScreenVariable("hovered_readonly", is_special_page),
-                            ]
-                            unhovered If(
-                                hovered_slot == slot_num,
-                                [
-                                    SetScreenVariable("hovered_slot", None),
-                                    SetScreenVariable("hovered_readonly", False),
-                                ],
-                            )
-                            if has_file and not is_special_page:
-                                key "save_delete" action FileDelete(slot_num)
+    # Position things correctly.
+    style.file_picker_frame.xmaximum = 0.5
+    style.file_picker_frame.xmargin = 6
+    style.file_picker_frame.ymargin = 6
+    style.file_picker_frame.yfill = True
 
-                            if has_file:
-                                $ entry_body = config.file_entry_format % {
-                                    "time": slot_time,
-                                    "save_name": slot_name,
-                                }
-                                text (slot_label + ". " + entry_body):
-                                    style style.file_picker_text[slot_num - 1]
-                            else:
-                                text (slot_label + ". " + _("Empty Slot.")):
-                                    style style.file_picker_text[slot_num - 1]
+    style.file_picker_entry.xfill = True
+    style.file_picker_entry.yminimum = 58
 
-            vbar:
-                style "file_picker_scrollbar"
-                adjustment yadj
+    style.thumbnail_frame.ymargin = 6
+    style.thumbnail_frame.xpos = 0.75
+    style.thumbnail_frame.xanchor = 0.5
 
-    frame:
-        style "thumbnail_frame"
-        ymargin gui.thumbnail_frame_ymargin
-        xpos gui.thumbnail_frame_xpos
-        xanchor gui.thumbnail_frame_xanchor
-
-        if hovered_slot is not None and FileLoadable(hovered_slot):
-            add FileScreenshot(hovered_slot)
+    def _file_picker_thumbnail(st, at):
+        if __session.thumbnail:
+            rv = __session.thumbnail
         elif config.load_save_empty_thumbnail:
-            add config.load_save_empty_thumbnail
+            rv = config.load_save_empty_thumbnail
         else:
-            add Null(width=config.thumbnail_width, height=config.thumbnail_height)
+            rv = Null(width=config.thumbnail_width, height=config.thumbnail_height)
+
+        return rv, None
+
+
+    def _file_picker(screen):
+
+        while True:
+
+            @renpy.curry
+            def hovered(thumbnail):
+                if __session.thumbnail is not thumbnail:
+                    __session.thumbnail = thumbnail
+                    renpy.restart_interaction()
+
+            @renpy.curry
+            def unhovered(thumbnail):
+                if __session.thumbnail is thumbnail:
+                    __session.thumbnail = None
+                    renpy.restart_interaction()
+
+            __session.thumbnail = None
+
+            newest = None
+            newest_time = None
+
+            info = { }
+
+            for name, extra_info, thumbnail, time in renpy.list_saved_games():
+
+                info[name] = (extra_info, thumbnail, time)
+
+                if not name[0] in "0123456789":
+                    continue
+
+                if time > newest_time:
+                    newest = name
+                    newest_time = time
+
+            slots = [ ]
+
+            for i in range(1, config.load_save_slots + 1):
+                slots.append((str(i), str(i)))
+
+            if config.has_quicksave:
+                for i in range(1, config.load_save_quick_slots + 1):
+                    slots.append(('quick-'+ str(i), _(u'q') + str(i)))
+
+            if config.has_autosave:
+                for i in range(1, config.load_save_auto_slots + 1):
+                    slots.append(('auto-' + str(i), _(u'a') + str(i)))
+
+            if __session.scrollbar_position is None:
+                if newest is None:
+                    yoffset = 0
+                else:
+                    yoffset = 1.0 * (int(newest) - 1) / len(slots)
+                value = 0
+
+            else:
+                value = __session.scrollbar_position
+                yoffset = None
+
+            adj = ui.adjustment(value=value)
+
+            entries = [ ]
+            for i, (fn, n) in enumerate(slots):
+
+                clicked = Return(("select", fn))
+
+                if screen == "save" and fn.startswith("auto-"):
+                    clicked = None
+
+                if screen == "load" and fn not in info:
+                    clicked = None
+
+                if fn in info:
+                    extra_info, thumbnail, time = info[fn]
+
+                    s = config.file_entry_format % dict(
+                        time=renpy.time.strftime(
+                            config.time_format,
+                            renpy.time.localtime(time)),
+                        save_name=extra_info)
+
+                    entries.append({
+                        "saved" : True,
+                        "index" : i,
+                        "fn" : fn,
+                        "label" : n + ". " + s,
+                        "clicked" : clicked,
+                        "thumbnail" : thumbnail,
+                        "newest" : (fn == newest),
+                        })
+
+                else:
+                    entries.append({
+                        "saved" : False,
+                        "index" : i,
+                        "fn" : fn,
+                        "label" : n + ". " + _(u"Empty Slot."),
+                        "clicked" : clicked,
+                        "thumbnail" : None,
+                        "newest" : (fn == newest),
+                        })
+
+            use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
+            if not use_sl2_nav:
+                layout.navigation(screen)
+
+            renpy.show_screen(
+                "_scrolling_load_save",
+                nav_screen=screen,
+                adj=adj,
+                yoffset=yoffset,
+                entries=entries,
+                hovered_cb=hovered,
+                unhovered_cb=unhovered,
+                box_focus=renpy.time.time(),
+                use_sl2_nav=use_sl2_nav,
+                _transient=True)
+
+            try:
+                action, arg = ui.interact(mouse="gamemenu")
+            finally:
+                __session.scrollbar_position = adj.value
+                __session.thumbnail = None
+
+            if action == "select":
+                return arg
+
+            elif action == "unlink":
+                if layout.yesno_prompt("save", layout.DELETE_SAVE):
+                    renpy.unlink_save(arg)
+
+screen _scrolling_load_save(nav_screen, adj, yoffset, entries, hovered_cb, unhovered_cb, box_focus, use_sl2_nav=True):
+
+    default hovered_delete = None
+
+    if use_sl2_nav:
+        use _layout_navigation(nav_screen)
+
+    frame style style.file_picker_frame:
+        side ['c', 'r'] style style.file_picker_side:
+            viewport yadjustment adj yinitial yoffset style style.file_picker_viewport mousewheel True:
+                vbox style style.file_picker_box focus box_focus:
+                    for entry in entries:
+                        $ i = entry["index"]
+
+                        if entry["saved"]:
+                            button:
+                                style style.file_picker_entry[i]
+                                selected entry["newest"]
+                                sensitive (entry["clicked"] is not None)
+                                action entry["clicked"]
+                                hovered [ hovered_cb(entry["thumbnail"]), SetScreenVariable("hovered_delete", entry["fn"]) ]
+                                unhovered [ unhovered_cb(entry["thumbnail"]), SetScreenVariable("hovered_delete", None) ]
+                                text entry["label"] style style.file_picker_text[i]
+                        else:
+                            button:
+                                style style.file_picker_entry[i]
+                                selected entry["newest"]
+                                sensitive (entry["clicked"] is not None)
+                                action entry["clicked"]
+                                text entry["label"] style style.file_picker_text[i]
+
+            bar adjustment adj style style.file_picker_scrollbar
+
+    frame style style.thumbnail_frame:
+        add DynamicDisplayable(_file_picker_thumbnail)
+
+    if hovered_delete is not None:
+        key "save_delete" action Return(("unlink", hovered_delete))
+
 
 label save_screen:
-    $ renpy.call_screen("scroll_file_picker_builtin", mode="save")
-    return
+
+    python hide:
+        while True:
+            fn = _file_picker("save")
+
+            if renpy.can_load(fn):
+                if not layout.yesno_prompt("save", layout.OVERWRITE_SAVE):
+                    continue
+
+            renpy.save(fn, extra_info=store.save_name)
+
 
 label load_screen:
-    $ renpy.call_screen("scroll_file_picker_builtin", mode="load")
-    return
+
+    python hide:
+
+        while True:
+            fn = _file_picker("load")
+
+            if _load_prompt:
+                if not layout.yesno_prompt("load",  layout.LOADING):
+                    continue
+
+            renpy.load(fn)

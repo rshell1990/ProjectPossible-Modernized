@@ -1,0 +1,302 @@
+﻿{
+    "version": "1.1.414",
+    "time": "1795493874668",
+    "generalDiagnostics": [
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Argument of type \"ChildOrFixed\" cannot be assigned to parameter \"object\" of type \"Layer\" in function \"append\"\n  \"ChildOrFixed\" is not assignable to \"Layer\"",
+            "range": {
+                "start": {
+                    "line": 321,
+                    "character": 17
+                },
+                "end": {
+                    "line": 321,
+                    "character": 53
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Argument of type \"Detached\" cannot be assigned to parameter \"object\" of type \"Layer\" in function \"append\"\n  \"Detached\" is not assignable to \"Layer\"",
+            "range": {
+                "start": {
+                    "line": 360,
+                    "character": 17
+                },
+                "end": {
+                    "line": 360,
+                    "character": 19
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Argument of type \"Many\" cannot be assigned to parameter \"object\" of type \"Layer\" in function \"append\"\n  \"Many\" is not assignable to \"Layer\"",
+            "range": {
+                "start": {
+                    "line": 393,
+                    "character": 17
+                },
+                "end": {
+                    "line": 393,
+                    "character": 36
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "Method \"__reduce__\" overrides class \"object\" in an incompatible manner\n  Return type mismatch: base method returns type \"str | tuple[Any, ...]\", override returns type \"bytes | None\"\n    Type \"bytes | None\" is not assignable to type \"str | tuple[Any, ...]\"\n      Type \"bytes\" is not assignable to type \"str | tuple[Any, ...]\"\n        \"bytes\" is not assignable to \"str\"\n        \"bytes\" is not assignable to \"tuple[Any, ...]\"",
+            "range": {
+                "start": {
+                    "line": 442,
+                    "character": 8
+                },
+                "end": {
+                    "line": 442,
+                    "character": 18
+                }
+            },
+            "rule": "reportIncompatibleMethodOverride"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"o\" of type \"Iterable[SupportsIndex] | SupportsIndex | SupportsBytes | ReadableBuffer\" in function \"__new__\"\n  Type \"None\" is not assignable to type \"Iterable[SupportsIndex] | SupportsIndex | SupportsBytes | ReadableBuffer\"\n    \"None\" is incompatible with protocol \"Iterable[SupportsIndex]\"\n      \"__iter__\" is not present\n    \"None\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present\n    \"None\" is incompatible with protocol \"SupportsBytes\"\n      \"__bytes__\" is not present\n    \"None\" is incompatible with protocol \"Buffer\"\n  ...",
+            "range": {
+                "start": {
+                    "line": 444,
+                    "character": 25
+                },
+                "end": {
+                    "line": 444,
+                    "character": 34
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Argument of type \"None\" cannot be assigned to parameter \"o\" of type \"Iterable[SupportsIndex] | SupportsIndex | SupportsBytes | ReadableBuffer\" in function \"__new__\"\n  Type \"None\" is not assignable to type \"Iterable[SupportsIndex] | SupportsIndex | SupportsBytes | ReadableBuffer\"\n    \"None\" is incompatible with protocol \"Iterable[SupportsIndex]\"\n      \"__iter__\" is not present\n    \"None\" is incompatible with protocol \"SupportsIndex\"\n      \"__index__\" is not present\n    \"None\" is incompatible with protocol \"SupportsBytes\"\n      \"__bytes__\" is not present\n    \"None\" is incompatible with protocol \"Buffer\"",
+            "range": {
+                "start": {
+                    "line": 444,
+                    "character": 25
+                },
+                "end": {
+                    "line": 444,
+                    "character": 34
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Expression value is unused",
+            "range": {
+                "start": {
+                    "line": 532,
+                    "character": 43
+                },
+                "end": {
+                    "line": 532,
+                    "character": 48
+                }
+            },
+            "rule": "reportUnusedExpression"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "\"args\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 535,
+                    "character": 21
+                },
+                "end": {
+                    "line": 535,
+                    "character": 25
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "\"args\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 536,
+                    "character": 22
+                },
+                "end": {
+                    "line": 536,
+                    "character": 26
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "\"args\" is not a known attribute of \"None\"",
+            "range": {
+                "start": {
+                    "line": 536,
+                    "character": 32
+                },
+                "end": {
+                    "line": 536,
+                    "character": 36
+                }
+            },
+            "rule": "reportOptionalMemberAccess"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "Operator \"+\" not supported for types \"Literal['ui.']\" and \"None\"",
+            "range": {
+                "start": {
+                    "line": 536,
+                    "character": 60
+                },
+                "end": {
+                    "line": 536,
+                    "character": 77
+                }
+            },
+            "rule": "reportOperatorIssue"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Argument of type \"One\" cannot be assigned to parameter \"object\" of type \"Layer\" in function \"append\"\n  \"One\" is not assignable to \"Layer\"",
+            "range": {
+                "start": {
+                    "line": 565,
+                    "character": 25
+                },
+                "end": {
+                    "line": 565,
+                    "character": 45
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Argument of type \"Many\" cannot be assigned to parameter \"object\" of type \"Layer\" in function \"append\"\n  \"Many\" is not assignable to \"Layer\"",
+            "range": {
+                "start": {
+                    "line": 567,
+                    "character": 25
+                },
+                "end": {
+                    "line": 567,
+                    "character": 61
+                }
+            },
+            "rule": "reportArgumentType"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "Method \"get_sensitive\" overrides class \"Action\" in an incompatible manner\n  Return type mismatch: base method returns type \"Literal[True]\", override returns type \"Unknown | bool\"\n    Type \"Unknown | bool\" is not assignable to type \"Literal[True]\"\n      \"bool\" is not assignable to type \"Literal[True]\"",
+            "range": {
+                "start": {
+                    "line": 700,
+                    "character": 8
+                },
+                "end": {
+                    "line": 700,
+                    "character": 21
+                }
+            },
+            "rule": "reportIncompatibleMethodOverride"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "Method \"__call__\" overrides class \"Action\" in an incompatible manner\n  Return type mismatch: base method returns type \"NoReturn\", override returns type \"Unknown\"\n    Type \"Unknown\" is not assignable to type \"NoReturn\"",
+            "range": {
+                "start": {
+                    "line": 763,
+                    "character": 8
+                },
+                "end": {
+                    "line": 763,
+                    "character": 16
+                }
+            },
+            "rule": "reportIncompatibleMethodOverride"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "Method \"__call__\" overrides class \"Action\" in an incompatible manner\n  Return type mismatch: base method returns type \"NoReturn\", override returns type \"None\"\n    Type \"None\" is not assignable to type \"NoReturn\"",
+            "range": {
+                "start": {
+                    "line": 816,
+                    "character": 8
+                },
+                "end": {
+                    "line": 816,
+                    "character": 16
+                }
+            },
+            "rule": "reportIncompatibleMethodOverride"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "error",
+            "message": "Object of type \"None\" cannot be called",
+            "range": {
+                "start": {
+                    "line": 1255,
+                    "character": 21
+                },
+                "end": {
+                    "line": 1255,
+                    "character": 65
+                }
+            },
+            "rule": "reportOptionalCall"
+        },
+        {
+            "file": "e:\\Github\\ProjectPossible-Patch_22b-pc\\renpy\\ui.py",
+            "severity": "warning",
+            "message": "Argument of type \"Unknown | None\" cannot be assigned to parameter \"name\" of type \"str\" in function \"getattr\"\n  Type \"Unknown | None\" is not assignable to type \"str\"\n    \"None\" is not assignable to \"str\"",
+            "range": {
+                "start": {
+                    "line": 1429,
+                    "character": 43
+                },
+                "end": {
+                    "line": 1429,
+                    "character": 53
+                }
+            },
+            "rule": "reportArgumentType"
+        }
+    ],
+    "summary": {
+        "filesAnalyzed": 1,
+        "errorCount": 9,
+        "warningCount": 9,
+        "informationCount": 0,
+        "timeInSec": 0.947
+    }
+}
+

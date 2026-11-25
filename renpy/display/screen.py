@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 from renpy.compat import *
@@ -463,6 +483,9 @@ class ScreenDisplayable(renpy.display.layout.Container):
 
             self.update()
 
+        if self.child is None:
+            return False
+
         return self.child._handles_event(event)
 
     def _hide(self, st, at, kind):
@@ -500,7 +523,7 @@ class ScreenDisplayable(renpy.display.layout.Container):
 
         old_child = hid.child
 
-        if not isinstance(old_child, renpy.display.layout.MultiBox):
+        if old_child is None or not isinstance(old_child, renpy.display.layout.MultiBox):
             return None
 
         renpy.ui.detached()
@@ -562,6 +585,7 @@ class ScreenDisplayable(renpy.display.layout.Container):
 
         profile = False
         debug = False
+        start = 0.0
 
         if self.profile:
 
@@ -575,7 +599,7 @@ class ScreenDisplayable(renpy.display.layout.Container):
             if renpy.display.interface.profile_once and self.profile.request:
                 profile = True
 
-            if profile:
+            if profile and self.profile is not None:
                 profile_log.write("%s %s %s",
                                   phase_name[self.phase],
                                   " ".join(self.screen_name),
@@ -644,7 +668,7 @@ class ScreenDisplayable(renpy.display.layout.Container):
 
             self.current_transform_event = None
 
-        if profile:
+        if profile and self.profile is not None:
             end = time.time()
 
             if self.profile.time:
@@ -688,6 +712,9 @@ class ScreenDisplayable(renpy.display.layout.Container):
         if not self.child:
             self.update()
 
+        if self.child is None:
+            return super(ScreenDisplayable, self).get_placement()
+
         return self.child.get_placement()
 
     def event(self, ev, x, y, st):
@@ -695,7 +722,7 @@ class ScreenDisplayable(renpy.display.layout.Container):
         if (self.phase == OLD) or (self.phase == HIDE):
             return
 
-        if not self.screen:
+        if not self.screen or self.child is None:
             return None
 
         if not renpy.python.py_eval(self.screen.sensitive, locals=self.scope):
@@ -1247,6 +1274,9 @@ def use_screen(_screen_name, *_args, **kwargs):
 
     if screen is None:
         raise Exception("Screen %r is not known." % (name,))
+
+    if _current_screen is None:
+        raise Exception("use_screen called outside of a screen.")
 
     old_transfers = _current_screen.old_transfers
     _current_screen.old_transfers = True

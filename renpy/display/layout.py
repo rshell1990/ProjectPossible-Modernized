@@ -1,3 +1,23 @@
+# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 # This file contains classes that handle layout of displayables on
 # the screen.
@@ -354,6 +374,8 @@ class Position(Container):
         return rv
 
     def get_placement(self):
+        if self.child is None:
+            return super(Position, self).get_placement()
 
         xpos, ypos, xanchor, yanchor, xoffset, yoffset, subpixel = self.child.get_placement()
 
@@ -651,7 +673,7 @@ class MultiBox(Container):
             rv.layer_name = self.layer_name
             rv.append_scene_list(scene_list)
 
-        elif self.layers:
+        elif self.layers and (self.raw_layers is not None):
             rv = MultiBox(layout=self.default_layout)
             rv.layers = { }
             rv.raw_layers = { }
@@ -704,8 +726,8 @@ class MultiBox(Container):
         else:
             return "MultiBox"
 
-    def add(self, widget, start_time=None, anim_time=None): # W0221
-        super(MultiBox, self).add(widget)
+    def add(self, d, start_time=None, anim_time=None): # W0221
+        super(MultiBox, self).add(d)
         self.start_times.append(start_time)
         self.anim_times.append(anim_time)
 
@@ -1216,6 +1238,8 @@ class Window(Container):
         cypadding = top_padding + bottom_padding
 
         child = self.get_child()
+        if child is None:
+            child = Null()
 
         # Transfer the state from the current child to the new child.
         if child is not self.current_child:
@@ -1459,6 +1483,9 @@ class DynamicDisplayable(renpy.display.core.Displayable):
         if not self.child:
             self.update(0, 0)
 
+        if self.child is None:
+            return super(DynamicDisplayable, self).get_placement()
+
         return self.child.get_placement()
 
     def event(self, ev, x, y, st):
@@ -1621,8 +1648,8 @@ class IgnoresEvents(Container):
         super(IgnoresEvents, self).__init__(**properties)
         self.add(child)
 
-    def render(self, w, h, st, at):
-        cr = renpy.display.render.render(self.child, w, h, st, at)
+    def render(self, width, height, st, at):
+        cr = renpy.display.render.render(self.child, width, height, st, at)
         cw, ch = cr.get_size()
         rv = renpy.display.render.Render(cw, ch)
         rv.blit(cr, (0, 0), focus=False)
@@ -1630,6 +1657,9 @@ class IgnoresEvents(Container):
         return rv
 
     def get_placement(self):
+        if self.child is None:
+            return super(IgnoresEvents, self).get_placement()
+
         return self.child.get_placement()
 
     # Ignores events.
@@ -1936,11 +1966,11 @@ class AdjustTimes(Container):
 
         return st, at
 
-    def render(self, w, h, st, at):
+    def render(self, width, height, st, at):
 
         st, at = self.adjusted_times()
 
-        cr = renpy.display.render.render(self.child, w, h, st, at)
+        cr = renpy.display.render.render(self.child, width, height, st, at)
         cw, ch = cr.get_size()
         rv = renpy.display.render.Render(cw, ch)
         rv.blit(cr, (0, 0))
@@ -1954,6 +1984,9 @@ class AdjustTimes(Container):
         Container.event(self, ev, x, y, st)
 
     def get_placement(self):
+        if self.child is None:
+            return super(AdjustTimes, self).get_placement()
+
         return self.child.get_placement()
 
 
@@ -1974,12 +2007,12 @@ class MatchTimes(Container):
 
         self.add(child)
 
-    def render(self, w, h, st, at):
+    def render(self, width, height, st, at):
 
         self.target.start_time = renpy.game.interface.frame_time - st
         self.target.anim_time = renpy.game.interface.frame_time - at
 
-        cr = renpy.display.render.render(self.child, w, h, st, at)
+        cr = renpy.display.render.render(self.child, width, height, st, at)
         cw, ch = cr.get_size()
         rv = renpy.display.render.Render(cw, ch)
         rv.blit(cr, (0, 0))
@@ -1989,6 +2022,9 @@ class MatchTimes(Container):
         return rv
 
     def get_placement(self):
+        if self.child is None:
+            return super(MatchTimes, self).get_placement()
+
         return self.child.get_placement()
 
 
@@ -2078,6 +2114,9 @@ class Flatten(Container):
         return rv
 
     def get_placement(self):
+        if self.child is None:
+            return super(Flatten, self).get_placement()
+
         return self.child.get_placement()
 
 
