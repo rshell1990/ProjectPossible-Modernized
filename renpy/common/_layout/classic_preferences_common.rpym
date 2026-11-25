@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -59,24 +59,21 @@ init python:
     # Should the soundtest button be before the volume slider?
     config.soundtest_before_volume = False
 
-    def _prefs_set_field(base, field, value):
-        setattr(base, field, value)
-        return True
-
-    def _prefs_set_volume(mixer, v):
-        _preferences.set_volume(mixer, v / 128.0)
-
     def _prefs_screen_run(prefs_map):
 
-        use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
-        if not use_sl2_nav:
-            layout.navigation("preferences")
+        layout.navigation("preferences")
 
-        renpy.show_screen(
-            "_classic_preferences",
-            prefs_map=prefs_map,
-            use_sl2_nav=use_sl2_nav,
-            _transient=True)
+        ui.window(style='prefs_frame')
+        ui.fixed(style='prefs_frame_box')
+
+        for style, prefs in prefs_map.iteritems():
+
+            ui.vbox(style=style)
+            for i in prefs:
+                i.render()
+            ui.close()
+
+        ui.close()
 
         ui.interact(mouse="gamemenu")
 
@@ -106,8 +103,8 @@ init python:
             considered to be True.
 
             @param base: The base object on which the variable is
-            read from and set. This defaults to _preferences,
-            the user preferences object.
+               read from and set. This defaults to _preferences,
+               the user preferences object.
             """
 
             self.name = name
@@ -116,6 +113,35 @@ init python:
             self.base = base
 
             config.all_preferences[name] = self
+
+
+        def render(self):
+            values = [ (name, val) for name, val, cond in self.values
+                       if cond is None or renpy.eval(cond) ]
+
+            if not values:
+                return
+
+            ui.window(style=style.prefs_pref_frame[self.name])
+            ui.vbox(style=style.prefs_pref_box[self.name])
+
+            layout.label(self.name, "prefs")
+
+            cur = getattr(self.base, self.field)
+
+            ui.hbox(style=style.prefs_pref_choicebox[self.name])
+
+            for name, value in values:
+                def clicked(value=value):
+                    setattr(self.base, self.field, value)
+                    return True
+
+                layout.button(name, "prefs",
+                              selected=(cur==value),
+                              clicked=clicked)
+
+            ui.close() # choicebox
+            ui.close() # vbox
 
     class _VolumePreference(object):
         """
@@ -151,6 +177,41 @@ init python:
             self.channel = channel
 
             config.all_preferences[name] = self
+
+        def render(self):
+
+            if not eval(self.enable):
+                return
+
+            sound = eval(self.sound)
+
+            ui.window(style=style.prefs_pref_frame[self.name])
+            ui.vbox(style=style.prefs_pref_box[self.name])
+
+            layout.label(self.name, "prefs")
+
+            ui.vbox(style=style.prefs_volume_box[self.name])
+
+            if sound:
+                def clicked():
+                    renpy.sound.play(sound, channel=self.channel)
+
+            if sound and config.soundtest_before_volume:
+                layout.button(u"Test", "soundtest", clicked=clicked, index=self.name)
+
+            def changed(v):
+                _preferences.set_volume(self.mixer, v / 128.0)
+
+            ui.bar(128,
+                   int(_preferences.get_volume(self.mixer) * 128),
+                   changed=changed,
+                   style=style.prefs_volume_slider[self.name])
+
+            if sound and not config.soundtest_before_volume:
+                layout.button(u"Test", "soundtest", clicked=clicked, index=self.name)
+
+            ui.close()
+            ui.close()
 
     class _SliderPreference(object):
         """
@@ -203,6 +264,26 @@ init python:
 
             setattr(self.base, self.field, value)
 
+        def render(self):
+
+            if not eval(self.enable):
+                return
+
+            ui.window(style=style.prefs_pref_frame[self.name])
+            ui.vbox(style=style.prefs_pref_box[self.name])
+
+            layout.label(self.name, "prefs")
+
+            def changed(v):
+                self.set(v)
+
+            ui.bar(self.range,
+                   self.get(),
+                   changed=changed,
+                   style=style.prefs_slider[self.name])
+
+            ui.close()
+
 
     class _JumpPreference(object):
 
@@ -214,6 +295,20 @@ init python:
 
             config.all_preferences[name] = self
 
+        def render(self):
+
+            if not eval(self.show):
+                return
+
+            ui.window(style=style.prefs_jump[self.name])
+
+            if eval(self.condition):
+                clicked=ui.jumps(self.target)
+            else:
+                clicked=None
+
+            layout.button(self.name, 'prefs_jump', clicked=clicked)
+
     def _remove_preference(name):
         """
         Removes the preference with the given name from the
@@ -224,92 +319,9 @@ init python:
         if not pref:
             return
 
-        for k, v in config.preferences.items():
+        for k, v in config.preferences.iteritems():
             if pref in v:
                 v.remove(pref)
-
-screen _classic_preferences(prefs_map, use_sl2_nav=True):
-
-    if use_sl2_nav:
-        use _layout_navigation("preferences")
-
-    window style "prefs_frame":
-        fixed style "prefs_frame_box":
-
-            for col_style, prefs in prefs_map.items():
-
-                vbox style col_style:
-                    for item in prefs:
-                        if isinstance(item, _Preference):
-                            $ _pref_values = [ (name, val) for name, val, cond in item.values if cond is None or renpy.eval(cond) ]
-
-                            if _pref_values:
-                                window style style.prefs_pref_frame[item.name]:
-                                    vbox style style.prefs_pref_box[item.name]:
-                                        window style style.prefs_label[item.name]:
-                                            text _(item.name) style style.prefs_label_text[item.name]
-
-                                        $ _cur = getattr(item.base, item.field)
-
-                                        hbox style style.prefs_pref_choicebox[item.name]:
-                                            for opt_name, opt_val in _pref_values:
-                                                button:
-                                                    style style.prefs_button[opt_name]
-                                                    selected (_cur == opt_val)
-                                                    action renpy.curry(_prefs_set_field)(item.base, item.field, opt_val)
-                                                    text _(opt_name) style style.prefs_button_text[opt_name]
-
-                        elif isinstance(item, _VolumePreference):
-                            if eval(item.enable):
-                                $ _sound = eval(item.sound)
-
-                                window style style.prefs_pref_frame[item.name]:
-                                    vbox style style.prefs_pref_box[item.name]:
-                                        window style style.prefs_label[item.name]:
-                                            text _(item.name) style style.prefs_label_text[item.name]
-
-                                        vbox style style.prefs_volume_box[item.name]:
-                                            if _sound and config.soundtest_before_volume:
-                                                button:
-                                                    style style.soundtest_button[item.name]
-                                                    action Function(renpy.sound.play, _sound, channel=item.channel)
-                                                    text _(u"Test") style style.soundtest_button_text[item.name]
-
-                                            bar:
-                                                range 128
-                                                value int(_preferences.get_volume(item.mixer) * 128)
-                                                changed renpy.curry(_prefs_set_volume)(item.mixer)
-                                                style style.prefs_volume_slider[item.name]
-
-                                            if _sound and not config.soundtest_before_volume:
-                                                button:
-                                                    style style.soundtest_button[item.name]
-                                                    action Function(renpy.sound.play, _sound, channel=item.channel)
-                                                    text _(u"Test") style style.soundtest_button_text[item.name]
-
-                        elif isinstance(item, _SliderPreference):
-                            if eval(item.enable):
-                                window style style.prefs_pref_frame[item.name]:
-                                    vbox style style.prefs_pref_box[item.name]:
-                                        window style style.prefs_label[item.name]:
-                                            text _(item.name) style style.prefs_label_text[item.name]
-
-                                        bar:
-                                            range item.range
-                                            value item.get()
-                                            changed item.set
-                                            style style.prefs_slider[item.name]
-
-                        elif isinstance(item, _JumpPreference):
-                            if eval(item.show):
-                                $ _jump_enabled = eval(item.condition)
-
-                                window style style.prefs_jump[item.name]:
-                                    button:
-                                        style style.prefs_jump_button[item.name]
-                                        sensitive _jump_enabled
-                                        action (Jump(item.target) if _jump_enabled else None)
-                                        text _(item.name) style style.prefs_jump_button_text[item.name]
 
 init python hide:
 
@@ -364,20 +376,20 @@ init python hide:
     # Right
 
     _VolumePreference(u"Music Volume",
-                    'music',
-                    'config.has_music')
+                      'music',
+                      'config.has_music')
 
     _VolumePreference(u"Sound Volume",
-                    'sfx',
-                    'config.has_sound',
-                    'config.sample_sound',
-                    'sound')
+                      'sfx',
+                      'config.has_sound',
+                      'config.sample_sound',
+                      'sound')
 
     _VolumePreference(u'Voice Volume',
-                    'voice',
-                    'config.has_voice',
-                    'config.sample_voice',
-                    'voice')
+                      'voice',
+                      'config.has_voice',
+                      'config.sample_voice',
+                      'voice')
 
     _JumpPreference(u'Joystick...',
                     'joystick_preferences_screen',

@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -22,20 +22,19 @@
 # This file handles imagemap caching.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from renpy.compat import *
+from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, round, str, tobytes, unicode  # *
 
-import pygame_sdl2 as pygame
-import renpy.display
+import renpy
+import renpy.pygame as pygame
 
 from renpy.display.render import render
 
-import hashlib
 
 # A list of cache images we've already written.
 cached = set()
 
 
-class ImageMapCrop(renpy.display.core.Displayable):
+class ImageMapCrop(renpy.display.displayable.Displayable):
     """
     This handles the cropping of uncached imagemap components.
     """
@@ -46,15 +45,34 @@ class ImageMapCrop(renpy.display.core.Displayable):
         self.child = child
         self.rect = rect
 
+        self._duplicatable = child._duplicatable
+
     def visit(self):
-        return [ self.child ]
+        return [self.child]
+
+    def _duplicate(self, args):
+        child = self.child._duplicate(args)
+
+        if child is self.child:
+            return self
+
+        child._unique()
+
+        rv = self._copy(args)
+        rv.child = child
+        rv._duplicatable = False
+        return rv
+
+    def _unique(self):
+        self.child._unique()
+        self._duplicatable = False
 
     def render(self, width, height, st, at):
-        cr = render(self.child, width, height, st, at)
+        cr = render(self.child, renpy.config.screen_width, renpy.config.screen_height, st, at)
         return cr.subsurface(self.rect)
 
 
-class ImageCacheCrop(renpy.display.core.Displayable):
+class ImageCacheCrop(renpy.display.displayable.Displayable):
     """
     This handles the cropping of an imagemap component.
     """
@@ -62,170 +80,22 @@ class ImageCacheCrop(renpy.display.core.Displayable):
     def __init__(self, cache, index):
         super(ImageCacheCrop, self).__init__()
 
-        # The cache object we're associated with.
-        self.cache = cache
-
-        # The index of
-        self.index = index
-
-    def visit(self):
-        return self.cache.visit(self.index)
-
     def render(self, width, height, st, at):
-        return self.cache.render(self.index, width, height, st, at)
+        return renpy.display.render.Render(0, 0)
 
 
 class ImageMapCache(renpy.object.Object):
+    """
+    This previously would cache an image map into a single image. That's not
+    necessary anymore, so all this does is crop images.
+    """
 
     def __init__(self, enable):
-        self.md5 = hashlib.md5()
-
-        # A list of (image, rect) tuples. The index in this list is used
-        # as a unique identifier for an ImageCacheCrop object.
-        self.imagerect = [ ]
-
-        # A map from (image, rect) to ImageCacheCrop object.
-        self.hotspots = { }
-
-        # A list of (width, height, index) tuples.
-        self.areas = [ ]
-
-        # The image containing our children.
-        self.cache = None
-
-        # A list that, for each hotspot, gives the rectangle in the cache
-        # image corresponding to that hotspot.
-        self.cache_rect = None
-
-        # The size of the cache.
-        self.cache_width = None
-        self.cache_height = None
-
-        # Temporarily disabled.
         enable = False
-
         self.enable = enable
 
-    def visit(self, index):
-        if self.cache is not None:
-            return [ self.cache ]
-        else:
-            return [ self.imagerect[index][0] ]
-
     def crop(self, d, rect):
-        if not isinstance(d, renpy.display.im.ImageBase) or \
-                not renpy.config.imagemap_cache or \
-                not self.enable:
-            return ImageMapCrop(d, rect)
-
-        key = (d, rect)
-        rv = self.hotspots.get(key, None)
-        if rv is not None:
-            return rv
-
-        assert self.md5 is not None
-        self.md5.update(repr(d.identity).encode("utf-8"))
-        self.md5.update(repr(rect).encode("utf-8"))
-
-        index = len(self.imagerect)
-        rv = ImageCacheCrop(self, index)
-
-        self.imagerect.append(key)
-        self.hotspots[key] = rv
-        self.areas.append((rect[2] + 2, rect[3] + 2, index))
-
-        return rv
-
-    def layout(self):
-        self.areas.sort()
-        self.areas.reverse()
-        self.cache_rect = [ None ] * len(self.areas)  # type: list
-
-        # The width of the cache image.
-        width = self.areas[0][0]
-
-        x = 0
-        y = 0
-        line_height = 0
-
-        for w, h, i in self.areas:
-
-            if x + w > width:
-                y += line_height
-                line_height = 0
-                x = 0
-
-            self.cache_rect[i] = (x+1, y+1, w-2, h-2)
-
-            x += w
-            if line_height < h:
-                line_height = h
-
-        self.cache_width = width
-        self.cache_height = y + line_height
-
-    def write_cache(self, filename):
-
-        if filename in cached:
-            return
-
-        cached.add(filename)
-
-        if renpy.loader.loadable(filename):
-            return
-
-        fn = renpy.loader.get_path(filename)
-
-        cache = pygame.Surface((self.cache_width, self.cache_height), pygame.SRCALPHA, 32)
-
-        for i, (d, rect) in enumerate(self.imagerect):
-            x, y, _w, _h = self.cache_rect[i]
-
-            surf = renpy.display.im.cache.get(d).subsurface(rect)
-            cache.blit(surf, (x, y))
-
-        pygame.image.save(cache, renpy.exports.fsencode(fn))
-
-    def image_file_hash(self):
-        """
-        Returns a hash of the contents of the image files. (As an integer.)
-        """
-
-        rv = 0
-
-        for i in self.imagerect:
-            rv += i[0].get_hash()
-
-        return rv & 0x7fffffff
+        return ImageMapCrop(d, rect)
 
     def finish(self):
-        if not self.areas:
-            return
-
-        assert self.md5 is not None
-        filename = "im-%s-%x.png" % (self.md5.hexdigest(), self.image_file_hash())
-
-        if renpy.game.preferences.language:
-            filename = renpy.game.preferences.language + "-" + filename
-
-        filename = "cache/" + filename
-
-        self.md5 = None
-
-        self.layout()
-
-        if renpy.config.developer:
-            try:
-                self.write_cache(filename)
-            except:
-                pass
-
-        if renpy.loader.loadable(filename):
-            self.cache = renpy.display.im.Image(filename)
-
-    def render(self, index, width, height, st, at):
-        if self.cache is None:
-            d, rect = self.imagerect[index]
-            return render(d, width, height, st, at).subsurface(rect)
-
-        return render(self.cache, width, height, st, at).subsurface(self.cache_rect[index])
+        return

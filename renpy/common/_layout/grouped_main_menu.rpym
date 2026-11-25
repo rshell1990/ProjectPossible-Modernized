@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -37,9 +37,20 @@ init python:
     config.main_menu_per_group = 2
 
 
-    def _grouped_main_menu_rows():
-        rows = [ ]
-        current_row = [ ]
+label main_menu_screen:
+
+    python hide:
+        # Ignore right-click while at the main menu.
+        ui.keymap(game_menu=ui.returns(None))
+
+        # Show the background.
+        ui.window(style='mm_root')
+        ui.null()
+
+        ui.frame(style='mm_menu_frame')
+        ui.vbox(style='mm_outer_box')
+
+        inner_open = False
 
         for i, e in enumerate(config.main_menu):
 
@@ -52,46 +63,26 @@ init python:
             if not eval(shown):
                 continue
 
-            if current_row and (i % config.main_menu_per_group == 0):
-                rows.append(current_row)
-                current_row = [ ]
+            if i % config.main_menu_per_group == 0:
+                if inner_open:
+                    ui.close()
+
+                ui.hbox(style='mm_inner_box')
+                inner_open = True
 
             # This checks to see if clicked is a string. If so, we want clicked
             # to jump us out of the current context.
-            if isinstance(clicked, basestring):
-                clicked = renpy.curry(renpy.jump_out_of_context)(clicked)
+            if isinstance(clicked, str):
+                clicked=ui.jumpsoutofcontext(clicked)
 
-            current_row.append((label, clicked, eval(enabled)))
+            # Create each button.
+            layout.button(label, "mm", enabled=eval(enabled), clicked=clicked)
 
-        if current_row:
-            rows.append(current_row)
+        if inner_open:
+            ui.close() # inner box
 
-        return rows
+        ui.close() # outer box
 
-screen _grouped_main_menu():
-
-    key "game_menu" action NullAction()
-
-    # Show the background.
-    window style "mm_root":
-        null
-
-    frame style "mm_menu_frame":
-        vbox style "mm_outer_box":
-
-            for row in _grouped_main_menu_rows():
-                hbox style "mm_inner_box":
-                    for label, clicked, is_enabled in row:
-                        button:
-                            style style.mm_button[label]
-                            sensitive is_enabled
-                            action (clicked if is_enabled else None)
-                            text _(label) style style.mm_button_text[label]
-
-label main_menu_screen:
-
-    python hide:
-        renpy.show_screen("_grouped_main_menu", _transient=True)
         ui.interact(mouse="mainmenu")
 
     return

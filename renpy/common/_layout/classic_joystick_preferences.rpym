@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -62,84 +62,63 @@ init python:
         (u'Menu', 'joy_menu'),
         ]
 
+    def _joystick_select_binding():
+
+        for label, key in config.joystick_keys:
+
+            def my_clicked(label=label, key=key):
+                return (label, key)
+
+            layout.button(_(label) + " - " + _(_preferences.joymap.get(key, u"Not Assigned")), "prefs_js", clicked=my_clicked, index=label)
+
+    def _joystick_get_binding():
+        ui.saybehavior()
+        ui.add(renpy.display.joystick.JoyBehavior())
+
     def _joystick_take_binding(binding, key):
 
-        if not isinstance(binding, basestring):
+        if not isinstance(binding, str):
             if key in _preferences.joymap:
                 del _preferences.joymap[key]
         else:
             _preferences.joymap[key] = binding
 
-    def _joystick_set_binding(label, key):
-        use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
-        if not use_sl2_nav:
-            layout.navigation(None)
 
-        renpy.show_screen(
-            "_classic_joystick_binding",
-            label=label,
-            use_sl2_nav=use_sl2_nav,
-            _transient=True)
+    def _joystick_preferences():
 
-        binding = ui.interact(mouse="gamemenu")
-        _joystick_take_binding(binding, key)
+            def set_binding(label, key):
+                layout.navigation(None)
 
-        return True
+                ui.window(style='js_frame')
+                ui.vbox(style='js_frame_box')
+                layout.prompt(_(u"Joystick Mapping") + " - " + _(label), "js_function")
+                layout.prompt(u'Move the joystick or press a joystick button to create the mapping. Click the mouse to remove the mapping.', 'js_action')
+                ui.close()
 
-    def _joystick_invoke_binding(label, key):
-        return renpy.invoke_in_new_context(_joystick_set_binding, label, key)
+                _joystick_get_binding()
+                binding = ui.interact(mouse="gamemenu")
+                _joystick_take_binding(binding, key)
 
-screen _classic_joystick_binding(label, use_sl2_nav=True):
+                return True
 
-    if use_sl2_nav:
-        use _layout_navigation(None)
+            ui.window(style='js_prefs_frame')
+            ui.vbox(style='js_prefs_box')
 
-    window style "js_frame":
-        vbox style "js_frame_box":
-            python:
-                _fn_title = _(u"Joystick Mapping") + " - " + _(label)
-                _action_msg = u"Move the joystick or press a joystick button to create the mapping. Click the mouse to remove the mapping."
-
-            window style style.js_function_prompt[_fn_title]:
-                text _fn_title style style.js_function_prompt_text[_fn_title]
-
-            window style style.js_action_prompt[_action_msg]:
-                text _(_action_msg) style style.js_action_prompt_text[_action_msg]
-
-    add renpy.display.behavior.SayBehavior()
-    add renpy.display.joystick.JoyBehavior()
-
-screen _classic_joystick_preferences(use_sl2_nav=True):
-
-    if use_sl2_nav:
-        use _layout_navigation("joystick_preferences")
-
-    window style "js_prefs_frame":
-        vbox style "js_prefs_box":
-
-            window style style.js_prefs_label["Joystick Configuration"]:
-                text _("Joystick Configuration") style style.js_prefs_label_text["Joystick Configuration"]
+            layout.label("Joystick Configuration", "js_prefs")
 
             for label, key in config.joystick_keys:
-                python:
-                    _btn_label = _(label) + " - " + _(_preferences.joymap.get(key, u"Not Assigned"))
 
-                button:
-                    style style.js_prefs_button[label]
-                    action renpy.curry(_joystick_invoke_binding)(label, key)
-                    text _btn_label style style.js_prefs_button_text[label]
+                def clicked(label=label, key=key):
+                    return renpy.invoke_in_new_context(set_binding, label, key)
+
+                layout.button(_(label) + " - " + _(_preferences.joymap.get(key, u"Not Assigned")), "js_prefs", clicked=clicked, index=label)
+
+            ui.close()
 
 label joystick_preferences_screen:
 
     while True:
         python:
-            use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
-            if not use_sl2_nav:
-                layout.navigation("joystick_preferences")
-
-            renpy.show_screen(
-                "_classic_joystick_preferences",
-                use_sl2_nav=use_sl2_nav,
-                _transient=True)
-
+            layout.navigation("joystick_preferences")
+            _joystick_preferences()
             ui.interact(mouse="gamemenu")

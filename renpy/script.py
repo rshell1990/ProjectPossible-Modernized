@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -22,43 +22,32 @@
 # This file contains code that is responsible for storing and executing a
 # Ren'Py script.
 
-from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from renpy.compat import *
+import __future__
 
-import renpy
-
+import collections
+import difflib
 import hashlib
 import os
-import difflib
-import time
-import marshal
-import struct
-import zlib
-
-from renpy.compat.pickle import loads, dumps
 import shutil
+import struct
+import time
+import zlib
+from typing import Any
+
+import renpy
+from renpy.compat.pickle import dumps, loads
 
 # The version of the dumped script.
 script_version = renpy.script_version
 
-# The version of the bytecode cache.
-BYTECODE_VERSION = 1
-
-_MD5_DIGEST_SIZE = hashlib.md5().digest_size
-
-# The python magic code.
-try:
-    import importlib.util as _importlib_util
-    MAGIC = _importlib_util.MAGIC_NUMBER
-except (ImportError, AttributeError):
-    import imp
-    MAGIC = imp.get_magic()
+# Change this to force a recompile of RPYC files when required, if the .rpy file exists.
+RPYC_MAGIC = b"_2026-08-05"
 
 # A string at the start of each rpycv2 file.
 RPYC2_HEADER = b"RENPY RPC2"
 
-# A string
-BYTECODE_FILE = "cache/bytecode.rpyb"
+# Kept for backwards compatibility.
+BYTECODE_FILE = renpy.python.CompileCache.BYTECODE_FILE
 
 
 class ScriptError(Exception):
@@ -68,13 +57,35 @@ class ScriptError(Exception):
     """
 
 
-def collapse_stmts(stmts):
+class LabelNotFound(ScriptError, LookupError):
+    """
+    Exception that is raised when a named node is not found.
+    """
+
+    def __init__(self, label: str | tuple[Any, ...]):
+        super().__init__(f"could not find label '{label}'.")
+        self.name = label
+
+    def get_suggestion(self):
+        if not isinstance(self.name, str):
+            return None
+
+        d = [node.name for node in renpy.game.script.namemap.values() if isinstance(node.name, str)]
+
+        if self.name[:1] != "_":
+            d = [x for x in d if x[:1] != "_"]
+
+        if suggestion := renpy.error.compute_closest_value(self.name, d):
+            return f" Did you mean: '{suggestion}'?"
+
+
+def collapse_stmts(stmts: list[renpy.ast.Node]) -> list[renpy.ast.Node]:
     """
     Returns a flat list containing every statement in the tree
     stmts.
     """
 
-    rv = [ ]
+    rv = []
 
     for i in stmts:
         i.get_children(rv.append)
@@ -82,7 +93,7 @@ def collapse_stmts(stmts):
     return rv
 
 
-class Script(object):
+class Script:
     """
     This class represents a Ren'Py script, which is parsed out of a
     collection of script files. Once parsing and initial analysis is
@@ -94,6 +105,14 @@ class Script(object):
     node when loading back in a save. The names may be strings or
     integers, strings being explicit names provided by the user, and
     integers being names synthesised by renpy.
+
+    The namemap is kept in source order: within each file, nodes are
+    inserted in the order of the file's statements, with each statement
+    before the statements it contains. Code relies on this to find the
+    first statement on a line (renpy.warp). Editing the script at runtime
+    with renpy.scriptedit, as the interactive director does, does not
+    preserve this order: added statements go at the end, and the names
+    of removed statements map to the statement after them.
 
     @ivar initcode: A list of priority, Node tuples that should be
     executed in ascending priority order at init time.
@@ -115,68 +134,83 @@ class Script(object):
         renpy.game.script = self
 
         if os.path.exists(renpy.config.renpy_base + "/lock.txt"):
-            self.key = open(renpy.config.renpy_base + "/lock.txt", "rb").read()
+            with open(renpy.config.renpy_base + "/lock.txt", "rb") as f:
+                self.key = f.read()
         else:
             self.key = None
 
-        self.namemap = { }
-        self.all_stmts = [ ]
-        self.all_pycode = [ ]
-        self.all_pyexpr = [ ]
+        self.namemap = {}
+        self.all_stmts = []
+        self.all_pycode = []
 
         # A list of statements that haven't been analyzed.
-        self.need_analysis = [ ]
+        self.need_analysis = []
+
+        # A list of statements that need to be compressed.
+        self.need_compress = []
 
         self.record_pycode = True
 
-        # Bytecode caches.
-        self.bytecode_oldcache = { }
-        self.bytecode_newcache = { }
-        self.bytecode_dirty = False
-
         self.translator = renpy.translation.ScriptTranslator()
-        self.init_bytecode()
 
         self.scan_script_files()
 
+        # If recompiling everything, remove orphan .rpyc files.
+        # Otherwise, will fail in case orphan .rpyc have same
+        # labels as in other scripts (usually happens on script rename).
+        if renpy.game.args.compile and not renpy.game.args.keep_orphan_rpyc:
+            self.clean_script_files()
+
+            # Reindex files so that .rpyc's are cleared out.
+            renpy.loader.index_files()
+            self.scan_script_files()
+
         self.translator.chain_translates()
+
+        self.compress()
 
         self.serial = 0
 
         self.digest = hashlib.md5(renpy.version_only.encode("utf-8"))
 
         self.loaded_rpy = False
-        self.backup_list = [ ]
+        self.backup_list = []
 
-        self.duplicate_labels = [ ]
+        self.duplicate_labels = []
+
+        # A list of (initcode priority, statement) pairs.
+        self.initcode: list[tuple[int, renpy.ast.Node]] = []
+
+        # A set of (fn, dir) tuples for scripts that have already been
+        # loaded.
+        self.loaded_scripts = set()
+
+        # A set of languages to load.
+        self.load_languages = set()
 
     def choose_backupdir(self):
-
         if renpy.mobile:
             return None
 
-        for i in [ "script_version.txt", "script_version.rpy", "script_version.rpyc" ]:
+        for i in ["script_version.txt", "script_version.rpy", "script_version.rpyc"]:
             if renpy.loader.loadable(i):
                 return None
 
-        import __main__
-        backups = __main__.path_to_saves(renpy.config.gamedir, "backups") # @UndefinedVariable
+        backups = renpy.__main__.path_to_saves(renpy.config.gamedir, "backups")
 
         if backups is None:
             return
 
         basename = os.path.basename(renpy.config.basedir)
-        backupdir = renpy.os.path.join(renpy.exports.fsencode(backups),
-                                       renpy.exports.fsencode(basename))
+        backupdir = renpy.os.path.join(backups, basename)
 
         renpy.exports.write_log("Backing up script files to %r:", backupdir)
 
         return backupdir
 
     def make_backups(self):
-
         backup_list = self.backup_list
-        self.backup_list = [ ]
+        self.backup_list = []
 
         if os.environ.get("RENPY_DISABLE_BACKUPS", "") == "I take responsibility for this.":
             return
@@ -192,153 +226,322 @@ class Script(object):
             return
 
         for fn, checksum in backup_list:
-
             if not fn.startswith(renpy.config.gamedir):
                 continue
 
             if not os.path.exists(fn):
                 continue
 
-            short_fn = renpy.exports.fsencode(fn[len(renpy.config.gamedir) + 1:])
+            short_fn = fn[len(renpy.config.gamedir) + 1 :]
 
             base, ext = os.path.splitext(short_fn)
 
-            if PY2:
-                hex_checksum = checksum[:8].encode("hex")
-            else:
-                hex_checksum = checksum[:8].hex()
+            hex_checksum = checksum[:8].hex()
 
             target_fn = os.path.join(
                 backupdir,
                 base + "." + hex_checksum + ext,
-                )
+            )
 
             if os.path.exists(target_fn):
                 continue
 
             try:
-                os.makedirs(os.path.dirname(target_fn), 0o700)
-            except:
+                os.makedirs(os.path.dirname(target_fn), 0o700)  # type: ignore
+            except Exception:
                 pass
 
             try:
-                shutil.copy(fn, target_fn)
-            except:
+                shutil.copy(fn, target_fn)  # type: ignore
+            except Exception:
                 pass
 
-    def scan_script_files(self):
+    def classify_script_files(self, dirlist, script_files, module_files):
         """
-        Scan the directories for script files.
+        Classify the files in dirlist as script or module files, or not script related.
         """
 
-        # A list of all files in the search directories.
-        dirlist = renpy.loader.listdirfiles()
+        for dir, fn in dirlist:
+            if fn.rpartition("/")[2].startswith("."):
+                continue
 
-        # A list of directory, filename w/o extension pairs. This is
-        # what we will load immediately.
-        self.script_files = [ ]
+            if fn.endswith("_ren.py"):
+                if dir is None:
+                    continue
 
-        # Similar, but for modules:
-        self.module_files = [ ]
+                fn = fn[:-7]
+                target = script_files
 
-        for dir, fn in dirlist: # @ReservedAssignment
-
-            if fn.endswith(".rpy"):
+            elif fn.endswith(".rpy"):
                 if dir is None:
                     continue
 
                 fn = fn[:-4]
-                target = self.script_files
+                target = script_files
+
             elif fn.endswith(".rpyc"):
                 fn = fn[:-5]
-                target = self.script_files
+                target = script_files
+
             elif fn.endswith(".rpym"):
                 if dir is None:
                     continue
 
                 fn = fn[:-5]
-                target = self.module_files
+                target = module_files
             elif fn.endswith(".rpymc"):
                 fn = fn[:-6]
-                target = self.module_files
+                target = module_files
             else:
                 continue
 
             if (fn, dir) not in target:
                 target.append((fn, dir))
 
+    def scan_script_files(self):
+        """
+        Scan the directories for script files.
+        """
+
+        # A list of directory, filename w/o extension pairs. This is
+        # what we will load immediately.
+        self.script_files = []
+
+        # Similar, but for files in the common directory.
+        self.common_script_files = []
+
+        # Similar, but for modules:
+        self.module_files = []
+
+        self.classify_script_files(
+            renpy.loader.listdirfiles(common=True, game=False),
+            self.common_script_files,
+            self.module_files,
+        )
+
+        self.classify_script_files(
+            renpy.loader.listdirfiles(common=False, game=True),
+            self.script_files,
+            self.module_files,
+        )
+
+    def clean_script_files(self):
+        """
+        Delete .rpyc files that have no corresponding .rpy or _ren.py file.
+        """
+
+        for fn, dn in self.script_files:
+            if dn is None:
+                continue
+
+            if not os.path.isfile(os.path.join(dn, fn + ".rpy")) and not os.path.isfile(
+                os.path.join(dn, fn + "_ren.py")
+            ):
+                try:
+                    name = os.path.join(dn, fn + ".rpyc")
+                    os.rename(name, name + ".bak")
+                except OSError:
+                    # This perhaps shouldn't happen since either .rpy or .rpyc should exist
+                    pass
+
+    def script_filter(self, fn, dir):
+        """
+        This determines if a script file should be loaded.
+        during this call to load_script.
+        """
+
+        if not renpy.config.defer_tl_scripts:
+            return True
+
+        if (renpy.game.args.command != "run") or renpy.game.args.compile or renpy.game.args.lint:
+            return True
+
+        parts = fn.split("/")
+
+        if parts[0] == "tl":
+            if len(parts) <= 2:
+                return True
+
+            if parts[1] == "None":
+                return True
+
+            return parts[1] in self.load_languages
+
+        return True
+
+    def sort_script_files(self):
+        """
+        Sorts the script files in the order they should be loaded.
+        """
+
+        self.common_script_files.sort(key=lambda item: ((item[0] or ""), (item[1] or "")))
+
+        has_libs = renpy.loader.loadable("libs/libs.txt")
+        has_mods = renpy.loader.loadable("mods/mods.txt")
+
+        def game_key(item):
+            fn = item[0] or ""
+            dn = item[1] or ""
+
+            priority = 1
+            sort_key = fn
+
+            parts = fn.split("/")
+
+            if has_libs and fn.startswith("libs/"):
+                priority = 0
+
+                if len(parts) > 2:
+                    sort_key = "/".join(parts[2:])
+                else:
+                    sort_key = parts[1]
+
+            if has_mods and fn.startswith("mods/"):
+                priority = 2
+
+                if len(parts) > 2:
+                    sort_key = "/".join(parts[2:])
+                else:
+                    sort_key = parts[1]
+
+            priority *= 2
+            if sort_key >= "A":
+                priority += 1
+
+            return (priority, sort_key, fn, dn)
+
+        self.script_files.sort(key=game_key)
+
+        rv = [(0,) + item for item in self.common_script_files]
+        rv.extend((game_key(item)[0],) + item for item in self.script_files)
+
+        return rv
+
     def load_script(self):
+        script_files = self.sort_script_files()
 
-        script_files = self.script_files
+        initcode = []
 
-        # Sort script files by filename.
-        script_files.sort()
+        count = 0
+        skipped = 0
 
-        initcode = [ ]
+        last_priority = 0
 
-        for fn, dir in script_files: # @ReservedAssignment
-            # Mitigate "busy script" warning from the browser
-            if renpy.emscripten:
-                import emscripten
-                emscripten.sleep(0)
+        for priority, fn, dir in script_files:
+            if priority != last_priority and renpy.parser.has_parse_errors():
+                skipped += len(script_files) - count
+                break
+
+            last_priority = priority
+
+            count += 1
+            renpy.display.presplash.progress("Loading script...", count, len(script_files))
 
             # Pump the presplash window to prevent marking
             # our process as unresponsive by OS
             renpy.display.presplash.pump_window()
 
-            self.load_appropriate_file(".rpyc", ".rpy", dir, fn, initcode)
+            if (fn, dir) in self.loaded_scripts:
+                continue
 
-        # Make the sort stable.
-        initcode = [ (prio, index, code) for index, (prio, code) in
-                     enumerate(initcode) ]
+            if not self.script_filter(fn, dir):
+                skipped += 1
+                continue
 
-        initcode.sort(key=lambda i: (i[0], i[1]))
+            self.loaded_scripts.add((fn, dir))
 
-        self.initcode = [ (prio, code) for prio, index, code in initcode ]
+            self.load_appropriate_file(".rpyc", ["_ren.py", ".rpy"], dir, fn, initcode)
+
+        if skipped:
+            renpy.display.log.write(f"{skipped} script files skipped.")
+
+        initcode.sort(key=lambda i: i[0])
+
+        self.initcode.extend(initcode)
 
         self.translator.chain_translates()
 
-    def load_module(self, name):
+        self.compress()
 
-        files = [ (fn, dir) for fn, dir in self.module_files if fn == name ] # @ReservedAssignment
+        return initcode
+
+    def load_module(self, name):
+        files = [(fn, dir) for fn, dir in self.module_files if fn == name]
 
         if not files:
-            raise Exception("Module %s could not be loaded." % name)
+            raise Exception(f"Module {name} could not be loaded.")
 
         if len(files) > 2:
-            raise Exception("Module %s ambiguous, multiple variants exist." % name)
+            raise Exception(f"Module {name} ambiguous, multiple variants exist.")
 
-        fn, dir = files[0] # @ReservedAssignment
-        initcode = [ ]
+        fn, dir = files[0]
+        initcode = []
 
-        self.load_appropriate_file(".rpymc", ".rpym", dir, fn, initcode)
+        self.load_appropriate_file(".rpymc", [".rpym"], dir, fn, initcode)
 
         if renpy.parser.report_parse_errors():
             raise SystemExit(-1)
 
+        initcode.sort(key=lambda i: i[0])
+
         self.translator.chain_translates()
 
+        self.compress()
+
         return initcode
+
+    def include_module(self, name):
+        """
+        Loads a module with the provided name and inserts its
+        initcode into the script current initcode
+        """
+
+        module_initcode = self.load_module(name)
+        if not module_initcode:
+            return
+
+        # We may not insert elements at or prior the current id!
+        current_id = renpy.game.initcode_ast_id
+
+        if module_initcode[0][0] < self.initcode[current_id][0]:
+            raise Exception(f"Module {name} contains nodes with priority lower than the node that loads it")
+
+        merge_id = current_id + 1
+        current_tail = self.initcode[merge_id:]
+
+        # Since script initcode and module initcode are both sorted,
+        # we can use heap to merge them
+        new_tail = current_tail + module_initcode
+        new_tail.sort(key=lambda i: i[0])
+
+        self.initcode[merge_id:] = new_tail
 
     def assign_names(self, stmts, fn):
         # Assign names to statements that don't have one already.
 
         all_stmts = collapse_stmts(stmts)
 
-        version = int(time.time())
+        version = int(time.time() * 100) & 0xFFFFFFFF
+
+        old_names = {s.name for s in all_stmts}
 
         for s in all_stmts:
             if s.name is None:
-                s.name = (fn, version, self.serial)
-                self.serial += 1
+                while True:
+                    name = (fn, version, self.serial)
+                    self.serial += 1
+
+                    if name not in old_names:
+                        break
+
+                s.name = name
 
     def merge_names(self, old_stmts, new_stmts, used_names):
-
         old_stmts = collapse_stmts(old_stmts)
         new_stmts = collapse_stmts(new_stmts)
 
-        old_info = [ i.diff_info() for i in old_stmts ]
-        new_info = [ i.diff_info() for i in new_stmts ]
+        old_info = [i.diff_info() for i in old_stmts]
+        new_info = [i.diff_info() for i in new_stmts]
 
         sm = difflib.SequenceMatcher(None, old_info, new_info)
 
@@ -347,7 +550,7 @@ class Script(object):
                 old = old_stmts[oldl + i]
                 new = new_stmts[newl + i]
 
-                if (new.name is None) and (new.name not in used_names):
+                if (new.name is None) and (old.name not in used_names):
                     new.name = old.name
                     used_names.add(new.name)
 
@@ -365,21 +568,38 @@ class Script(object):
         list of init statements that need to be run.
         """
 
-        stmts = renpy.parser.parse(filename, filedata, linenumber=linenumber)
+        expressions = renpy.parser.parsed_expressions
 
-        if stmts is None:
+        try:
+            stmts = renpy.parser.parse(filename, filedata, linenumber=linenumber)
+            if stmts is None:
+                return None, None
+
+        finally:
+            renpy.parser.parsed_expressions = []
+
+        if renpy.parser.get_parse_errors():
             return None, None
 
         self.assign_names(stmts, filename)
         self.static_transforms(stmts)
 
-        initcode = [ ]
+        initcode = []
 
-        stmts = self.finish_load(stmts, initcode, False)
+        stmts = self.finish_load(stmts, initcode, False, expressions=expressions)
+
+        initcode.sort(key=lambda i: i[0])
 
         return stmts, initcode
 
-    def finish_load(self, stmts, initcode, check_names=True, filename=None):
+    def finish_load(
+        self,
+        stmts: list[renpy.ast.Node],
+        initcode: list,
+        check_names=True,
+        filename=None,
+        expressions: renpy.parser.ExpressionsList | None = None,
+    ):
         """
         Given `stmts`, a list of AST nodes comprising the root block,
         finishes loading it.
@@ -407,31 +627,37 @@ class Script(object):
         # All of the statements found in file, regardless of nesting
         # depth.
 
-        all_stmts = [ ]
-        for i in stmts:
-            i.get_children(all_stmts.append)
+        all_stmts = collapse_stmts(stmts)
 
         for i in all_stmts:
-            if isinstance(i, renpy.ast.RPY) and i.rest == ("python", "3"):
-                renpy.python.py3_files.add(i.filename)
+            if isinstance(i, renpy.ast.RPY):
+                a, b = i.rest
+                if a == "python":
+                    if b == "3":
+                        b = "division"
+                    if b in __future__.all_feature_names:
+                        renpy.python.file_compiler_flags[i.filename] |= getattr(__future__, b).compiler_flag
+                    else:
+                        raise Exception(f"Unknown __future__: {b!r}.")
 
         # Take the translations.
         self.translator.take_translates(all_stmts)
 
         # Fix the filename for a renamed .rpyc file.
         if filename is not None:
-            filename = renpy.parser.elide_filename(filename)
+            filename = renpy.lexer.elide_filename(filename)
+            if filename[-1] == "c":
+                filename = filename[:-1]
 
             if not all_stmts[0].filename.lower().endswith(filename.lower()):
-
-                if filename[-1] != "c":
-                    filename += "c"
+                filename += "c"
 
                 for i in all_stmts:
+                    old_name = i.name
                     i.filename = filename
+                    i.name = old_name
 
         def check_name(node):
-
             if not check_names:
                 return
 
@@ -445,55 +671,60 @@ class Script(object):
             name = node.name
 
             if name in self.namemap:
-
                 bad_name = name
                 bad_node = node
                 old_node = self.namemap[name]
 
-                if not isinstance(bad_name, basestring):
-
-                    raise ScriptError("Name %s is defined twice, at %s:%d and %s:%d." %
-                                      (repr(bad_name),
-                                       old_node.filename, old_node.linenumber,
-                                       bad_node.filename, bad_node.linenumber))
+                if not isinstance(bad_name, str):
+                    raise ScriptError(
+                        f"Name {bad_name!r} is defined twice, at {old_node.filename}:{old_node.linenumber} and {bad_node.filename}:{bad_node.linenumber}."
+                    )
 
                 else:
-
                     if renpy.config.allow_duplicate_labels:
                         return
 
-                    self.duplicate_labels.append(
-                        u'The label {} is defined twice, at File "{}", line {}:\n{}and File "{}", line {}:\n{}'.format(
-                            bad_name, old_node.filename, old_node.linenumber,
-                            renpy.parser.get_line_text(old_node.filename, old_node.linenumber),
-                            bad_node.filename, bad_node.linenumber,
-                            renpy.parser.get_line_text(old_node.filename, old_node.linenumber),
-                        ))
+                    import linecache
 
-        self.update_bytecode()
+                    message = 'The label {} is defined twice, at File "{}", line {}:\n{}and File "{}", line {}:\n{}'
+                    self.duplicate_labels.append(
+                        message.format(
+                            bad_name,
+                            old_node.filename,
+                            old_node.linenumber,
+                            linecache.getline(old_node.filename, old_node.linenumber),
+                            bad_node.filename,
+                            bad_node.linenumber,
+                            linecache.getline(bad_node.filename, bad_node.linenumber),
+                        )
+                    )
+
+        self.update_bytecode(expressions)
 
         for node in all_stmts:
+            if isinstance(node, renpy.ast.Testcase):
+                # Handle testcases specially, as they are not part of the script.
+                renpy.test.testexecution.register_testcase(node.test)
 
-            name = node.name
+            else:
+                check_name(node)
 
-            check_name(node)
-
-            # Add the name to the namemap.
-            self.namemap[name] = node
+                # Add the name to the namemap. This uses the node as both key and value, as the node is equal to and
+                # hashes as its name. all_stmts is in source order, so this keeps the namemap in source order, which
+                # warp relies on.
+                self.namemap[node] = node
 
             # Add any init nodes to self.initcode.
-            if node.get_init:
-                init = node.get_init()
-                if init:
-                    initcode.append(init)
+            if (priority := node.get_init()) is not None:
+                initcode.append((priority, node))
 
-            if node.early_execute:
-                node.early_execute()
+            node.early_execute()
 
         if self.all_stmts is not None:
             self.all_stmts.extend(all_stmts)
 
         self.need_analysis.extend(all_stmts)
+        self.need_compress.extend(all_stmts)
 
         return stmts
 
@@ -544,7 +775,7 @@ class Script(object):
         # header = f.read(len(RPYC2_HEADER))
 
         # Legacy path.
-        if header_data[:len(RPYC2_HEADER)] != RPYC2_HEADER:
+        if header_data[: len(RPYC2_HEADER)] != RPYC2_HEADER:
             if slot != 1:
                 return None
 
@@ -557,7 +788,7 @@ class Script(object):
         pos = len(RPYC2_HEADER)
 
         while True:
-            header_slot, start, length = struct.unpack("III", header_data[pos:pos + 12])
+            header_slot, start, length = struct.unpack("III", header_data[pos : pos + 12])
 
             if slot == header_slot:
                 break
@@ -582,181 +813,217 @@ class Script(object):
         # Generate translate nodes.
         renpy.translation.restructure(stmts)
 
-    def load_file(self, dir, fn): # @ReservedAssignment
+    def load_file(self, dir, fn):
+        # Used to only find the deferred parse errors from this file.
+        old_deferred_parse_errors = renpy.parser.deferred_parse_errors
+        renpy.parser.deferred_parse_errors = collections.defaultdict(list)
 
-        if fn.endswith(".rpy") or fn.endswith(".rpym"):
+        try:
+            if fn.endswith((".rpy", ".rpym", "_ren.py")):
+                if not dir:
+                    raise Exception(f"Cannot load rpy/rpym/ren.py file {fn} from inside an archive.")
 
-            if not dir:
-                raise Exception("Cannot load rpy/rpym file %s from inside an archive." % fn)
+                base, _, game = dir.replace("\\", "/").rpartition("/")
+                olddir = base + "/old-" + game
 
-            base, _, game = dir.rpartition("/")
-            olddir = base + "/old-" + game
+                fullfn = dir + "/" + fn
 
-            fullfn = dir + "/" + fn
-            rpycfn = fullfn + "c"
+                if fn.endswith("_ren.py"):
+                    rpycfn = fullfn[:-7] + ".rpyc"
+                    oldrpycfn = olddir + "/" + fn[:-7] + ".rpyc"
+                else:
+                    rpycfn = fullfn + "c"
+                    oldrpycfn = olddir + "/" + fn + "c"
 
-            oldrpycfn = olddir + "/" + fn + "c"
+                stmts = renpy.parser.parse(fullfn)
 
-            stmts = renpy.parser.parse(fullfn)
+                data = {}
+                data["version"] = script_version
+                data["key"] = self.key or "unlocked"
+                data["deferred_parse_errors"] = renpy.parser.deferred_parse_errors
+                data["expressions"] = renpy.parser.parsed_expressions
 
-            data = { }
-            data['version'] = script_version
-            data['key'] = self.key or 'unlocked'
+                if stmts is None:
+                    return data, []
 
-            if stmts is None:
-                return data, [ ]
+                used_names = set()
 
-            used_names = set()
-
-            for mergefn in [ oldrpycfn, rpycfn ]:
-
-                # See if we have a corresponding .rpyc file. If so, then
-                # we want to try to upgrade our .rpy file with it.
-                try:
+                for mergefn in [oldrpycfn, rpycfn]:
                     self.record_pycode = False
 
-                    with open(mergefn, "rb") as rpycf:
-                        bindata = self.read_rpyc_data(rpycf, 1)
-
-                    if bindata is not None:
-                        old_data, old_stmts = loads(bindata)
-
-                        self.merge_names(old_stmts, stmts, used_names)
-
-                        del old_data
-                        del old_stmts
-                except:
-                    pass
-                finally:
-                    self.record_pycode = True
-
-            self.assign_names(stmts, renpy.parser.elide_filename(fullfn))
-
-            pickle_data_before_static_transforms = dumps((data, stmts), 2)
-
-            self.static_transforms(stmts)
-
-            pickle_data_after_static_transforms = dumps((data, stmts), 2)
-
-            if not renpy.macapp:
-                try:
-                    with open(rpycfn, "wb") as f:
-                        self.write_rpyc_header(f)
-                        self.write_rpyc_data(f, 1, pickle_data_before_static_transforms)
-                        self.write_rpyc_data(f, 2, pickle_data_after_static_transforms)
-
-                        with open(fullfn, "rb") as fullf:
-                            raw_bytes = fullf.read()
-                        if b"\r" in raw_bytes:
-                            raw_bytes = raw_bytes.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-                        rpydigest = hashlib.md5(raw_bytes).digest()
-
-                        self.write_rpyc_md5(f, rpydigest)
-                except:
-                    import traceback
-                    traceback.print_exc()
-
-            self.loaded_rpy = True
-
-        elif fn.endswith(".rpyc") or fn.endswith(".rpymc"):
-
-            data = None
-            stmts = None
-
-            with renpy.loader.load(fn) as f:
-                for slot in [ 2, 1 ]:
+                    # See if we have a corresponding .rpyc file. If so, then
+                    # we want to try to upgrade our .rpy file with it.
                     try:
-                        bindata = self.read_rpyc_data(f, slot)
+                        with open(mergefn, "rb") as rpycf:
+                            bindata = self.read_rpyc_data(rpycf, 1)
 
-                        if bindata:
-                            data, stmts = loads(bindata)
-                            break
+                        if bindata is not None:
+                            old_data, old_stmts = loads(bindata)
+                            self.merge_names(old_stmts, stmts, used_names)
 
-                    except:
+                            del old_data
+                            del old_stmts
+                    except Exception:
                         pass
+                    finally:
+                        self.record_pycode = True
 
-                    f.seek(0)
+                self.assign_names(stmts, renpy.lexer.elide_filename(fullfn))
 
-                else:
-                    return None, None
+                pickle_data_before_static_transforms = dumps(
+                    (data, stmts),
+                    bad_reduction_name=f"<{fn} rpyc data>",
+                )
 
-                if data is None:
-                    print("Failed to load", fn)
-                    return None, None
+                self.static_transforms(stmts)
 
-                if not isinstance(data, dict):
-                    return None, None
+                pickle_data_after_static_transforms = dumps(
+                    (data, stmts),
+                    bad_reduction_name=f"<{fn} transformed rpyc data>",
+                )
 
-                if self.key and data.get('key', 'unlocked') != self.key:
-                    return None, None
+                if not renpy.macapp:
+                    try:
+                        with open(rpycfn, "wb") as f:
+                            self.write_rpyc_header(f)
+                            self.write_rpyc_data(f, 1, pickle_data_before_static_transforms)
+                            self.write_rpyc_data(f, 2, pickle_data_after_static_transforms)
 
-                if data['version'] != script_version:
-                    return None, None
+                            with open(fullfn, "rb") as fullf:
+                                rpydigest = hashlib.md5(fullf.read() + RPYC_MAGIC).digest()
 
-                if slot < 2:
-                    self.static_transforms(stmts)
+                            self.write_rpyc_md5(f, rpydigest)
+                    except Exception:
+                        import traceback
 
-        else:
-            return None, None
+                        traceback.print_exc()
 
-        return data, stmts
+                self.loaded_rpy = True
 
-    def load_appropriate_file(self, compiled, source, dir, fn, initcode): # @ReservedAssignment
+            elif fn.endswith((".rpyc", ".rpymc")):
+                data = None
+                stmts = None
+
+                with renpy.loader.load(fn, tl=False) as f:
+                    for slot in [2, 1]:
+                        try:
+                            bindata = self.read_rpyc_data(f, slot)
+
+                            if bindata:
+                                try:
+                                    data, stmts = loads(bindata)
+                                except Exception as e:
+                                    print(f"Failed to load {fn}: {e}")
+                                    raise
+
+                                break
+
+                        except Exception:
+                            pass
+
+                        f.seek(0)
+
+                    else:
+                        return None, None
+
+                    if data is None:
+                        print("Failed to load", fn)
+                        return None, None
+
+                    if not isinstance(data, dict):
+                        return None, None
+
+                    if self.key and data.get("key", "unlocked") != self.key:
+                        return None, None
+
+                    if data["version"] != script_version:
+                        return None, None
+
+                    if slot < 2:
+                        self.static_transforms(stmts)
+
+                    renpy.parser.deferred_parse_errors = data.get(
+                        "deferred_parse_errors", None
+                    ) or collections.defaultdict(list)
+
+            else:
+                return None, None
+
+            return data, stmts
+
+        finally:
+            # Restore the deferred parse errors.
+            for k, v in renpy.parser.deferred_parse_errors.items():
+                old_deferred_parse_errors[k].extend(v)
+
+            renpy.parser.deferred_parse_errors = old_deferred_parse_errors
+            renpy.parser.parsed_expressions = []
+
+    def load_appropriate_file(self, compiled, source_extensions, dir, fn, initcode):
         data = None
         stmts = None
-        lastfn = fn
+
+        source = source_extensions[-1]
+
+        renpy.game.exception_info = "While loading the script."
 
         # This can only be a .rpyc file, since we're loading it
         # from an archive.
         if dir is None:
-
             rpyfn = fn + source
             lastfn = fn + compiled
             data, stmts = self.load_file(dir, fn + compiled)
 
             if data is None:
-                raise Exception("Could not load from archive %s." % (lastfn,))
+                raise Exception(f"Could not load from archive {lastfn}.")
 
-            with renpy.loader.load(fn + compiled) as f:
-                f.seek(-_MD5_DIGEST_SIZE, 2)
-                digest = f.read(_MD5_DIGEST_SIZE)
+            with renpy.loader.load(fn + compiled, tl=False) as f:
+                f.seek(-hashlib.md5().digest_size, 2)
+                digest = f.read(hashlib.md5().digest_size)
 
         else:
-
             # Otherwise, we're loading from disk. So we need to decide if
             # we want to load the rpy or the rpyc file.
-            rpyfn = dir + "/" + fn + source
             rpycfn = dir + "/" + fn + compiled
+            rpyfn = None  # prevent the spurious warning.
+            rpydigest = None
 
-            renpy.loader.add_auto(rpyfn)
+            rpyfns = []
 
-            has_rpy = os.path.exists(rpyfn)
-            if has_rpy:
+            for source in source_extensions:
+                rpyfn = dir + "/" + fn + source
+
+                renpy.loader.add_auto(rpyfn)
+
+                if os.path.exists(rpyfn):
+                    rpyfns.append((source, rpyfn))
+
+            if len(rpyfns) > 1:
+                raise Exception(f"{' and '.join(i[1] for i in rpyfns)} conflict, and can't exist in the same game.")
+            elif rpyfns:
+                source, rpyfn = rpyfns[0]
+
                 with open(rpyfn, "rb") as f:
-                    raw_bytes = f.read()
-                if b"\r" in raw_bytes:
-                    raw_bytes = raw_bytes.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
-                rpydigest = hashlib.md5(raw_bytes).digest()
+                    rpydigest = hashlib.md5(f.read() + RPYC_MAGIC).digest()
             else:
-                rpydigest = None
+                source = source_extensions[-1]
+                rpyfn = dir + "/" + fn + source_extensions[-1]
 
-            has_rpyc = os.path.exists(rpycfn)
             try:
-                if has_rpyc:
+                if os.path.exists(rpycfn):
                     with open(rpycfn, "rb") as f:
-                        f.seek(-_MD5_DIGEST_SIZE, 2)
-                        rpycdigest = f.read(_MD5_DIGEST_SIZE)
+                        f.seek(-hashlib.md5().digest_size, 2)
+                        rpycdigest = f.read(hashlib.md5().digest_size)
                 else:
                     rpycdigest = None
-            except:
+            except Exception:
                 rpycdigest = None
 
             digest = None
 
-            if has_rpy and has_rpyc:
-
+            if os.path.exists(rpyfn) and os.path.exists(rpycfn):
                 # Are we forcing a compile?
-                force_compile = renpy.game.args.compile # @UndefinedVariable
+                force_compile = renpy.game.args.compile  # type: ignore
 
                 # Use the source file here since it'll be loaded if it exists.
                 lastfn = rpyfn
@@ -764,36 +1031,32 @@ class Script(object):
                 data, stmts = None, None
 
                 try:
-
                     if rpydigest == rpycdigest and not force_compile:
-
                         data, stmts = self.load_file(dir, fn + compiled)
 
                         if data is None:
                             print("Could not load " + rpycfn)
 
-                except:
-                    renpy.display.log.write("While loading %r", rpycfn)
+                except Exception:
+                    renpy.display.log.write(f"While loading {rpycfn!r}")
                     renpy.display.log.exception()
 
                     if "RENPY_RPYC_EXCEPTIONS" in os.environ:
                         print("While loading", rpycfn)
                         raise
 
-                    pass
-
                 if data is None:
                     data, stmts = self.load_file(dir, fn + source)
 
                 digest = rpydigest
 
-            elif has_rpyc:
+            elif os.path.exists(rpycfn):
                 lastfn = rpycfn
                 data, stmts = self.load_file(dir, fn + compiled)
 
                 digest = rpycdigest
 
-            elif has_rpy:
+            elif os.path.exists(rpyfn):
                 lastfn = rpyfn
                 data, stmts = self.load_file(dir, fn + source)
 
@@ -802,123 +1065,90 @@ class Script(object):
             if digest is not None:
                 self.backup_list.append((rpyfn, digest))
 
-        if data is None:
-            raise Exception("Could not load file %s." % lastfn)
+        if data is None or stmts is None:
+            raise Exception(f"Could not load file {lastfn}.")  # type: ignore
 
         # Check the key.
         if self.key is None:
-            self.key = data['key']
-        elif self.key != data['key']:
-            raise Exception(fn + " does not share a key with at least one .rpyc file. To fix, delete all .rpyc files, or rerun Ren'Py with the --lock option.")
+            self.key = data["key"]
+        elif self.key != data["key"]:
+            raise Exception(
+                f"{fn} does not share a key with at least one .rpyc file. To fix, delete all .rpyc files, or rerun Ren'Py with the --lock option."
+            )
 
-        self.finish_load(stmts, initcode, filename=lastfn)
+        self.finish_load(stmts, initcode, filename=lastfn, expressions=data.get("expressions"))
 
-        if digest is not None:
-            self.digest.update(digest)
+        self.digest.update(digest)  # type: ignore
 
-    def init_bytecode(self):
-        """
-        Init/Loads the bytecode cache.
-        """
-
-        # Load the oldcache.
-        try:
-            with renpy.loader.load(BYTECODE_FILE) as f:
-                version, cache = loads(zlib.decompress(f.read()))
-                if version == BYTECODE_VERSION:
-                    self.bytecode_oldcache = cache
-
-        except:
-            pass
-
-    def update_bytecode(self):
+    def update_bytecode(self, expressions: renpy.parser.ExpressionsList | None = None):
         """
         Compiles the PyCode objects in self.all_pycode, updating the
         cache. Clears out self.all_pycode.
         """
 
-        for i in self.all_pyexpr:
-            try:
-                renpy.python.py_compile(i, 'eval')
-            except:
-                pass
-
-        self.all_pyexpr = [ ]
-
-        # Update all of the PyCode objects in the system with the loaded
-        # bytecode.
-        for i in self.all_pycode:
-
-            key = i.get_hash() + MAGIC
-
-            if i.location[0] in renpy.python.py3_files:
-                key += b"_py3"
-
-            code = self.bytecode_oldcache.get(key, None)
-
-            if code is None:
-
-                self.bytecode_dirty = True
-
-                old_ei = renpy.game.exception_info
-                renpy.game.exception_info = "While compiling python block starting at line %d of %s." % (i.location[1], i.location[0])
+        if expressions is not None:
+            for expr, context in expressions:
+                if context == "unknown":
+                    mode = "eval"
+                else:
+                    mode = context
 
                 try:
-
-                    if i.mode == 'exec':
-                        code = renpy.python.py_compile_exec_bytecode(i.source, filename=i.location[0], lineno=i.location[1])
-                    elif i.mode == 'hide':
-                        code = renpy.python.py_compile_hide_bytecode(i.source, filename=i.location[0], lineno=i.location[1])
-                    elif i.mode == 'eval':
-                        code = renpy.python.py_compile_eval_bytecode(i.source, filename=i.location[0], lineno=i.location[1])
-
+                    renpy.python.py_compile(expr, mode)
                 except SyntaxError as e:
+                    if context == "unknown":
+                        continue
 
-                    text = e.text
-
-                    if text is None:
-                        text = ''
-
-                    if not isinstance(text, str):
-                        text = text.decode("utf-8", "replace")
-
+                    assert e.filename is not None
+                    assert e.lineno is not None
                     pem = renpy.parser.ParseError(
-                        filename=e.filename,
-                        number=e.lineno,
-                        msg=e.msg,
-                        line=text,
-                        pos=e.offset)
+                        e.msg,
+                        e.filename,
+                        e.lineno,
+                        e.offset,
+                        e.text,
+                        e.end_lineno,
+                        e.end_offset,
+                    )
 
                     renpy.parser.parse_errors.append(pem.message)
 
-                    continue
+        # Update all of the PyCode objects in the system with the loaded
+        # bytecode.
 
-                renpy.game.exception_info = old_ei
-
-            if code is not None:
-                self.bytecode_newcache[key] = code
-                i.bytecode = marshal.loads(code)
-
-        self.all_pycode = [ ]
-
-    def save_bytecode(self):
-        if renpy.macapp:
-            return
-
-        if self.bytecode_dirty:
+        for i in self.all_pycode:
             try:
-                fn = renpy.loader.get_path(BYTECODE_FILE)
+                i.bytecode = renpy.python.py_compile(
+                    i.source,
+                    i.mode,
+                    filename=i.filename,
+                    lineno=i.linenumber,
+                    py=i.py,
+                    hashcode=i.hashcode,
+                    column=i.col_offset,
+                )
 
-                with open(fn, "wb") as f:
-                    data = (BYTECODE_VERSION, self.bytecode_newcache)
-                    f.write(zlib.compress(dumps(data, 2), 3))
-            except:
-                pass
+            except SyntaxError as e:
+                assert e.filename is not None
+                assert e.lineno is not None
+                pem = renpy.parser.ParseError(
+                    e.msg,
+                    e.filename,
+                    e.lineno,
+                    e.offset + i.col_offset,
+                    e.text,
+                    e.end_lineno,
+                    e.end_offset + i.col_offset,
+                )
+
+                renpy.parser.parse_errors.append(pem.message)
+
+        self.all_pycode = []
 
     def lookup(self, label):
         """
         Looks up the given label in the game. If the label is not found,
-        raises a ScriptError.
+        raises a LabelNotFound.
         """
 
         if isinstance(label, renpy.parser.SubParse):
@@ -934,7 +1164,7 @@ class Script(object):
             rv = self.namemap.get(label, None)
 
         if rv is None:
-            raise ScriptError("could not find label '%s'." % str(original))
+            raise LabelNotFound(original)
 
         return self.namemap[label]
 
@@ -944,7 +1174,6 @@ class Script(object):
         """
 
         if isinstance(label, renpy.parser.SubParse):
-
             if not label.block:
                 return False
 
@@ -975,7 +1204,17 @@ class Script(object):
         for i in self.need_analysis:
             i.analyze()
 
-        self.need_analysis = [ ]
+        self.need_analysis = []
+
+    def compress(self):
+        """
+        Compress all statements that need to be compressed.
+        """
+
+        for i in self.need_compress:
+            i._compress()
+
+        self.need_compress = []
 
     def report_duplicate_labels(self):
         if not renpy.config.developer:
@@ -988,3 +1227,7 @@ class Script(object):
 
         if renpy.parser.report_parse_errors():
             raise SystemExit(-1)
+
+    def __del__(self):
+        for v in self.namemap.values():
+            v._kill()

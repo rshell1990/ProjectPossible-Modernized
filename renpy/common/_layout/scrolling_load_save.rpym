@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -106,6 +106,8 @@ init python:
 
             __session.thumbnail = None
 
+            layout.navigation(screen)
+
             newest = None
             newest_time = None
 
@@ -135,6 +137,11 @@ init python:
                 for i in range(1, config.load_save_auto_slots + 1):
                     slots.append(('auto-' + str(i), _(u'a') + str(i)))
 
+            ui.frame(style=style.file_picker_frame)
+            ui.side(['c', 'r'], style=style.file_picker_side)
+
+
+
             if __session.scrollbar_position is None:
                 if newest is None:
                     yoffset = 0
@@ -147,11 +154,14 @@ init python:
                 yoffset = None
 
             adj = ui.adjustment(value=value)
+            ui.viewport(yadjustment=adj, offsets=(0, yoffset), style=style.file_picker_viewport, mousewheel=True)
 
-            entries = [ ]
+            ui.vbox(style=style.file_picker_box, focus=renpy.time.time())
+
+
             for i, (fn, n) in enumerate(slots):
 
-                clicked = Return(("select", fn))
+                clicked = ui.returns(("select", fn))
 
                 if screen == "save" and fn.startswith("auto-"):
                     clicked = None
@@ -162,48 +172,39 @@ init python:
                 if fn in info:
                     extra_info, thumbnail, time = info[fn]
 
+                    ui.button(style=style.file_picker_entry[i],
+                              clicked=clicked,
+                              hovered=hovered(thumbnail),
+                              unhovered=unhovered(thumbnail),
+                              role = "selected_" if (fn == newest) else "",
+                              keymap = { "save_delete" : ui.returns(("unlink", fn)) },
+                              )
+
                     s = config.file_entry_format % dict(
                         time=renpy.time.strftime(
                             config.time_format,
                             renpy.time.localtime(time)),
                         save_name=extra_info)
 
-                    entries.append({
-                        "saved" : True,
-                        "index" : i,
-                        "fn" : fn,
-                        "label" : n + ". " + s,
-                        "clicked" : clicked,
-                        "thumbnail" : thumbnail,
-                        "newest" : (fn == newest),
-                        })
+                    ui.text(n + ". " + s, style=style.file_picker_text[i])
 
                 else:
-                    entries.append({
-                        "saved" : False,
-                        "index" : i,
-                        "fn" : fn,
-                        "label" : n + ". " + _(u"Empty Slot."),
-                        "clicked" : clicked,
-                        "thumbnail" : None,
-                        "newest" : (fn == newest),
-                        })
+                    ui.button(style=style.file_picker_entry[i],
+                              clicked=clicked,
+                              role = "selected_" if (fn == newest) else "")
 
-            use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
-            if not use_sl2_nav:
-                layout.navigation(screen)
+                    ui.text(n + ". " + _(u"Empty Slot."),
+                            style=style.file_picker_text[i])
 
-            renpy.show_screen(
-                "_scrolling_load_save",
-                nav_screen=screen,
-                adj=adj,
-                yoffset=yoffset,
-                entries=entries,
-                hovered_cb=hovered,
-                unhovered_cb=unhovered,
-                box_focus=renpy.time.time(),
-                use_sl2_nav=use_sl2_nav,
-                _transient=True)
+            ui.close() # vbox/viewport
+
+            ui.bar(adjustment=adj, style=style.file_picker_scrollbar)
+
+            ui.close() # side/window
+
+            # Thumbnail.
+            ui.frame(style=style.thumbnail_frame)
+            ui.add(DynamicDisplayable(_file_picker_thumbnail))
 
             try:
                 action, arg = ui.interact(mouse="gamemenu")
@@ -217,45 +218,6 @@ init python:
             elif action == "unlink":
                 if layout.yesno_prompt("save", layout.DELETE_SAVE):
                     renpy.unlink_save(arg)
-
-screen _scrolling_load_save(nav_screen, adj, yoffset, entries, hovered_cb, unhovered_cb, box_focus, use_sl2_nav=True):
-
-    default hovered_delete = None
-
-    if use_sl2_nav:
-        use _layout_navigation(nav_screen)
-
-    frame style style.file_picker_frame:
-        side ['c', 'r'] style style.file_picker_side:
-            viewport yadjustment adj yinitial yoffset style style.file_picker_viewport mousewheel True:
-                vbox style style.file_picker_box focus box_focus:
-                    for entry in entries:
-                        $ i = entry["index"]
-
-                        if entry["saved"]:
-                            button:
-                                style style.file_picker_entry[i]
-                                selected entry["newest"]
-                                sensitive (entry["clicked"] is not None)
-                                action entry["clicked"]
-                                hovered [ hovered_cb(entry["thumbnail"]), SetScreenVariable("hovered_delete", entry["fn"]) ]
-                                unhovered [ unhovered_cb(entry["thumbnail"]), SetScreenVariable("hovered_delete", None) ]
-                                text entry["label"] style style.file_picker_text[i]
-                        else:
-                            button:
-                                style style.file_picker_entry[i]
-                                selected entry["newest"]
-                                sensitive (entry["clicked"] is not None)
-                                action entry["clicked"]
-                                text entry["label"] style style.file_picker_text[i]
-
-            bar adjustment adj style style.file_picker_scrollbar
-
-    frame style style.thumbnail_frame:
-        add DynamicDisplayable(_file_picker_thumbnail)
-
-    if hovered_delete is not None:
-        key "save_delete" action Return(("unlink", hovered_delete))
 
 
 label save_screen:

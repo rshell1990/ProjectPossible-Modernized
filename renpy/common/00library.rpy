@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -49,7 +49,7 @@ init -1700 python:
 
                 return False
 
-            except:
+            except Exception:
                 if config.debug_equality:
                     raise
 
@@ -57,6 +57,14 @@ init -1700 python:
 
         def __ne__(self, o):
             return not (self == o)
+
+        def __hash__(self):
+            rv = hash(_type(self))
+
+            for v in self.__dict__.values():
+                rv ^= hash(v)
+
+            return rv
 
     class FieldEquality(object):
         """
@@ -88,7 +96,7 @@ init -1700 python:
 
                 return True
 
-            except:
+            except Exception:
 
                 if config.debug_equality:
                     raise
@@ -97,6 +105,17 @@ init -1700 python:
 
         def __ne__(self, o):
             return not (self == o)
+
+        def __hash__(self):
+            rv = hash(_type(self))
+
+            for k in self.equality_fields:
+                rv ^= hash(self.__dict__[k])
+
+            for k in self.identity_fields:
+                rv ^= hash(id(self.__dict__[k]))
+
+            return rv
 
 
 init -1700 python:
@@ -119,21 +138,46 @@ init -1700 python:
 
     def _default_empty_window():
 
+        who = None
+        multiple = None
+
         try:
-            who = _last_say_who
-            who = renpy.eval_who(who)
-        except:
-            who = None
+
+            scry = renpy.scry()
+
+            window_hide = renpy.get_statement_name() == "window hide"
+
+            # When running in a say statement or menu-with-caption, scry for
+            # the next say statement, and get the window from that.
+            if (scry.say or scry.menu_with_caption or store._window_next) and not window_hide:
+                who = None
+
+                for i in range(20):
+                    if scry.say:
+                        who = scry.who
+                        multiple = scry.multiple
+                        break
+
+                    scry = scry.next()
+                    if scry is None:
+                        break
+
+            else:
+                who = _last_say_who
+                who = renpy.eval_who(who)
+
+        except Exception:
+            pass
 
         if who is None:
             who = narrator
 
         if isinstance(who, NVLCharacter):
             nvl_show_core()
-        elif isinstance(store.narrator, ADVCharacter):
-            store.narrator.empty_window()
-        elif isinstance(store._narrator, ADVCharacter):
-            store._narrator.empty_window()
+        elif not isinstance(store.narrator, NVLCharacter):
+            store.narrator.empty_window(multiple=multiple)
+        else:
+            store._narrator.empty_window(multiple=multiple)
 
     config.empty_window = _default_empty_window
 
@@ -143,29 +187,51 @@ init -1700 python:
 
     config.extend_interjection = "{fast}"
 
-    def extend(what, interact=True, *args, **kwargs):
-        who = _last_say_who
-        who = renpy.eval_who(who)
+    class _Extend(object):
 
-        if who is None:
-            who = narrator
-        elif isinstance(who, basestring):
-            who = Character(who, kind=name_only)
+        def get_who(self):
 
-        # This ensures extend works even with NVL mode.
-        who.do_extend()
+            who = _last_say_who
+            who = renpy.eval_who(who)
 
-        what = _last_say_what + config.extend_interjection + _last_raw_what
+            if who is None:
+                who = narrator
+            elif isinstance(who, str):
+                who = Character(who, kind=name_only)
 
-        args = args + _last_say_args
-        kw = dict(_last_say_kwargs)
-        kw.update(kwargs)
-        kw["interact"] = interact and kw.get("interact", True)
+            return who
 
-        renpy.exports.say(who, what, *args, **kw)
-        store._last_say_what = what
+        def __call__(self, what, interact=True, *args, **kwargs):
+            who = self.get_who()
 
-    extend.record_say = False
+            # This ensures extend works even with NVL mode.
+            who.do_extend()
+
+            what = _last_say_what + config.extend_interjection + _last_raw_what
+
+            args = args + _last_say_args
+            kw = dict(_last_say_kwargs)
+            kw.update(kwargs)
+            kw["interact"] = interact and kw.get("interact", True)
+
+            renpy.exports.say(who, what, *args, **kw)
+            store._last_say_what = what
+
+        record_say = False
+
+        @property
+        def warp(self):
+            return renpy.exports.can_warp_say(self.get_who())
+
+        def get_extend_text(self, what):
+            return config.extend_interjection + what
+
+        @property
+        def statement_name(self):
+            who = self.get_who()
+            return getattr(who, "statement_name", "say")
+
+    extend = _Extend()
 
 
     ##########################################################################
@@ -226,30 +292,6 @@ init -1700 python:
     config.predict_statements_callback = _predict_statements
 
 
-    # Prediction of screens.
-    def _predict_screens():
-
-        for i in config.overlay_screens:
-            renpy.predict_screen(i)
-
-        s = _game_menu_screen
-
-        if s is None:
-            return
-
-        if renpy.has_screen(s):
-            renpy.predict_screen(s)
-            return
-
-        if s.endswith("_screen"):
-            s = s[:-7]
-            if renpy.has_screen(s):
-                renpy.predict_screen(s)
-                return
-
-    config.expensive_predict_callbacks.append(_predict_screens)
-
-
     ##########################################################################
     # Name-only say statements.
 
@@ -260,12 +302,15 @@ init -1700 python:
         who = Character(who, kind=name_only)
         try:
             who.predict(what)
-        except:
+        except Exception:
             pass
 
     def say(who, what, interact=True, *args, **kwargs):
         who = Character(who, kind=name_only)
         who(what, interact=interact, *args, **kwargs)
+
+    say.warp = True
+
 
     ##########################################################################
     # Misc.
@@ -280,7 +325,12 @@ init -1700 python:
     # License text.
     renpy.license = _("This program contains free software under a number of licenses, including the MIT License and GNU Lesser General Public License. A complete list of software, including links to full source code, can be found {a=https://www.renpy.org/l/license}here{/a}.")
 
+
 init -1000 python:
+
+    # Not used, may be in old save files.
+    config.missing_background = "black"
+
     # Set developer to the auto default.
     config.original_developer = "auto"
 
@@ -376,6 +426,7 @@ _quit_slot
 _rollback
 _skipping
 _window_subtitle
+_scene_show_hide_transition
 """.split():
 
         # _history, history_list, and _version are set later, so aren't included.
@@ -396,14 +447,6 @@ init 1700 python hide:
 
     if config.window_title is None:
         config.window_title = config.name or "A Ren'Py Game"
-
-    import os
-    if "RENPY_GL_MODERN" in os.environ:
-        config.gl_npot = True
-        config.cache_surfaces = False
-
-        print("Modern GL Enabled.")
-
 
 
 # Used by renpy.return_statement() to return.
@@ -426,7 +469,6 @@ label _developer:
 # its own layer.
 screen _ctc:
     add ctc
-
 
 # Creates the data structure that history is stored in.
 default _history = True

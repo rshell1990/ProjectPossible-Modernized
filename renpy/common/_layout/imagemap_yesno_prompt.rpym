@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -41,8 +41,6 @@ init python hide:
     def yesno_prompt(screen, message):
         renpy.transition(config.intra_transition)
 
-        use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
-
         ime = _ImageMapper(
             screen,
             config.yesno_prompt_ground,
@@ -52,38 +50,22 @@ init python hide:
             config.yesno_prompt_hover,
             config.yesno_prompt_hotspots)
 
-        ime.button("Yes", Return(True), False)
-        ime.button("No", Return(False), False)
+        ime.button("Yes", ui.returns(True), False)
+        ime.button("No", ui.returns(False), False)
 
         ime.close()
-
-        if ime.show_default_nav and not use_sl2_nav:
-            layout.navigation(screen)
 
         default = config.yesno_prompt_message_images.get(layout.ARE_YOU_SURE, None)
         message_image = config.yesno_prompt_message_images.get(message, default)
 
-        renpy.show_screen(
-            "_imagemap_yesno_prompt",
-            ime=ime,
-            message=message,
-            message_image=message_image,
-            use_sl2_nav=use_sl2_nav,
-            _transient=True)
+        if message_image:
+            ui.add(message_image)
+        else:
+            layout.prompt(message, "yesno")
 
         rv = ui.interact(mouse="gamemenu")
         renpy.transition(config.intra_transition)
         return rv
 
     layout.yesno_prompt = yesno_prompt
-
-screen _imagemap_yesno_prompt(ime, message, message_image, use_sl2_nav=True):
-
-    use _imagemap_contents(ime, use_sl2_nav=use_sl2_nav)
-
-    if message_image:
-        add message_image
-    else:
-        window style style.yesno_prompt[message]:
-            text _(message) style style.yesno_prompt_text[message]
 

@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -36,9 +36,22 @@ init python:
     style.mm_menu_frame.ypos = 0.9
     style.mm_menu_frame.yanchor = 1.0
 
-    def _classic_mm_items():
-        items = [ ]
+label main_menu_screen:
+
+    python hide:
+
+        # Ignore right-click while at the main menu.
+        ui.keymap(game_menu=ui.returns(None))
+
+        # Show the background.
+        ui.window(style='mm_root')
+        ui.null()
+
+        ui.frame(style='mm_menu_frame')
+        ui.vbox(style='mm_menu_frame_box')
+
         for e in config.main_menu:
+
             if len(e) == 3:
                 label, clicked, enabled = e
                 shown = "True"
@@ -48,35 +61,16 @@ init python:
             if not eval(shown):
                 continue
 
-            is_enabled = eval(enabled)
-            if isinstance(clicked, basestring):
-                clicked = renpy.curry(renpy.jump_out_of_context)(clicked)
+            # This checks to see if clicked is a string. If so, we want clicked
+            # to jump us out of the current context.
+            if isinstance(clicked, str):
+                clicked=ui.jumpsoutofcontext(clicked)
 
-            items.append((label, clicked if is_enabled else None, is_enabled))
-        return items
+            # Create each button.
+            layout.button(label, "mm", enabled=eval(enabled), clicked=clicked)
 
-screen _classic_main_menu(mm_items=None):
+        ui.close()
 
-    key "game_menu" action NullAction()
-
-    # Show the background.
-    window style "mm_root":
-        null
-
-    frame style "mm_menu_frame":
-        vbox style "mm_menu_frame_box":
-
-            for label, clicked, is_enabled in (mm_items if mm_items is not None else _classic_mm_items()):
-                button:
-                    style style.mm_button[label]
-                    sensitive is_enabled
-                    action clicked
-                    text _(label) style style.mm_button_text[label]
-
-label main_menu_screen:
-
-    python hide:
-        renpy.show_screen("_classic_main_menu", mm_items=_classic_mm_items(), _transient=True)
         ui.interact(mouse="mainmenu")
 
     return

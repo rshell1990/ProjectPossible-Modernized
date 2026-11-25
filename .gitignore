@@ -180,3 +180,9 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 game/archive.rpa
+
+# Ren'Py-generated runtime data.
+game/cache/
+game/saves/*.save
+game/**/*.rpyc
+traceback.txt

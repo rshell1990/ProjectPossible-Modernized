@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -46,7 +46,15 @@ init python:
     # - The name of the game menu button this is equivalent to.
     config.navigation_hotspots = None
 
-    def _imagemap_nav_items(screen):
+    def _navigation(screen=None):
+
+        # Display the game menu background
+        ui.window(style=style.gm_root[screen])
+        ui.null()
+
+        if screen is None:
+            return
+
         # A map from button name to game menu information.
         gm = dict()
 
@@ -58,7 +66,8 @@ init python:
 
             gm[name_] = (screen_, act, enable)
 
-        items = [ ]
+        ui.fixed(style='imagemap')
+        ui.image(config.navigation_ground)
 
         for (x0, y0, x1, y1, name) in config.navigation_hotspots:
 
@@ -77,35 +86,18 @@ init python:
                 idle = config.navigation_idle
                 hover = config.navigation_hover
 
-            items.append((x0, y0, x1 - x0, y1 - y0, idle, hover, act))
+            ui.imagebutton(
+                LiveCrop((x0, y0, x1-x0, y1-y0), idle),
+                LiveCrop((x0, y0, x1-x0, y1-y0), hover),
+                clicked=act,
+                style='imagemap_button',
+                xpos=x0,
+                ypos=y0,
+                xanchor=0,
+                yanchor=0,
+                focus_mask=True,
+                )
 
-        return items
+        ui.close()
 
-    def _navigation(screen=None):
-        renpy.show_screen("_layout_navigation", nav_screen=screen, _transient=True)
-
-    _navigation._is_sl2 = True
     layout.navigation = _navigation
-
-screen _layout_navigation(nav_screen=None):
-
-    # Display the game menu background
-    window style style.gm_root[nav_screen]:
-        null
-
-    if nav_screen is not None:
-
-        fixed style "imagemap":
-            add config.navigation_ground
-
-            for x0, y0, w, h, idle, hover, act in _imagemap_nav_items(nav_screen):
-                imagebutton:
-                    idle Crop((x0, y0, w, h), idle)
-                    hover Crop((x0, y0, w, h), hover)
-                    action act
-                    style "imagemap_button"
-                    xpos x0
-                    ypos y0
-                    xanchor 0
-                    yanchor 0
-                    focus_mask True

@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -157,15 +157,14 @@ init -1400 python hide:
 
     @layout
     def button(label,
-            type=None,
-            selected=False,
-            enabled=True,
-            clicked=None,
-            hovered=None,
-            unhovered=None,
-            index=None,
-            **properties):
-
+               type=None,
+               selected=False,
+               enabled=True,
+               clicked=None,
+               hovered=None,
+               unhovered=None,
+               index=None,
+               **properties):
         """
         label - The label of this button. Will be translated if necessary.
         type - The type of this button. Used to generate the appropriate styles.
@@ -254,12 +253,12 @@ init -1400 python hide:
                 role = ""
 
             ui.button(style=style.list_row[i%2],
-                    clicked=new_clicked,
-                    hovered=new_hovered,
-                    unhovered=new_unhovered,
-                    role=role,
-                    size_group=size_group,
-                    )
+                      clicked=new_clicked,
+                      hovered=new_hovered,
+                      unhovered=new_unhovered,
+                      role=role,
+                      size_group=size_group,
+                      )
 
             ui.hbox(style=style.list_row_box)
 
@@ -416,7 +415,7 @@ init -1400 python hide:
 
     @layout
     def imagemap_load_save(ground, idle, hover, selected_idle, selected_hover,
-                        hotspots, variant=None):
+                           hotspots, variant=None):
 
         renpy.load_module("_layout/imagemap_load_save")
 
@@ -453,6 +452,7 @@ init -1400 python hide:
     layout.LOADING = "Loading will lose unsaved progress.\nAre you sure you want to do this?"
     layout.QUIT = "Are you sure you want to quit?"
     layout.MAIN_MENU = "Are you sure you want to return to the main menu?\nThis will lose unsaved progress."
+    layout.CONTINUE = "Are you sure you want to continue where you left off?"
     layout.END_REPLAY = "Are you sure you want to end the replay?"
     layout.SLOW_SKIP = "Are you sure you want to begin skipping?"
     layout.FAST_SKIP_SEEN = "Are you sure you want to skip to the next choice?"
@@ -477,24 +477,17 @@ init -1400 python hide:
         return rv
 
     @layout
-    def yesno_screen(message, yes=None, no=None):
+    def yesno_screen(message, yes=None, no=None, _screen=None, **kwargs):
         """
-        :doc: other
+        :undocumented:
 
-        This causes the a yes/no prompt screen with the given message
-        to be displayed. The screen will be hidden when the user hits
-        yes or no.
-
-        `message`
-            The message that will be displayed.
-
-        `yes`
-            An action that is run when the user chooses yes.
-
-        `no`
-            An action that is run when the user chooses no.
+        renpy.confirm is a better alternative in a python context,
+        or the Confirm action in a screen context.
         """
-        if config.confirm_screen and renpy.has_screen('confirm'):
+
+        if _screen and renpy.has_screen(_screen):
+            screen = _screen
+        elif config.confirm_screen and renpy.has_screen('confirm'):
             screen = "confirm"
         elif renpy.has_screen("yesno_prompt"):
             screen = "yesno_prompt"
@@ -518,22 +511,20 @@ init -1400 python hide:
                 screen,
                 message=message,
                 yes_action=yes_action,
-                no_action=no_action)
+                no_action=no_action,
+                **kwargs)
 
             renpy.restart_interaction()
 
-            return
-
-        if renpy.invoke_in_new_context(layout.invoke_yesno_prompt, None, message):
+        elif renpy.invoke_in_new_context(layout.invoke_yesno_prompt, None, message):
             if yes is not None:
-                yes()
+                renpy.run(yes)
         else:
             if no is not None:
-                no()
+                renpy.run(no)
 
 
     def __auto_save_extra_info():
         return save_name
 
     config.auto_save_extra_info = __auto_save_extra_info
-

@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -136,7 +136,8 @@ init -1500 python:
 
         `mixer`
             The mixer to set the volume of. A string, usually one of
-            "music", "sfx", or "voice".
+            "main", "music", "sfx", or "voice". See :ref:`volume` for
+            more information about mixers.
         `value`
             The value to set the volume to. A number between 0.0 and 1.0,
             inclusive.
@@ -153,6 +154,26 @@ init -1500 python:
         def get_selected(self):
             return _preferences.get_volume(self.mixer) == self.volume
 
+    def GetMixer(mixer, db=False):
+        """
+        :doc: audio_action
+
+        Returns the volume of `mixer`.
+
+        `db`
+            If true, returns the volume in decibels. If false, the default,
+            returns the volume as a number between 0.0 and 1.0.
+        """
+
+        import math
+
+        rv = _preferences.get_mixer(mixer)
+
+        if db:
+            rv = renpy.config.volume_db_range * rv - renpy.config.volume_db_range
+
+        return rv
+
     @renpy.pure
     class SetMute(Action, DictEquality):
         """
@@ -163,8 +184,7 @@ init -1500 python:
 
         `mixer`
             Either a single string giving a mixer name, or a list of strings
-            giving a list of mixers. The strings should be mixer names, usually
-            "music", "sfx", or "voice".
+            giving a list of mixers. The strings should be mixer names.
 
         `mute`
             True to mute the mixer, False to ummute it.
@@ -172,7 +192,7 @@ init -1500 python:
 
 
         def __init__(self, mixer, mute):
-            if isinstance(mixer, basestring):
+            if isinstance(mixer, str):
                 mixer = [ mixer ]
 
             self.mixers = mixer
@@ -200,13 +220,12 @@ init -1500 python:
 
         `mixer`
             Either a single string giving a mixer name, or a list of strings
-            giving a list of mixers. The strings should be mixer names, usually
-            "music", "sfx", or "voice".
+            giving a list of mixers. The strings should be mixer names.
         """
 
 
         def __init__(self, mixer):
-            if isinstance(mixer, basestring):
+            if isinstance(mixer, str):
                 mixer = [ mixer ]
 
             self.mixers = mixer
@@ -258,4 +277,3 @@ init -1500 python:
                 rv = not rv
 
             return rv
-

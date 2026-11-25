@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -129,6 +129,8 @@ init -1500 python:
 
     config.predict_file_pages = True
 
+    config.file_slotname_callback = None
+
     def __slotname(name, page=None, slot=False):
 
         if slot:
@@ -151,7 +153,13 @@ init -1500 python:
             except ValueError:
                 pass
 
-        return str(page) + "-" + str(name)
+        page = str(page)
+        name = str(name)
+
+        if config.file_slotname_callback is not None:
+            return config.file_slotname_callback(page, name)
+        else:
+            return page + "-" + name
 
     def __newest_slot():
         """
@@ -274,14 +282,32 @@ init -1500 python:
 
         Accesses the Json information associated with `name`.
 
-        If `key` is None, returns the entire Json other object, or `empty` if the slot
-        is empty.
+        This always returns `empty` if the slot is empty.
+
+        If not, and if `key` is None, returns the entire dictionary containing the Json data.
 
         Otherwise, this returns json[key] if `key` is defined on the json object of the save,
-        `missing` if there is a save with the given name, but it does not contain `key`, or
-        `empty` if the save slot is empty.
+        and `missing` if there is a save with the given name, but it does not contain `key`.
 
-        Json is added to a save slot by callbacks registered using :var:`config.save_json_callbacks`.
+        Such Json data is added to a save slot by callbacks registered using
+        :var:`config.save_json_callbacks`.
+
+        By default, the following keys are defined:
+
+        `_save_name`
+            The value of :var:`save_name` when the game was saved.
+
+        `_renpy_version`
+            The version of Ren'Py the save was created with.
+
+        `_version`
+            The value of :var:`config.version` when the save was created.
+
+        `_game_runtime`
+            The result of calling :func:`renpy.get_game_runtime`.
+
+        `_ctime`
+            The time the save was created, in seconds since January 1, 1970, UTC.
         """
 
         json = renpy.slot_json(__slotname(name, page, slot))
@@ -344,12 +370,17 @@ init -1500 python:
 
         `slot`
             If True, `name` is taken to be a slot name, and `page` is ignored.
+
+        `action`
+            An action that is run after the save is complete. This is only run
+            if the save is successful.
         """
 
         alt = "Save slot [text]"
         slot = None
+        action = None
 
-        def __init__(self, name, confirm=True, newest=True, page=None, cycle=False, slot=False):
+        def __init__(self, name, confirm=True, newest=True, page=None, cycle=False, slot=False, action=None):
             if name is None:
                 name = __unused_slot_name(page)
 
@@ -358,10 +389,11 @@ init -1500 python:
             self.page = page
             self.cycle = cycle
             self.slot = slot
+            self.action = action
 
             try:
                 self.alt = __("Save slot %s: [text]") % (name,)
-            except:
+            except Exception:
                 self.alt = "Save slot %s: [text]" % (name,)
 
         def __call__(self):
@@ -373,15 +405,18 @@ init -1500 python:
 
             if renpy.scan_saved_game(fn):
                 if self.confirm:
-                    layout.yesno_screen(layout.OVERWRITE_SAVE, FileSave(self.name, False, False, self.page, cycle=self.cycle, slot=self.slot))
+                    layout.yesno_screen(layout.OVERWRITE_SAVE, FileSave(self.name, False, False, self.page, cycle=self.cycle, slot=self.slot, action=self.action))
                     return
 
-            if self.cycle:
-                renpy.renpy.loadsave.cycle_saves(self.page + "-", config.quicksave_slots)
+            with renpy.savelocation.SyncfsLock():
+                if self.cycle:
+                    renpy.renpy.loadsave.cycle_saves(__slotname("", self.page, self.slot), config.quicksave_slots)
 
-            renpy.save(fn, extra_info=save_name)
+                renpy.save(fn, extra_info=save_name)
 
             renpy.restart_interaction()
+
+            return renpy.run(self.action)
 
         def get_sensitive(self):
             if _in_replay:
@@ -389,6 +424,8 @@ init -1500 python:
             elif main_menu:
                 return False
             elif (self.page or persistent._file_page) == "auto":
+                return False
+            elif not config.save:
                 return False
             else:
                 return True
@@ -442,7 +479,7 @@ init -1500 python:
 
             try:
                 self.alt = __("Load slot %s: [text]") % (name,)
-            except:
+            except Exception:
                 self.alt = "Load slot %s: [text]" % (name,)
 
         def __call__(self):
@@ -522,7 +559,7 @@ init -1500 python:
 
     def FileAction(name, page=None, **kwargs):
         """
-        :doc: file_action
+        :doc: file_action action
 
         "Does the right thing" with the file. This means loading it if the
         load screen is showing (current screen is named "load"), and saving
@@ -555,9 +592,9 @@ init -1500 python:
         if page is None:
             return
 
-        page = unicode(page)
+        page = str(page)
 
-        for i in renpy.list_slots(page + "-"):
+        for i in renpy.list_slots(__slotname(page, r'\d+')):
             renpy.predict(renpy.slot_screenshot(i))
 
     @renpy.pure
@@ -618,7 +655,7 @@ init -1500 python:
         An input value that updates the name of a file page.
 
         `pattern`
-            This is used for the default name of a page. Python-style substition
+            This is used for the default name of a page. Python-style substitution
             is performed, such that {} is replaced with the number of the page.
 
         `auto`
@@ -911,7 +948,7 @@ init -1500 python:
     @renpy.pure
     def QuickSave(message=_("Quick save complete."), newest=False):
         """
-        :doc: file_action
+        :doc: file_action action
 
         Performs a quick save.
 
@@ -922,10 +959,7 @@ init -1500 python:
             Set to true to mark the quicksave as the newest save.
         """
 
-        rv = [
-            FileSave(1, page="quick", confirm=False, cycle=True, newest=newest),
-            Notify(message),
-            ]
+        rv = [ FileSave(1, page="quick", confirm=False, cycle=True, newest=newest, action=Notify(message)) ]
 
         rv[0].alt = _("Quick save.")
 
@@ -937,7 +971,7 @@ init -1500 python:
     @renpy.pure
     def QuickLoad(confirm=True):
         """
-        :doc: file_action
+        :doc: file_action action
 
         Performs a quick load.
 
@@ -959,5 +993,5 @@ init 1050 python hide:
     if persistent._file_page not in config.file_page_names:
         try:
             int(persistent._file_page)
-        except:
+        except Exception:
             persistent._file_page = "1"

@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -30,10 +30,13 @@ init -1500 python:
         "load" : "(not _in_replay)",
         }
 
+    __NoShowTransition = renpy.object.Sentinel("NoShowTransition")
+
     @renpy.pure
     class ShowMenu(Action, DictEquality):
         """
         :doc: menu_action
+        :args: (screen=_game_menu_screen, *args, _transition=config.intra_transition, **kwargs)
 
         Causes us to enter the game menu, if we're not there already. If we
         are in the game menu, then this shows a screen or jumps to a label.
@@ -41,6 +44,9 @@ init -1500 python:
         `screen` is usually the name of a screen, which is shown using
         the screen mechanism. If the screen doesn't exist, then "_screen"
         is appended to it, and that label is jumped to.
+        the screen mechanism with the ``*args`` and ``**kwargs`` passed to
+        the screen. If the screen doesn't exist, then "_screen" is appended
+        to it, and that label is jumped to, ignoring `args` and `kwargs`.
 
         If the optional keyword argument `_transition` is given, the
         menu will change screens using the provided transition.
@@ -53,20 +59,20 @@ init -1500 python:
 
         This can also be used to show user-defined menu screens. For
         example, if one has a "stats" screen defined, one can
-        show as part of the game menu using:
+        show it as part of the game menu using:
 
         * ShowMenu("stats")
 
         ShowMenu without an argument will enter the game menu at the
-        default screen, taken from _game_menu_screen.
+        default screen, taken from :var:`_game_menu_screen`.
 
         Extra arguments and keyword arguments are passed on to the screen
         """
-        transition = None  # For save compatability; see renpy#2376
+        transition = None  # For save compatibility; see renpy#2376
 
         def __init__(self, screen=None, *args, **kwargs):
             self.screen = screen
-            self.transition = kwargs.pop("_transition", None)
+            self.transition = kwargs.pop("_transition", __NoShowTransition)
             self.args = args
             self.kwargs = kwargs
 
@@ -79,6 +85,10 @@ init -1500 python:
             if not self.get_sensitive():
                 return
 
+            transition = self.transition
+            if transition is __NoShowTransition:
+                transition = config.intra_transition
+
             orig_screen = screen = self.screen or store._game_menu_screen
 
             if not (renpy.has_screen(screen) or renpy.has_label(screen)):
@@ -90,12 +100,12 @@ init -1500 python:
 
                 if renpy.has_screen(screen):
 
-                    renpy.transition(self.transition or config.intra_transition)
-                    renpy.show_screen(screen, _transient=True, *self.args, **self.kwargs)
+                    renpy.transition(transition)
+                    renpy.show_screen(screen, *self.args, _transient=True, **self.kwargs)
                     renpy.restart_interaction()
 
                 elif renpy.has_label(screen):
-                    renpy.transition(config.intra_transition)
+                    renpy.transition(transition)
 
                     ui.layer("screens")
                     ui.remove_above(None)
@@ -127,6 +137,47 @@ init -1500 python:
                 return eval(config.show_menu_enable[screen])
             else:
                 return True
+
+
+    @renpy.pure
+    class Continue(Action, DictEquality):
+        r"""
+        :doc: menu_action
+
+        Causes the last save to be loaded.
+        The purpose of this is to load the player's last save
+        from the main menu.
+
+        `regexp`
+            If present, will be used in `renpy.newest_slot`. The default
+            pattern will continue from any save, including quick saves and
+            auto saves. If you want to continue from only saves created by
+            the player, set this to ``r"\d"``.
+
+        `confirm`
+            If true, causes Ren'Py to ask the user if they want to continue
+            where they left off, if they are not at the main menu.
+        """
+
+        def __init__(self, regexp=r"[^_]", confirm=True):
+            self.regexp = regexp
+            self.confirm = confirm
+
+        def __call__(self):
+            if self.confirm and not main_menu:
+                layout.yesno_screen(layout.CONTINUE, Continue(self.regexp, False))
+                return
+
+            recent_save = renpy.newest_slot(self.regexp)
+
+            if recent_save:
+                renpy.load(recent_save)
+
+        def get_sensitive(self):
+            if _in_replay:
+                return False
+            return renpy.newest_slot(self.regexp) is not None
+
 
     @renpy.pure
     class Start(Action, DictEquality):
@@ -249,6 +300,11 @@ init -1500 python:
             if not self.get_sensitive():
                 return
 
+            if config.skipping:
+                config.skipping = None
+                renpy.restart_interaction()
+                return
+
             if self.confirm:
                 if self.fast:
                     if _preferences.skip_unseen:
@@ -266,14 +322,10 @@ init -1500 python:
                 else:
                     renpy.jump("_return_skipping")
             else:
-
-                if not config.skipping:
-                    if self.fast:
-                        config.skipping = "fast"
-                    else:
-                        config.skipping = "slow"
+                if self.fast:
+                    config.skipping = "fast"
                 else:
-                    config.skipping = None
+                    config.skipping = "slow"
 
                 renpy.restart_interaction()
 
@@ -296,6 +348,10 @@ init -1500 python:
             if renpy.game.context().seen_current(True):
                 return True
 
+            tlid = renpy.game.context().translate_identifier
+            if renpy.seen_translation(tlid):
+                return True
+
             if _preferences.skip_unseen:
                 return True
 
@@ -308,20 +364,18 @@ init -1500 python:
 
         Displays help.
 
-        If a screen named ``help`` is defined, that screen is displayed
-        using :func:`ShowMenu` and `help` is ignored.
-
         `help`
             A string that is used to find help. This is used in the
             following way:
 
             * If a label with this name exists, the label is called in
-            a new context.
+              a new context.
             * Otherwise, this is interpreted as giving the name of a file
-            that should be opened in a web browser.
+              that should be opened in a web browser.
 
             If `help` is None, :var:`config.help` is used as the default
-            value.
+            value. If it is also None, the :var:`config.help_screen` screen
+            is shown in a new context, if it exists. Otherwise, does nothing.
         """
 
         def __init__(self, help=None):

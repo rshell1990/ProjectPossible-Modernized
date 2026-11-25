@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -46,19 +46,16 @@ init python:
     # This can be set from user code to define the main menu variant to use.
     _main_menu_variant = None
 
-screen _imagemap_main_menu(ime):
-
-    key "game_menu" action NullAction()
-
-    # Show the background.
-    window style "mm_root":
-        null
-
-    use _imagemap_contents(ime)
-
 label main_menu_screen:
 
     python hide:
+
+        # Ignore right-click while at the main menu.
+        ui.keymap(game_menu=ui.returns(None))
+
+        # Show the background.
+        ui.window(style='mm_root')
+        ui.null()
 
         ime = _ImageMapper(
             None,
@@ -80,21 +77,19 @@ label main_menu_screen:
 
             if not eval(shown):
                 ime.nothing(name)
-                continue
 
             if not eval(enabled):
                 act = None
 
-            if isinstance(act, basestring):
-                act = renpy.curry(renpy.jump_out_of_context)(act)
+            if isinstance(act, str):
+                act = ui.jumpsoutofcontext(act)
 
             ime.button(name, act, False)
 
         for i in list(ime.remaining_hotspots):
-            ime.button(i, renpy.curry(renpy.jump_out_of_context)(i), None)
+            ime.button(i, ui.jumpsoutofcontext(i), None)
 
         ime.close()
-        renpy.show_screen("_imagemap_main_menu", ime=ime, _transient=True)
         ui.interact(mouse='mainmenu')
 
     jump main_menu_screen

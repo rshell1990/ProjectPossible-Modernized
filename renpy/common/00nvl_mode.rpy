@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -23,7 +23,7 @@
 # dialogue in a fullscreen way, like NVL-style games. Multiple lines
 # of dialogue are shown on the screen at once, whenever a line of
 # dialogue is said by a NVLCharacter. Calling the nvl_clear function
-# clears the screen, ensuring that the the next line will appear at
+# clears the screen, ensuring that the next line will appear at
 # the top of the screen.
 #
 # You can also have menus appear on the screen, by running:
@@ -62,7 +62,7 @@ init -1500 python:
 
     # Set up nvl mode styles.
     style.nvl_label.minwidth = 150
-    style.nvl_label.text_align = 1.0
+    style.nvl_label.textalign = 1.0
 
     style.nvl_window.background = "#0008"
     style.nvl_window.yfill = True
@@ -118,9 +118,9 @@ init -1500 python:
 
     def __nvl_screen_dialogue():
         """
-        Returns widget_properties and dialogue for the current NVL
-        mode screen.
-        """
+         Returns widget_properties and dialogue for the current NVL
+         mode screen.
+         """
 
         dialogue = [ ]
         kwargs = { }
@@ -189,8 +189,8 @@ init -1500 python:
 
     def __nvl_show_screen(screen_name, **scope):
         """
-        Shows an nvl-mode screen. Returns the "what" widget.
-        """
+         Shows an nvl-mode screen. Returns the "what" widget.
+         """
 
         widget_properties, dialogue, show_args = __nvl_screen_dialogue()
         scope.update(show_args)
@@ -202,7 +202,7 @@ init -1500 python:
 
     def nvl_show_core(who=None, what=None, multiple=None):
 
-        # Screen version.
+         # Screen version.
         if renpy.has_screen("nvl"):
             return __nvl_show_screen("nvl", items=[ ])
 
@@ -247,12 +247,17 @@ init -1500 python:
         """
 
         nvl_show_core()
-        renpy.with_statement(with_)
+        store._window = True
         store._last_say_who = "nvl"
+        renpy.with_statement(with_)
 
-    def nvl_hide(with_):
+        renpy.mode("window show")
+
+
+    def nvl_hide(with_, modes=True):
         """
         :doc: nvl
+        :args: (with_)
 
         The Python equivalent of the ``nvl hide`` statement.
 
@@ -261,9 +266,16 @@ init -1500 python:
         """
 
         nvl_show_core()
+
+        if modes:
+            store._window = False
+
         renpy.with_statement(None)
-        renpy.with_statement(with_)
         store._last_say_who = None
+        renpy.with_statement(with_)
+
+        if modes:
+            renpy.mode("window hide")
 
     def nvl_erase():
         if nvl_list:
@@ -291,19 +303,44 @@ init -1500 python:
 
     @renpy.pure
     class NVLCharacter(ADVCharacter):
+        """
+        :doc: nvl
+        :name: NVLCharacter
+
+        This is used to implement NVL. You should not call it directly, you should write::
+
+            define nvl = Character(kind=nvl)
+
+        There are three parameters that are specific to NVLCharacter:
+
+        `clear`
+            If true, then the NVL screen is cleared before this line is shown.
+
+        `page_ctc`
+            The CTC indicator to use when at the end of an NVL page. If None, then the value of :var:`config.nvl_page_ctc` is used.
+
+        `page_ctc_position`
+            The position of the CTC indicator used at the end of an NVL page. If None, then the value of :var:`config.nvl_page_ctc_position` is used.
+        """
+
+        # These store a specific page CTC indicator.
+        page_ctc = None
+        page_ctc_position = None
 
         def __init__(self,
-                    who=renpy.character.NotSet,
-                    kind=None,
-                    **properties):
+                     who=renpy.character.NotSet,
+                     kind=None,
+                     **properties):
 
             if kind is None:
                 kind = store.nvl
 
-            if "clear" in properties:
-                self.clear = properties.pop("clear")
-            else:
-                self.clear = kind.clear
+            self.clear = properties.pop("clear", getattr(kind, "clear", False))
+            self.page_ctc = properties.pop("page_ctc", getattr(kind, "page_ctc", None))
+            self.page_ctc_position = properties.pop("page_ctc_position", getattr(kind, "page_ctc_position", None))
+
+
+            properties.setdefault("statement_name", "say-nvl")
 
             ADVCharacter.__init__(
                 self,
@@ -349,20 +386,32 @@ init -1500 python:
             while config.nvl_list_length and (len(nvl_list) + 1 > config.nvl_list_length):
                 nvl_list.pop(0)
 
-        def do_display(self, who, what, multiple=None, **display_args):
+        def do_display(self, who, what, multiple=None, retain=None, **display_args):
+
+            if renpy.is_warping():
+                return
+
+            renpy.translation.check_language()
 
             page = self.clear or nvl_clear_next()
 
-            if config.nvl_page_ctc and page:
-                display_args["ctc"] = renpy.easy.displayable_or_none(config.nvl_page_ctc)
-                display_args["ctc_position"] = config.nvl_page_ctc_position
+            page_ctc = self.page_ctc if (self.page_ctc is not None) else config.nvl_page_ctc
+            page_ctc_position = self.page_ctc_position if (self.page_ctc_position is not None) else config.nvl_page_ctc_position
+
+            if page_ctc and page:
+                display_args["ctc"] = renpy.easy.displayable_or_none(page_ctc)
+                display_args["ctc_position"] = page_ctc_position
 
             if config.nvl_paged_rollback:
                 if page:
                     checkpoint = True
                 else:
-                    if renpy.in_rollback():
+                    rfi = renpy.roll_forward_info()
+
+                    if rfi is not None:
+                        renpy.checkpoint(rfi, keep_rollback=True, hard=False)
                         return
+
                     checkpoint = False
             else:
                 checkpoint = True
@@ -406,7 +455,8 @@ init -1500 python:
             self.add_history("nvl", who, what)
 
         def do_extend(self):
-            renpy.mode(self.mode)
+            if not renpy.is_warping():
+                renpy.mode(self.mode)
             store.nvl_list = store.nvl_list[:-1]
 
             self.pop_history()
@@ -507,12 +557,12 @@ init -1500 python:
             rv = renpy.show_display_say(who, what, **kw)
 
         renpy.display_menu(items, interact=False,
-                        window_style=__s(style.nvl_menu_window),
-                        choice_style=__s(style.nvl_menu_choice),
-                        choice_chosen_style=__s(style.nvl_menu_choice_chosen),
-                        choice_button_style=__s(style.nvl_menu_choice_button),
-                        choice_chosen_button_style=__s(style.nvl_menu_choice_chosen_button),
-                        )
+                           window_style=__s(style.nvl_menu_window),
+                           choice_style=__s(style.nvl_menu_choice),
+                           choice_chosen_style=__s(style.nvl_menu_choice_chosen),
+                           choice_button_style=__s(style.nvl_menu_choice_button),
+                           choice_chosen_button_style=__s(style.nvl_menu_choice_chosen_button),
+                           )
 
         ui.close()
 
@@ -542,7 +592,7 @@ init -1500 python:
         if config.nvl_adv_transition:
             if mode == "say" or mode == "menu":
                 if old == "nvl" or old == "nvl_menu":
-                    nvl_hide(config.nvl_adv_transition)
+                    nvl_hide(config.nvl_adv_transition, modes=False)
 
     config.mode_callbacks.append(_nvl_adv_callback)
 
@@ -568,14 +618,14 @@ python early hide:
         nvl_hide(eval(trans))
 
     renpy.statements.register("nvl show",
-                            parse=parse_nvl_show_hide,
-                            execute=execute_nvl_show,
-                            lint=lint_nvl_show_hide)
+                              parse=parse_nvl_show_hide,
+                              execute=execute_nvl_show,
+                              lint=lint_nvl_show_hide)
 
     renpy.statements.register("nvl hide",
-                            parse=parse_nvl_show_hide,
-                            execute=execute_nvl_hide,
-                            lint=lint_nvl_show_hide)
+                              parse=parse_nvl_show_hide,
+                              execute=execute_nvl_hide,
+                              lint=lint_nvl_show_hide)
 
     def parse_nvl_clear(l):
         if not l.eol():
@@ -590,7 +640,8 @@ python early hide:
         scry.nvl_clear = True
 
     renpy.statements.register('nvl clear',
-                            parse=parse_nvl_clear,
-                            execute=execute_nvl_clear,
-                            scry=scry_nvl_clear,
-                            translatable=True)
+                              parse=parse_nvl_clear,
+                              execute=execute_nvl_clear,
+                              warp=lambda parse: True,
+                              scry=scry_nvl_clear,
+                              translatable=True)

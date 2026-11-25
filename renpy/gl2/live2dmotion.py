@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -22,11 +22,25 @@
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
 
 import json
+import math
+
 import renpy
 
 
-class Linear(object):
+def cosine_easing(done):
+    """
+    Cosine easing function.
+    """
 
+    if done < 0.0:
+        return 0.0
+    elif done > 1.0:
+        return 1.0
+    else:
+        return 0.5 - 0.5 * math.cos(done * math.pi)
+
+
+class Linear(object):
     def __init__(self, x0, y0, x1, y1):
         self.duration = x1 - x0
 
@@ -42,7 +56,6 @@ class Linear(object):
 
 
 class Step(object):
-
     def __init__(self, x0, y0, x1, y1):
         self.duration = x1 - x0
 
@@ -57,7 +70,6 @@ class Step(object):
 
 
 class InvStep(object):
-
     def __init__(self, x0, y0, x1, y1):
         self.duration = x1 - x0
 
@@ -72,8 +84,9 @@ class InvStep(object):
 
 
 class Bezier(object):
+    old_beziers = True
 
-    def __init__(self, x0, y0, x1, y1, x2, y2, x3, y3):
+    def __init__(self, x0, y0, x1, y1, x2, y2, x3, y3, old_beziers=False):
         self.duration = x3 - x0
 
         self.x0 = 0
@@ -86,7 +99,9 @@ class Bezier(object):
         self.y2 = y2
         self.y3 = y3
 
-    def get(self, t):
+        self.old_beziers = old_beziers
+
+    def easing_get(self, t):
         done = t / self.duration
 
         def lerp(a, b):
@@ -101,22 +116,111 @@ class Bezier(object):
 
         return lerp(p012, p123)
 
+    def cardano_get(self, t):
+        if self.duration <= 0:
+            return self.y3
+
+        # Bx(u) = (1-u)^3*x0 + 3*(1-u)^2*u*x1 + 3*(1-u)*u^2*x2 + u^3*x3
+        # Since x0 = 0:
+        # Bx(u) = 3*(1-u)^2*u*x1 + 3*(1-u)*u^2*x2 + u^3*x3
+        # Bx(u) = u^3 * (3*x1 - 3*x2 + x3) + u^2 * (-6*x1 + 3*x2) + u * (3*x1)
+
+        x1 = self.x1
+        x2 = self.x2
+        x3 = self.x3
+
+        pa = 3 * x1 - 3 * x2 + x3
+        pb = 3 * x2 - 6 * x1
+        pc = 3 * x1
+        pd = -t
+
+        roots = []
+
+        if abs(pa) < 1e-7:
+            if abs(pb) < 1e-7:
+                if abs(pc) > 1e-7:
+                    roots.append(-pd / pc)
+            else:
+                delta = pc * pc - 4 * pb * pd
+                if delta >= 0:
+                    sqrt_delta = math.sqrt(delta)
+                    roots.append((-pc + sqrt_delta) / (2 * pb))
+                    roots.append((-pc - sqrt_delta) / (2 * pb))
+        else:
+            a = pb / pa
+            b = pc / pa
+            c = pd / pa
+
+            p = b - a * a / 3.0
+            q = (2.0 * a * a * a / 27.0) - (a * b / 3.0) + c
+
+            p3_27 = p * p * p / 27.0
+            q2_4 = q * q / 4.0
+            discriminant = q2_4 + p3_27
+
+            def cbrt(x):
+                if x >= 0:
+                    return x ** (1.0 / 3.0)
+                else:
+                    return -((-x) ** (1.0 / 3.0))
+
+            if discriminant > 0:
+                sqrt_d = math.sqrt(discriminant)
+                roots.append(cbrt(-q / 2.0 + sqrt_d) + cbrt(-q / 2.0 - sqrt_d) - a / 3.0)
+            elif discriminant == 0:
+                u1 = cbrt(-q / 2.0)
+                roots.append(2.0 * u1 - a / 3.0)
+                roots.append(-u1 - a / 3.0)
+            else:
+                r = math.sqrt(-p * p * p / 27.0)
+                phi = math.acos(max(-1.0, min(1.0, -q / (2.0 * r))))
+                r_cbrt = cbrt(r)
+                roots.append(2.0 * r_cbrt * math.cos(phi / 3.0) - a / 3.0)
+                roots.append(2.0 * r_cbrt * math.cos((phi + 2.0 * math.pi) / 3.0) - a / 3.0)
+                roots.append(2.0 * r_cbrt * math.cos((phi + 4.0 * math.pi) / 3.0) - a / 3.0)
+
+        u = 0.0
+
+        for r in roots:
+            if -0.01 <= r <= 1.01:
+                u = max(0.0, min(1.0, r))
+                break
+
+        # Evaluate By(u)
+        def lerp(a, b, u):
+            return a + (b - a) * u
+
+        p01 = lerp(self.y0, self.y1, u)
+        p12 = lerp(self.y1, self.y2, u)
+        p23 = lerp(self.y2, self.y3, u)
+
+        p012 = lerp(p01, p12, u)
+        p123 = lerp(p12, p23, u)
+
+        return lerp(p012, p123, u)
+
+    def get(self, t):
+        if self.old_beziers:
+            return self.easing_get(t)
+        else:
+            return self.cardano_get(t)
+
     def wait(self, t):
         return 0
 
 
 class Motion(object):
-
-    def __init__(self, filename, fadein, fadeout):
-
+    def __init__(self, filename, fadein, fadeout, old_beziers=False):
         self.filename = filename
 
-        with renpy.loader.load(filename) as f:
+        with renpy.loader.load(filename, directory="images") as f:
             j = json.load(f)
 
         self.duration = j["Meta"]["Duration"]
-        self.curves = { }
-        self.fades = { }
+        self.curves = {}
+        self.fades = {}
+
+        y = 0
 
         for curve in j["Curves"]:
             target = curve["Target"]
@@ -125,14 +229,12 @@ class Motion(object):
 
             x0 = s.pop(0)
             y0 = s.pop(0)
-            y = y0
 
-            segments = [ ]
+            segments = []
 
             curve_duration = 0.0
 
             while s:
-
                 kind = s.pop(0)
 
                 if kind == 0:
@@ -149,7 +251,7 @@ class Motion(object):
                     x = s.pop(0)
                     y = s.pop(0)
 
-                    segments.append(Bezier(x0, y0, x1, y1, x2, y2, x, y))
+                    segments.append(Bezier(x0, y0, x1, y1, x2, y2, x, y, old_beziers=old_beziers))
 
                 elif kind == 2:
                     x = s.pop(0)
@@ -178,7 +280,7 @@ class Motion(object):
             self.fades[target, name] = (
                 curve.get("FadeInTime", fadein),
                 curve.get("FadeOutTime", fadeout),
-                )
+            )
 
     def get(self, st, fade_st, do_fade_in, do_fade_out):
         """
@@ -191,10 +293,9 @@ class Motion(object):
         else:
             st = st % self.duration
 
-        rv = { }
+        rv = {}
 
         for k, segments in self.curves.items():
-
             fadein, fadeout = self.fades[k]
 
             if not do_fade_in:
@@ -248,7 +349,6 @@ class Motion(object):
         rv = 86400.0
 
         for k, segments in self.curves.items():
-
             fadeout = self.fades[k][1]
 
             if not do_fade_out:
@@ -257,11 +357,11 @@ class Motion(object):
             factor = 1.0
 
             if st > self.duration - fadeout:
-                factor = min(factor, 1.0 - (st - (self.duration - fadeout)) / fadeout)
+                factor = min(factor, 1.0 - cosine_easing((st - (self.duration - fadeout)) / fadeout))
 
             if fade_st is not None:
                 if fadeout > 0:
-                    factor = min(factor, 1.0 - fade_st / fadeout)
+                    factor = min(factor, 1.0 - cosine_easing(fade_st / fadeout))
                 else:
                     factor = 0.0
 
@@ -293,7 +393,7 @@ class NullMotion(object):
     duration = 1.0
 
     def get(self, st, fade_st, do_fade_in, do_fade_out):
-        return { }
+        return {}
 
     def wait(self, st, fade_st, do_fade_in, do_fade_out):
         return max(1.0 - st, 0)

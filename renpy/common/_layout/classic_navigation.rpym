@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -36,44 +36,36 @@ init python:
     style.gm_nav_frame.ypos = 0.95
     style.gm_nav_frame.yanchor = 1.0
 
-    def _classic_nav_items(screen):
-        items = [ ]
+    def _navigation(screen=None):
+
+        # Display the game menu background
+        ui.window(style=style.gm_root[screen])
+        ui.null()
+
+        if screen is None:
+            return
+
+        # Display the navigation frame.
+        ui.frame(style='gm_nav_frame')
+        ui.vbox(focus='gm_nav', style='gm_nav_box')
+
         for e in config.game_menu:
+
             if len(e) == 4:
-                key, label, clicked, enabled = e
-                shown = "True"
+                 key, label, clicked, enabled = e
+                 shown = "True"
             else:
-                key, label, clicked, enabled, shown = e
+                 key, label, clicked, enabled, shown = e
 
             if not eval(shown):
                 continue
 
-            is_enabled = eval(enabled)
-            items.append((label, (screen == key) and is_enabled, is_enabled, clicked if is_enabled else None))
-        return items
+            layout.button(label,
+                          "gm_nav",
+                          selected=(screen==key),
+                          enabled=eval(enabled),
+                          clicked=clicked)
 
-    def _navigation(screen=None):
-        renpy.show_screen("_layout_navigation", nav_screen=screen, _transient=True)
+        ui.close()
 
-    _navigation._is_sl2 = True
     layout.navigation = _navigation
-
-screen _layout_navigation(nav_screen=None):
-
-    # Display the game menu background
-    window style style.gm_root[nav_screen]:
-        null
-
-    if nav_screen is not None:
-
-        # Display the navigation frame.
-        frame style "gm_nav_frame":
-            vbox focus "gm_nav" style "gm_nav_box":
-
-                for label, is_selected, is_enabled, clicked in _classic_nav_items(nav_screen):
-                    button:
-                        style style.gm_nav_button[label]
-                        selected is_selected
-                        sensitive is_enabled
-                        action clicked
-                        text _(label) style style.gm_nav_button_text[label]

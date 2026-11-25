@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -19,35 +19,43 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from renpy.compat import *
-
-import renpy.display
-import renpy.pyanalysis
-
 import random
+
+import renpy
+from renpy.parameter import Signature, ValuedParameter
+from renpy.pyanalysis import Analysis, NOT_CONST, GLOBAL_CONST
+
+
+def late_imports():
+    global Displayable, Matrix, Camera, position
+
+    from renpy.display.position import position
+    from renpy.display.displayable import Displayable
+    from renpy.display.matrix import Matrix
+    from renpy.display.transform import Camera
 
 
 def compiling(loc):
-    file, number = loc # @ReservedAssignment
+    file, number = loc
 
     renpy.game.exception_info = "Compiling ATL code at %s:%d" % (file, number)
 
 
 def executing(loc):
-    file, number = loc # @ReservedAssignment
+    file, number = loc
 
     renpy.game.exception_info = "Executing ATL code at %s:%d" % (file, number)
 
 
 # A map from the name of a time warp function to the function itself.
-warpers = { }
+warpers = {}
 
 
 def atl_warper(f):
     name = f.__name__
     warpers[name] = f
     return f
+
 
 # The pause warper is used internally when no other warper is
 # specified.
@@ -66,7 +74,42 @@ def instant(t):
     return 1.0
 
 
-position = renpy.object.Sentinel("position")
+class DualAngle(object):
+    def __init__(self, absolute, relative):  # for tests, convert to PY2 after
+        self.absolute = absolute
+        self.relative = relative
+
+    @classmethod
+    def from_any(cls, other):
+        if isinstance(other, cls):
+            return other
+        elif type(other) is float:
+            return cls(other, other)
+        raise TypeError("Cannot convert {} to DualAngle".format(type(other)))
+
+    def __add__(self, other):
+        if isinstance(other, DualAngle):
+            return DualAngle(self.absolute + other.absolute, self.relative + other.relative)
+        return NotImplemented
+
+    def __sub__(self, other):
+        return self + -other
+
+    def __mul__(self, other):
+        if isinstance(other, (int, float)):
+            return DualAngle(self.absolute * other, self.relative * other)
+        return NotImplemented
+
+    __rmul__ = __mul__
+
+    def __neg__(self):
+        return -1 * self
+
+
+def position_or_none(x):
+    if x is None:
+        return None
+    return position.from_any(x)
 
 
 def any_object(x):
@@ -95,58 +138,70 @@ def matrix(x):
 
 
 def mesh(x):
-    if isinstance(x, (renpy.gl2.gl2mesh2.Mesh2, renpy.gl2mesh3.Mesh3, tuple)):
+    if isinstance(x, (renpy.gl2.gl2mesh2.Mesh2, renpy.gl2.gl2mesh3.Mesh3, tuple)):
         return x
 
     return bool(x)
 
 
-# A dictionary giving property names and the corresponding default
-# values. This is massively added to by renpy.display.transform.
-PROPERTIES = { }
+# A dictionary giving property names and the corresponding type or
+# function. This is massively added to by renpy.display.transform.
+PROPERTIES = {}
+
+tuple_or_list = (tuple, list)
 
 
-def correct_type(v, b, ty):
-    """
-    Corrects the type of v to match ty. b is used to inform the match.
-    """
-
-    if ty is position:
-        if v is None:
-            return None
-        else:
-            return type(b)(v)
-    else:
-        return ty(v)
-
-
-def interpolate(t, a, b, type): # @ReservedAssignment
+def interpolate(t, a, b, typ):
     """
     Linearly interpolate the arguments.
     """
 
     # Deal with booleans, nones, etc.
-    if b is None or isinstance(b, (bool, basestring, renpy.display.matrix.Matrix)):
+    if b is None or isinstance(b, (bool, str, Displayable, Matrix, Camera)):
         if t >= 1.0:
             return b
         else:
             return a
 
     # Recurse into tuples.
-    elif isinstance(b, tuple):
-        if a is None:
-            a = [ None ] * len(b)
+    elif isinstance(b, tuple_or_list):
+        if not isinstance(a, tuple_or_list):
+            a = [None] * len(b)
 
-        if not isinstance(type, tuple):
-            type = (type,) * len(b)
+        if not isinstance(typ, tuple_or_list):
+            typ = (typ,) * len(b)
 
-        return tuple(interpolate(t, i, j, ty) for i, j, ty in zip(a, b, type))
+        return tuple(interpolate(t, i, j, ty) for i, j, ty in zip(a, b, typ))
 
     # If something is callable, call it and return the result.
     elif callable(b):
         a_origin = getattr(a, "origin", None)
-        rv = b(a_origin, t)
+
+        b_is_BaseMatrix = hasattr(b, "value")
+
+        # Pass a Matrix directly when `a` is a Matrix (from a previous interpolation)
+        # and `b` is a _BaseMatrix (class in store namespace, interpolates via `.value`).
+        # This allows _BaseMatrix.__call__ to use `a.origin_value` so that
+        # interpolation after an interruption (e.g. replaced by a new transform)
+        # continues from where the old one was interrupted.
+        # Other callables (SplineMatrix, user functions) keep the old behaviour.
+        if isinstance(a, renpy.display.matrix.Matrix) and b_is_BaseMatrix:
+            rv = b(a, t)
+        else:
+            rv = b(a_origin, t)
+
         rv.origin = b
+
+        # Record the effective value on the result Matrix, so a future
+        # interpolation can continue from here.
+        if b_is_BaseMatrix:
+            if isinstance(a, renpy.display.matrix.Matrix) and a.origin_value is not None:
+                rv.origin_value = a.origin_value + (b.value - a.origin_value) * t
+            elif a_origin is not None and hasattr(a_origin, "value"):
+                rv.origin_value = a_origin.value + (b.value - a_origin.value) * t
+            else:
+                rv.origin_value = b.value
+
         return rv
 
     # Interpolate everything else.
@@ -154,65 +209,76 @@ def interpolate(t, a, b, type): # @ReservedAssignment
         if a is None:
             a = 0
 
-        return correct_type(a + t * (b - a), b, type)
+        if typ in (position_or_none, position):
+            if renpy.config.mixed_position:
+                a = position.from_any(a)
+                b = position.from_any(b)
+                return a + t * (b - a)
+            else:
+                typ = type(b)
+
+        return typ(a + t * (b - a))
+
 
 # Interpolate the value of a spline. This code is based on Aenakume's code,
 # from 00splines.rpy.
 
 
-def interpolate_spline(t, spline):
-
+def interpolate_spline(t, spline, typ):
     if isinstance(spline[-1], tuple):
-        return tuple(interpolate_spline(t, i) for i in zip(*spline))
+        return tuple(interpolate_spline(t, i, ty) for i, ty in zip(zip(*spline), typ))
 
     if spline[0] is None:
         return spline[-1]
 
-    if len(spline) == 2:
+    if renpy.config.mixed_position and typ in (position_or_none, position):
+        spline = [position_or_none(i) for i in spline]
+
+    lenspline = len(spline)
+
+    if lenspline == 2:
         t_p = 1.0 - t
 
         rv = t_p * spline[0] + t * spline[-1]
 
-    elif len(spline) == 3:
+    elif lenspline == 3:
         t_pp = (1.0 - t) ** 2
         t_p = 2 * t * (1.0 - t)
-        t2 = t ** 2
+        t2 = t**2
 
         rv = t_pp * spline[0] + t_p * spline[1] + t2 * spline[2]
 
-    elif len(spline) == 4:
-
+    elif lenspline == 4:
         t_ppp = (1.0 - t) ** 3
         t_pp = 3 * t * (1.0 - t) ** 2
-        t_p = 3 * t ** 2 * (1.0 - t)
-        t3 = t ** 3
+        t_p = 3 * t**2 * (1.0 - t)
+        t3 = t**3
 
         rv = t_ppp * spline[0] + t_pp * spline[1] + t_p * spline[2] + t3 * spline[3]
 
+    elif t <= 0.0:
+        rv = spline[0]
+    elif t >= 1.0:
+        rv = spline[-1]
+
     else:
+        # Catmull-Rom (re-adjust the control points)
+        spline = [spline[1], spline[0]] + list(spline[2:-2]) + [spline[-1], spline[-2]]
 
-        if t <= 0.0 or t >= 1.0:
+        inner_spline_count = float(lenspline - 3)
 
-            rv = spline[0 if t <= 0.0 else -1]
+        # determine which spline values are relevant
+        sector = int(t // (1.0 / inner_spline_count) + 1)
 
-        else:
+        # determine t for this sector
+        t = (t % (1.0 / inner_spline_count)) * inner_spline_count
 
-            # Catmull-Rom (re-adjust the control points)
-            spline = ([spline[1], spline[0]]
-                    +list(spline[2:-2])
-                    +[spline[-1], spline[-2]])
+        rv = get_catmull_rom_value(t, *spline[sector - 1 : sector + 3])
 
-            inner_spline_count = float(len(spline) - 3)
-
-            # determine which spline values are relevant
-            sector = int(t // (1.0 / inner_spline_count) + 1)
-
-            # determine t for this sector
-            t = (t % (1.0 / inner_spline_count)) * inner_spline_count
-
-            rv = get_catmull_rom_value(t, *spline[sector - 1:sector + 3])
-
-    return correct_type(rv, spline[-1], position)
+    if rv is None:
+        return None
+    else:
+        return type(spline[-1])(rv)
 
 
 def get_catmull_rom_value(t, p_1, p0, p1, p2):
@@ -222,20 +288,24 @@ def get_catmull_rom_value(t, p_1, p0, p1, p2):
     """
     t = float(max(0.0, min(1.0, t)))
     return type(p0)(
-        (t * ((2 - t) * t - 1) * p_1
-        +(t * t * (3 * t - 5) + 2) * p0
-        +t * ((4 - 3 * t) * t + 1) * p1
-        +(t - 1) * t * t * p2) / 2)
+        (
+            t * ((2 - t) * t - 1) * p_1
+            + (t * t * (3 * t - 5) + 2) * p0
+            + t * ((4 - 3 * t) * t + 1) * p1
+            + (t - 1) * t * t * p2
+        )
+        / 2
+    )
 
 
-# A list of atl transforms that may need to be compile.
-compile_queue = [ ]
+# A list of atl transforms that may need to be compiled.
+compile_queue = []
 
 
 def compile_all():
     """
     Called after the init phase is finished and transforms are compiled,
-    to compile all transforms.
+    to compile all constant transforms.
     """
 
     global compile_queue
@@ -244,20 +314,22 @@ def compile_all():
         if i.atl.constant == GLOBAL_CONST:
             i.compile()
 
-    compile_queue = [ ]
+    compile_queue = []
+
+
+# Used to indicate that a variable is not in the context.
+NotInContext = renpy.object.Sentinel("NotInContext")
 
 
 # This is the context used when compiling an ATL statement. It stores the
 # scopes that are used to evaluate the various expressions in the statement,
 # and has a method to do the evaluation and return a result.
 class Context(object):
-
     def __init__(self, context):
         self.context = context
 
-    def eval(self, expr): # @ReservedAssignment
-        expr = renpy.python.escape_unicode(expr)
-        return eval(expr, renpy.store.__dict__, self.context) # @UndefinedVariable
+    def eval(self, expr):
+        return renpy.python.py_eval(expr, locals=self.context)
 
     def __eq__(self, other):
         if not isinstance(other, Context):
@@ -268,29 +340,50 @@ class Context(object):
     def __ne__(self, other):
         return not (self == other)
 
-# This is intended to be subclassed by ATLTransform. It takes care of
-# managing ATL execution, which allows ATLTransform itself to not care
-# much about the contents of this file.
+    def __repr__(self):
+        return "Context({})".format(repr(self.context))
 
 
 class ATLTransformBase(renpy.object.Object):
+    """
+    This is intended to be subclassed by ATLTransform. It takes care of
+    managing ATL execution, which allows ATLTransform itself to not care
+    much about the contents of this file.
+    """
+
+    __version__ = 1
 
     # Compatibility with older saves.
-    parameters = renpy.ast.ParameterInfo([ ], [ ], None, None)
-    parent_transform = None
+    parameters = renpy.ast.EMPTY_PARAMETERS
+    parent_transform = None  # type: ATLTransformBase|None
     atl_st_offset = 0
 
     # The block, as first compiled for prediction.
     predict_block = None
 
-    nosave = [ 'parent_transform' ]
+    nosave = ["parent_transform"]
+
+    def after_upgrade(self, version):
+        if version < 1:
+            # any value in the inner scope was treated as a valid keyword parameter
+            # so, we turn any inner scope value into a keyword parameter
+            rv_parameters = []
+            for name, value in self.context.context.items():
+                if name not in self.parameters.parameters:
+                    rv_parameters.append(ValuedParameter(name, ValuedParameter.KEYWORD_ONLY, default=value))
+            if rv_parameters:
+                rv_parameters = list(self.parameters.parameters.values()) + rv_parameters
+                rv_parameters.sort(key=lambda p: p.kind)
+                self.parameters = Signature(rv_parameters)
 
     def __init__(self, atl, context, parameters):
-
         # The constructor will be called by atltransform.
-
         if parameters is None:
             parameters = ATLTransformBase.parameters
+        else:
+            context = context.copy()
+            # Apply the default parameters.
+            parameters.apply_defaults(context, scope=context)
 
         # The parameters that we take.
         self.parameters = parameters
@@ -344,8 +437,15 @@ class ATLTransformBase(renpy.object.Object):
         if renpy.game.context().init_phase:
             compile_queue.append(self)
 
-    def _handles_event(self, event):
+    @property
+    def transition(self):
+        """
+        Returns true if this is likely to be an ATL transition.
+        """
 
+        return "new_widget" in self.context.context
+
+    def _handles_event(self, event):
         if (event == "replaced") and (self.atl_state is None):
             return True
 
@@ -375,25 +475,29 @@ class ATLTransformBase(renpy.object.Object):
         requires that t.atl is self.atl.
         """
 
-        super(ATLTransformBase, self).take_execution_state(t)
+        super(ATLTransformBase, self).take_execution_state(t)  # type: ignore
+
+        if self is t:
+            return
 
         self.atl_st_offset = None
         self.atl_state = None
 
-        if self is t:
-            return
-        elif not isinstance(t, ATLTransformBase):
+        if not isinstance(t, ATLTransformBase):
             return
         elif t.atl is not self.atl:
             return
 
-        # Important to do it this way, so we use __eq__. The exception handling
-        # optimistically assumes that uncomparable objects are the same.
-        try:
-            if not (t.context == self.context):
+        # Only take the execution state if the contexts haven't changed in
+        # a way that would affect the execution of the ATL.
+
+        if t.atl.constant != GLOBAL_CONST:
+            block = self.get_block()
+            if block is None:
+                block = self.compile()
+
+            if not deep_compare(self.block, t.block):
                 return
-        except:
-            pass
 
         self.done = t.done
         self.block = t.block
@@ -409,94 +513,159 @@ class ATLTransformBase(renpy.object.Object):
         self.atl_st_offset = t.atl_st_offset
 
         if self.child is renpy.display.motion.null:
-
             if t.child and t.child._duplicatable:
                 self.child = t.child._duplicate(None)
+
+                if not self._duplicatable:
+                    self.child._unique()
             else:
                 self.child = t.child
 
+            self.children = [self.child] if self.child is not None else []
             self.raw_child = t.raw_child
 
-    def __call__(self, *args, **kwargs):
+            if self.child is t.child:
+                self.atl_child = t.atl_child
 
+    def __call__(self, *args, **kwargs):
         _args = kwargs.pop("_args", None)
 
-        context = self.context.context.copy()
-
-        for k, v in self.parameters.parameters:
-            if v is not None:
-                context[k] = renpy.python.py_eval(v)
-
-        positional = list(self.parameters.positional)
-        args = list(args)
-
+        scope = self.context.context.copy()
+        signature = self.parameters
         child = None
 
-        if not positional and args:
-            child = args.pop(0)
+        if renpy.config.atl_pos_only_as_pos_or_kw:
+            signature = signature.with_pos_only_as_pos_or_kw()
 
-        # Handle positional arguments.
-        while positional and args:
-            name = positional.pop(0)
-            value = args.pop(0)
+        present_kinds = {p.kind for p in signature.parameters.values()}
 
-            if name in kwargs:
-                raise Exception('Parameter %r is used as both a positional and keyword argument to a transition.' % name)
+        child_param = signature.parameters.get("child", None)
+        old_widget_param = signature.parameters.get("old_widget", None)
+        # args_param_name = None
+        # if ValuedParameter.VAR_POSITIONAL in present_kinds:
+        #     for param in signature.parameters.values():
+        #         if param.kind == ValuedParameter.VAR_POSITIONAL:
+        #             args_param_name = param.name
+        #             break
+        # kwargs_param_name = None
+        # if ValuedParameter.VAR_KEYWORD in present_kinds:
+        #     for param in signature.parameters.values():
+        #         if param.kind == ValuedParameter.VAR_KEYWORD:
+        #             kwargs_param_name = param.name
+        #             break
 
-            context[name] = value
+        ## if a single arg is passed and no positional parameter is there to catch it, set it to be the child
+        if args and (present_kinds <= {ValuedParameter.KEYWORD_ONLY, ValuedParameter.VAR_KEYWORD}):
+            try:
+                (child,) = args
+            except Exception:
+                raise Exception("Too many arguments passed to ATL transform.")
+            args = ()
 
-        if args:
-            raise Exception("Too many arguments passed to ATL transform.")
+        if (child_param is None) or (
+            child_param.kind not in {ValuedParameter.POSITIONAL_OR_KEYWORD, ValuedParameter.KEYWORD_ONLY}
+        ):
+            # if kwargs_param_name is None:
+            child = kwargs.pop("child", child)
+        else:
+            child = kwargs.get("child", child)
+        if (old_widget_param is not None) and (
+            old_widget_param.kind in {ValuedParameter.POSITIONAL_OR_KEYWORD, ValuedParameter.KEYWORD_ONLY}
+        ):
+            # if getattr(signature.parameters.get("new_widget", None), "kind", None) in {ValuedParameter.POSITIONAL_OR_KEYWORD, ValuedParameter.KEYWORD_ONLY}: # Gamma-ter
+            child = kwargs.get("old_widget", child)
 
-        # Handle keyword arguments.
-        for k, v in kwargs.items():
+        new_scope = signature.apply(args, kwargs, partial=True, apply_defaults=False)
 
-            if k in positional:
-                positional.remove(k)
-                context[k] = v
-            elif k in context:
-                context[k] = v
-            elif k == 'child':
-                child = v
+        ## when *args and **kwargs are enabled
+        # if args_param_name:
+        #     var_args = new_scope.pop(args_param_name, ())
+        #     if args_param_name in scope:
+        #         scope[args_param_name] += var_args
+        #     else:
+        #         scope[args_param_name] = var_args
+        # if kwargs_param_name:
+        #     var_kwargs = new_scope.pop(kwargs_param_name, {})
+        #     if kwargs_param_name in scope:
+        #         scope[kwargs_param_name].update(var_kwargs)
+        #     else:
+        #         scope[kwargs_param_name] = var_kwargs
+
+        scope.update(new_scope)
+
+        if child is None:
+            ## if a child parameter gets a value by a positional argument
+            if child_param and (
+                child_param.kind in {ValuedParameter.POSITIONAL_ONLY, ValuedParameter.POSITIONAL_OR_KEYWORD}
+            ):
+                child = new_scope.get("child", child)
+
+        rv_parameters = []
+        for name, param in signature.parameters.items():
+            passed = name in new_scope
+            pkind = param.kind
+
+            ## when *args and **kwargs are enabled
+            # if name in (args_param_name, kwargs_param_name):
+            #     pass
+
+            ## when positional-only parameters are enabled
+            # elif passed and (pkind == param.POSITIONAL_ONLY):
+            #     continue
+
+            if passed:  # turn into elif when possible
+                param = ValuedParameter(name, param.KEYWORD_ONLY, default=scope[name])
+
+            elif param.has_default:
+                param = ValuedParameter(name, pkind, default=scope[name])
+
             else:
-                raise Exception('Parameter %r is not known by ATL Transform.' % k)
+                ## not passed and no default value
+                pass
+
+            rv_parameters.append(param)
+
+        rv_parameters.sort(key=lambda p: p.kind)
 
         if child is None:
             child = self.child
 
-        # Create a new ATL Transform.
-        parameters = renpy.ast.ParameterInfo({ }, positional, None, None)
+        if getattr(child, "_duplicatable", False):
+            child = child._duplicate(_args)
 
         rv = renpy.display.motion.ATLTransform(
             atl=self.atl,
             child=child,
-            style=self.style_arg,
-            context=context,
-            parameters=parameters,
+            style=self.style_arg,  # type: ignore
+            context=scope,
+            parameters=Signature(rv_parameters),
             _args=_args,
-            )
+        )
 
         rv.parent_transform = self
         rv.take_state(self)
 
         return rv
 
-    def compile(self): # @ReservedAssignment
+    def compile(self):
         """
         Compiles the ATL code into a block. As necessary, updates the
         properties.
         """
 
-        constant = (self.atl.constant == GLOBAL_CONST)
+        constant = self.atl.constant == GLOBAL_CONST
 
         if not constant:
-            for p in self.parameters.positional:
-                if p not in self.context.context:
-                    raise Exception("Cannot compile ATL Transform at %s:%d, as it's missing positional parameter %s." % (
+            missing = set(self.parameters.parameters) - set(self.context.context)
+            if missing:
+                last = missing.pop()
+                raise Exception(
+                    "Cannot compile ATL Transform at {}:{}, as it's missing parameters {}.".format(
                         self.atl.loc[0],
                         self.atl.loc[1],
-                        self.parameters.positional[0],
-                        ))
+                        "{} and {!r}".format(", ".join(map(repr, missing)), last) if missing else repr(last),
+                    )
+                )
 
         if constant and self.parent_transform:
             if self.parent_transform.block:
@@ -507,12 +676,12 @@ class ATLTransformBase(renpy.object.Object):
 
         old_exception_info = renpy.game.exception_info
 
-        block = self.atl.compile(self.context)
+        if constant and self.atl.compiled_block is not None:
+            block = self.atl.compiled_block
+        else:
+            block = self.atl.compile(self.context)
 
-        if all(
-            isinstance(statement, Interpolation) and statement.duration == 0
-            for statement in block.statements
-        ):
+        if all(isinstance(statement, Interpolation) and statement.duration == 0 for statement in block.statements):
             self.properties = []
             for interp in block.statements:
                 self.properties.extend(interp.properties)
@@ -532,8 +701,24 @@ class ATLTransformBase(renpy.object.Object):
 
         return block
 
-    def execute(self, trans, st, at):
+    def change_block_child(self, old, new):
+        """
+        Changes the compiled block of this transform so that child statements
+        showing one of the displayables in `old` show `new` instead. The
+        execution state is updated to match, so the ATL keeps running from
+        where it was. Does nothing if the block has not been compiled yet, or
+        if the ATL has no statement that could be a child statement.
+        """
 
+        if self.block is None:
+            return
+
+        if not self.atl.has_child:
+            return
+
+        self.block, self.atl_state = self.block.change_child(old, new, self.atl_state)
+
+    def execute(self, trans, st, at):
         if self.done:
             return None
 
@@ -541,7 +726,7 @@ class ATLTransformBase(renpy.object.Object):
         if block is None:
             block = self.compile()
 
-        events = [ ]
+        events = []
 
         # Hide request.
         if trans.hide_request:
@@ -577,7 +762,7 @@ class ATLTransformBase(renpy.object.Object):
         if (self.atl_st_offset is None) or (st - self.atl_st_offset) < 0:
             self.atl_st_offset = st
 
-        if self.atl.animation:
+        if self.atl.animation or self.transition:
             timebase = at
         else:
             timebase = st - self.atl_st_offset
@@ -602,19 +787,21 @@ class ATLTransformBase(renpy.object.Object):
         if block is None:
             block = self.compile()
 
-        return self.children + block.visit()
+        return self.children + block.visit()  # type: ignore
 
-
-# This is used in mark_constant to analyze expressions for constness.
-is_constant_expr = renpy.pyanalysis.Analysis().is_constant_expr
-GLOBAL_CONST = renpy.pyanalysis.GLOBAL_CONST
 
 # The base class for raw ATL statements.
 
 
 class RawStatement(object):
-
     constant = None
+
+    has_child = True
+    """
+    True if this statement, or a statement it contains, may compile into a
+    Child statement. Set by mark_constant. Defaults to True, so statements that
+    were never analyzed, or were loaded from an older .rpyc, are not skipped.
+    """
 
     def __init__(self, loc):
         super(RawStatement, self).__init__()
@@ -622,27 +809,31 @@ class RawStatement(object):
 
     # Compiles this RawStatement into a Statement, by using ctx to
     # evaluate expressions as necessary.
-    # @ReservedAssignment
-    def compile(self, ctx):  # type: (...) -> "Statement"
+    def compile(self, ctx):
         raise Exception("Compile not implemented.")
 
     # Predicts the images used by this statement.
     def predict(self, ctx):
         return
 
-    def mark_constant(self):
+    # RawBlock also has an analysis method which creates an Analysis
+    # object, applies passed parameters and calls mark_constant
+
+    def mark_constant(self, analysis):
         """
-        Sets self.constant to true if all expressions used in this statement
-        and its children are constant.
+        Sets self.constant to GLOBAL_CONST if all expressions used in
+        this statement and its children are constant.
+        `analysis`
+            A pyanalysis.Analysis object containing the analysis of this ATL.
         """
 
-        self.constant = 0
+        self.constant = NOT_CONST
+
 
 # The base class for compiled ATL Statements.
 
 
 class Statement(renpy.object.Object):
-
     def __init__(self, loc):
         super(Statement, self).__init__()
         self.loc = loc
@@ -672,27 +863,52 @@ class Statement(renpy.object.Object):
     #
     # Pause is the amount of time until execute should be called again,
     # or None if there's no need to call execute ever again.
-    def execute(self, trans, st, state, events):  # type: (...) -> tuple[object, object, object]
+    def execute(self, trans, st, state, events):
         raise Exception("Not implemented.")
 
     # Return a list of displayable children.
     def visit(self):
-        return [ ]
+        return []
+
+    def in_current_store(self):
+        return self
+
+    def change_child(self, old, new, state):
+        """
+        Replaces the displayable shown by child statements in this statement.
+
+        `old`
+            A list of displayables. A child statement showing one of these
+            (compared by identity) is replaced with one showing `new`.
+
+        `state`
+            The execution state of this statement, or None.
+
+        Returns a (statement, state) tuple. The statement is self if nothing
+        was replaced, and otherwise a copy, so compiled blocks that are shared
+        are never changed. The state is rewritten to refer to any copied
+        blocks it contains.
+        """
+
+        return self, state
 
     # Does this respond to an event?
-    def _handles_event(self, event):  # type: (...) -> bool
+    def _handles_event(self, event):
         return False
+
 
 # This represents a Raw ATL block.
 
 
 class RawBlock(RawStatement):
-
     # Should we use the animation timebase or the showing timebase?
     animation = False
 
-    def __init__(self, loc, statements, animation):
+    # If this block uses only constant values we can once compile it
+    # and use this value for all ATLTransform that use us as an atl.
+    compiled_block = None
 
+    def __init__(self, loc, statements, animation):
         super(RawBlock, self).__init__(loc)
 
         # A list of RawStatements in this block.
@@ -700,10 +916,10 @@ class RawBlock(RawStatement):
 
         self.animation = animation
 
-    def compile(self, ctx): # @ReservedAssignment
+    def compile(self, ctx):
         compiling(self.loc)
 
-        statements = [ i.compile(ctx) for i in self.statements ]
+        statements = [i.compile(ctx) for i in self.statements]
 
         return Block(self.loc, statements)
 
@@ -711,29 +927,60 @@ class RawBlock(RawStatement):
         for i in self.statements:
             i.predict(ctx)
 
-    def mark_constant(self):
+    def analyze(self, parameters=None):
+        analysis = Analysis(None)
 
+        # Apply the passed parameters to take into account
+        # the names that are not constant in this context
+        if parameters is not None:
+            analysis.parameters(parameters)
+
+        self.mark_constant(analysis)
+
+        # We can only be a constant if we do not use values
+        # from parameters or do not have them at all.
+        # So we can pass an empty context for compilation.
+        if self.constant == GLOBAL_CONST:
+            self.compile_block()
+
+    def compile_block(self):
+        # This may failed if we use another transfrom
+        # which use non constant value.
+        # In this case we also non constant.
+        old_exception_info = renpy.game.exception_info
+        try:
+            block = self.compile(Context({}))
+        except RecursionError:
+            raise Exception("This transform refers to itself in a cycle.")
+        except Exception:
+            self.constant = NOT_CONST
+        else:
+            self.compiled_block = block
+        renpy.game.exception_info = old_exception_info
+
+    def mark_constant(self, analysis):
         constant = GLOBAL_CONST
+        has_child = False
 
         for i in self.statements:
-            i.mark_constant()
+            i.mark_constant(analysis)
             constant = min(constant, i.constant)
+            has_child = has_child or i.has_child
 
         self.constant = constant
+        self.has_child = has_child
 
 
 # A compiled ATL block.
 class Block(Statement):
-
     def __init__(self, loc, statements):
-
         super(Block, self).__init__(loc)
 
         # A list of statements in the block.
         self.statements = statements
 
         # The start times of various statements.
-        self.times = [ ]
+        self.times = []
 
         for i, s in enumerate(statements):
             if isinstance(s, Time):
@@ -741,8 +988,38 @@ class Block(Statement):
 
         self.times.sort()
 
-    def _handles_event(self, event):
+    def in_current_store(self):
+        statements = [i.in_current_store() for i in self.statements]
+        return Block(self.loc, statements)
 
+    def change_child(self, old, new, state):
+        if state is not None:
+            index, start, loop_start, repeats, times, child_state = state
+        else:
+            index = None
+            child_state = None
+
+        changed = False
+        statements = []
+
+        for i, stmt in enumerate(self.statements):
+            if i == index:
+                new_stmt, child_state = stmt.change_child(old, new, child_state)
+            else:
+                new_stmt, _ = stmt.change_child(old, new, None)
+
+            changed = changed or (new_stmt is not stmt)
+            statements.append(new_stmt)
+
+        if not changed:
+            return self, state
+
+        if state is not None:
+            state = (index, start, loop_start, repeats, times, child_state)  # type: ignore
+
+        return Block(self.loc, statements), state
+
+    def _handles_event(self, event):
         for i in self.statements:
             if i._handles_event(event):
                 return True
@@ -750,7 +1027,6 @@ class Block(Statement):
         return False
 
     def execute(self, trans, st, state, events):
-
         executing(self.loc)
 
         # Unpack the state.
@@ -765,7 +1041,6 @@ class Block(Statement):
         pause = None
 
         while action == "continue":
-
             # Target is the time we're willing to execute to.
             # Max_pause is how long we'll wait before executing again.
 
@@ -782,7 +1057,6 @@ class Block(Statement):
                 max_pause = 15
 
             while True:
-
                 # If we've hit the last statement, it's the end of
                 # this block.
                 if index >= len(self.statements):
@@ -797,7 +1071,11 @@ class Block(Statement):
                     if pause is None:
                         pause = max_pause
 
-                    action, arg, pause = "continue", (index, start, loop_start, repeats, times, arg), min(max_pause, pause)
+                    action, arg, pause = (
+                        "continue",
+                        (index, start, loop_start, repeats, times, arg),
+                        min(max_pause, pause),
+                    )
                     break
 
                 elif action == "event":
@@ -812,7 +1090,6 @@ class Block(Statement):
                 # On repeat, either terminate the block, or go to
                 # the first statement.
                 elif action == "repeat":
-
                     count, arg = arg
                     loop_end = target - arg
                     duration = loop_end - loop_start
@@ -853,10 +1130,33 @@ class Block(Statement):
 
             return action, arg, pause
 
-        return action, arg, pause
-
     def visit(self):
-        return [ j for i in self.statements for j in i.visit() ]
+        return [j for i in self.statements for j in i.visit()]
+
+
+# A list of properties
+incompatible_props = {
+    "alignaround": {"xaround", "yaround", "xanchoraround", "yanchoraround"},
+    "align": {"xanchor", "yanchor", "xpos", "ypos"},
+    "anchor": {"xanchor", "yanchor"},
+    "angle": {"xpos", "ypos"},
+    "anchorangle": {"xangle", "yangle"},
+    "around": {"xaround", "yaround", "xanchoraround", "yanchoraround"},
+    "offset": {"xoffset", "yoffset"},
+    "pos": {"xpos", "ypos"},
+    "radius": {"xpos", "ypos"},
+    "anchorradius": {"xanchor", "yanchor"},
+    "size": {"xsize", "ysize"},
+    "xalign": {"xpos", "xanchor"},
+    "xcenter": {"xpos", "xanchor"},
+    "xycenter": {"xpos", "ypos", "xanchor", "yanchor"},
+    "xysize": {"xsize", "ysize"},
+    "yalign": {"ypos", "yanchor"},
+    "ycenter": {"ypos", "yanchor"},
+}
+
+# A list of sets of pairs of properties that do not conflict.
+compatible_pairs = [{"radius", "angle"}, {"anchorradius", "anchorangle"}]
 
 # This can become one of four things:
 #
@@ -871,19 +1171,27 @@ class Block(Statement):
 # values of the variables here.
 
 
-class RawMultipurpose(RawStatement):
+def check_spline_types(value):
+    if isinstance(value, (position, int, float)):
+        return True
 
+    if isinstance(value, tuple):
+        return all(check_spline_types(i) for i in value)
+
+    return False
+
+
+class RawMultipurpose(RawStatement):
     warp_function = None
 
     def __init__(self, loc):
-
         super(RawMultipurpose, self).__init__(loc)
 
         self.warper = None
         self.duration = None
-        self.properties = [ ]
-        self.expressions = [ ]
-        self.splines = [ ]
+        self.properties = []
+        self.expressions = []
+        self.splines = []
         self.revolution = None
         self.circles = "0"
 
@@ -893,7 +1201,29 @@ class RawMultipurpose(RawStatement):
         self.warp_function = warp_function
 
     def add_property(self, name, exprs):
+        """
+        Checks if the property is compatible with any previously included, and
+        sets it.
+        Either returns the previously-set property, if any, or None.
+        """
+        newly_set = incompatible_props.get(name, set()) | {name}
+
+        for old, _e in self.properties:
+            if newly_set.intersection(incompatible_props.get(old, (old,))):
+                break
+        else:
+            old = None
+
         self.properties.append((name, exprs))
+
+        if old is not None:
+            pair = {old, name}
+
+            for i in compatible_pairs:
+                if pair == i:
+                    old = None
+
+        return old
 
     def add_expression(self, expr, with_clause):
         self.expressions.append((expr, with_clause))
@@ -907,19 +1237,19 @@ class RawMultipurpose(RawStatement):
     def add_spline(self, name, exprs):
         self.splines.append((name, exprs))
 
-    def compile(self, ctx): # @ReservedAssignment
-
+    def compile(self, ctx):
         compiling(self.loc)
 
         # Figure out what kind of statement we have. If there's no
         # interpolator, and no properties, than we have either a
         # call, or a child statement.
-        if (self.warper is None and
-            self.warp_function is None and
-            not self.properties and
-            not self.splines and
-                len(self.expressions) == 1):
-
+        if (
+            self.warper is None
+            and self.warp_function is None
+            and not self.properties
+            and not self.splines
+            and len(self.expressions) == 1
+        ):
             expr, withexpr = self.expressions[0]
 
             child = ctx.eval(expr)
@@ -929,11 +1259,11 @@ class RawMultipurpose(RawStatement):
                 transition = None
 
             if isinstance(child, (int, float)):
-                return Interpolation(self.loc, "pause", child, [ ], None, 0, [ ])
+                return Interpolation(self.loc, "pause", child, [], None, 0, [])
 
             child = renpy.easy.displayable(child)
 
-            if isinstance(child, ATLTransformBase):
+            if isinstance(child, ATLTransformBase) and (child.child is None):
                 child.compile()
                 return child.get_block()
             else:
@@ -951,7 +1281,7 @@ class RawMultipurpose(RawStatement):
             if warper not in warpers:
                 raise Exception("ATL Warper %s is unknown at runtime." % warper)
 
-        properties = [ ]
+        properties = []
 
         for name, expr in self.properties:
             if name not in PROPERTIES:
@@ -960,24 +1290,34 @@ class RawMultipurpose(RawStatement):
             value = ctx.eval(expr)
             properties.append((name, value))
 
-        splines = [ ]
+        splines = []
 
         for name, exprs in self.splines:
             if name not in PROPERTIES:
                 raise Exception("ATL Property %s is unknown at runtime." % name)
 
-            values = [ ctx.eval(i) for i in exprs ]
+            values = [ctx.eval(i) for i in exprs]
+
+            if not all(check_spline_types(i) for i in values):
+                if name in {"matrixtransform", "matrixcolor"}:
+                    raise Exception(
+                        "%s: Spline interpolation requires position types. (You may want to use SplineMatrix.)" % name
+                    )
+                else:
+                    raise Exception("%s: Spline interpolation requires position types." % name)
 
             splines.append((name, values))
 
         for expr, _with in self.expressions:
             try:
                 value = ctx.eval(expr)
-            except:
+            except Exception:
                 raise Exception("Could not evaluate expression %r when compiling ATL." % expr)
 
             if not isinstance(value, ATLTransformBase):
-                raise Exception("Expression %r is not an ATL transform, and so cannot be included in an ATL interpolation." % expr)
+                raise Exception(
+                    "Expression %r is not an ATL transform, and so cannot be included in an ATL interpolation." % expr
+                )
 
             value.compile()
 
@@ -991,8 +1331,9 @@ class RawMultipurpose(RawStatement):
 
         return Interpolation(self.loc, warper, duration, properties, self.revolution, circles, splines)
 
-    def mark_constant(self):
+    def mark_constant(self, analysis):
         constant = GLOBAL_CONST
+        is_constant_expr = analysis.is_constant_expr
 
         constant = min(constant, is_constant_expr(self.warp_function))
         constant = min(constant, is_constant_expr(self.duration))
@@ -1011,93 +1352,116 @@ class RawMultipurpose(RawStatement):
 
         self.constant = constant
 
+        # The same test compile uses to decide this is a child statement.
+        self.has_child = (
+            self.warper is None
+            and self.warp_function is None
+            and not self.properties
+            and not self.splines
+            and len(self.expressions) == 1
+        )
+
     def predict(self, ctx):
-
         for i, _j in self.expressions:
-
             try:
                 i = ctx.eval(i)
-            except:
+            except Exception:
                 continue
 
-            if isinstance(i, ATLTransformBase):
+            if isinstance(i, ATLTransformBase) and (i.child is None):
                 i.atl.predict(ctx)
                 return
 
             try:
                 renpy.easy.predict(i)
-            except:
+            except Exception:
                 continue
 
+        for k, e in self.properties:
+            if k[:2] == "u_":
+                try:
+                    d = ctx.eval(e)
+                except Exception:
+                    continue
+
+                if isinstance(d, str):
+                    d = renpy.easy.displayable(d)
+
+                if not isinstance(d, Displayable):
+                    continue
+
+                try:
+                    d = renpy.display.im.unoptimized_texture(d)
+                    renpy.easy.predict(d)
+                except Exception:
+                    continue
+
+
 # This lets us have an ATL transform as our child.
-
-
 class RawContainsExpr(RawStatement):
-
     def __init__(self, loc, expr):
-
         super(RawContainsExpr, self).__init__(loc)
 
         self.expression = expr
 
-    def compile(self, ctx): # @ReservedAssignment
+    def compile(self, ctx):
         compiling(self.loc)
         child = ctx.eval(self.expression)
         return Child(self.loc, child, None)
 
-    def mark_constant(self):
-        self.constant = is_constant_expr(self.expression)
+    def mark_constant(self, analysis):
+        self.constant = analysis.is_constant_expr(self.expression)
+        self.has_child = True
 
 
 # This allows us to have multiple ATL transforms as children.
 class RawChild(RawStatement):
-
     def __init__(self, loc, child):
-
         super(RawChild, self).__init__(loc)
 
-        self.children = [ child ]
+        self.children = [child]
 
-    def compile(self, ctx): # @ReservedAssignment
-
-        children = [ ]
+    def compile(self, ctx):
+        children = []
 
         for i in self.children:
             children.append(renpy.display.motion.ATLTransform(i, context=ctx.context))
 
-        box = renpy.display.layout.MultiBox(layout='fixed')
+        box = renpy.display.layout.MultiBox(layout="fixed")
 
         for i in children:
             box.add(i)
 
         return Child(self.loc, box, None)
 
-    def mark_constant(self):
-
+    def mark_constant(self, analysis):
         constant = GLOBAL_CONST
+        has_child = False
 
         for i in self.children:
-            i.mark_constant()
+            i.mark_constant(analysis)
             constant = min(constant, i.constant)
+            has_child = has_child or i.has_child
 
         self.constant = constant
+        self.has_child = has_child
 
 
 # This changes the child of this statement, optionally with a transition.
 class Child(Statement):
-
     def __init__(self, loc, child, transition):
-
         super(Child, self).__init__(loc)
 
         self.child = child
         self.transition = transition
 
     def execute(self, trans, st, state, events):
-
         executing(self.loc)
 
-        old_child = trans.raw_child
+        # Transition from the child that's being shown. If an earlier child
+        # statement's transition is still in progress, transition from that
+        # statement's child rather than nesting the transitions.
+        old_child = trans.atl_child if trans.atl_child is not None else trans.child
 
         child = self.child
 
@@ -1105,27 +1469,35 @@ class Child(Statement):
             child = self.child._duplicate(trans._args)
             child._unique()
 
+        atl_child = child
+
         if (old_child is not None) and (old_child is not renpy.display.motion.null) and (self.transition is not None):
-            child = self.transition(old_widget=old_child,
-                                    new_widget=child)
+            child = self.transition(old_widget=old_child, new_widget=child)
             child._unique()
-        else:
-            child = child
 
         trans.set_child(child, duplicate=False)
         trans.raw_child = self.child
+        trans.atl_child = atl_child
 
         return "next", st, None
 
+    def in_current_store(self):
+        child = self.child._in_current_store()
+        return Child(self.loc, child, self.transition)
+
+    def change_child(self, old, new, state):
+        if any(self.child is i for i in old):
+            return Child(self.loc, new, self.transition), state
+
+        return self, state
+
     def visit(self):
-        return [ self.child ]
+        return [self.child]
 
 
 # This causes interpolation to occur.
 class Interpolation(Statement):
-
     def __init__(self, loc, warper, duration, properties, revolution, circles, splines):
-
         super(Interpolation, self).__init__(loc)
 
         self.warper = warper
@@ -1140,32 +1512,16 @@ class Interpolation(Statement):
         self.circles = circles
 
     def execute(self, trans, st, state, events):
-
         executing(self.loc)
 
         warper = warpers.get(self.warper, self.warper)
 
-        if trans.atl.animation:
-            st_or_at = trans.at
+        # Special case `pause 0` to always display a frame. This is intended to
+        # support single-frame animations that shouldn't skip.
+        if state is None and self.warper == "pause" and self.duration == 0 and renpy.config.atl_one_frame:
+            force_frame = True
         else:
-            st_or_at = trans.st
-
-        # True if we want want to make sure this interpolation is shown for at
-        # least one frame.
-        if self.warper == "instant":
-            first_frame = False
-        elif state is not None:
-            first_frame = False
-        elif (self.duration == 0) and (not self.properties and not self.revolution and not self.splines):
-            first_frame = True
-        elif trans.atl_state is not None:
-            first_frame = True
-        elif st_or_at == 0:
-            first_frame = True
-        else:
-            # This is the case when we're skipping through a displayable to
-            # find the right time.
-            first_frame = False
+            force_frame = False
 
         if self.duration:
             complete = min(1.0, st / self.duration)
@@ -1177,51 +1533,73 @@ class Interpolation(Statement):
         elif complete > 1.0:
             complete = 1.0
 
-        if warper is not None:
-            complete = warper(complete)
+        complete = warper(complete)
 
-        if state is None:
-
+        if state is None or len(state) != 6:
             # Create a new transform state, and apply the property
             # changes to it.
             newts = renpy.display.motion.TransformState()
             newts.take_state(trans.state)
 
             has_angle = False
+            has_radius = False
+            has_anchorangle = False
+            has_anchorradius = False
 
             for k, v in self.properties:
                 setattr(newts, k, v)
 
                 if k == "angle":
-                    newts.last_angle = v
                     has_angle = True
+
+                elif k == "radius":
+                    has_radius = True
+
+                elif k == "anchorangle":
+                    has_anchorangle = True
+
+                elif k == "anchorradius":
+                    has_anchorradius = True
 
             # Now, the things we change linearly are in the difference
             # between the new and old states.
             linear = trans.state.diff(newts)
 
-            revolution = None
-            splines = [ ]
+            # Angle and radius need to go after the linear changes, as
+            # around or alignaround must be set first.
+            angles = None
+            radii = None
+            anchorangles = None
+            anchorradii = None
+
+            splines = []
 
             revdir = self.revolution
             circles = self.circles
 
-            if (revdir or (has_angle and renpy.config.automatic_polar_motion)) and (newts.xaround is not None):
-
+            if (
+                revdir
+                or ((has_angle or has_radius) and renpy.config.automatic_polar_motion)
+                or has_anchorangle
+                or has_anchorradius
+            ):
                 # Remove various irrelevant motions.
-                for i in [ 'xpos', 'ypos',
-                           'xanchor', 'yanchor',
-                           'xaround', 'yaround',
-                           'xanchoraround', 'yanchoraround',
-                           ]:
-
+                for i in [
+                    "xpos",
+                    "ypos",
+                    "xanchor",
+                    "yanchor",
+                    "xaround",
+                    "yaround",
+                    "xanchoraround",
+                    "yanchoraround",
+                ]:
                     linear.pop(i, None)
 
                 if revdir is not None:
-
                     # Ensure we rotate around the new point.
-                    trans.state.xaround = newts.xaround
-                    trans.state.yaround = newts.yaround
+                    trans.state.xaround = newts.xaround or 0.0
+                    trans.state.yaround = newts.yaround or 0.0
                     trans.state.xanchoraround = newts.xanchoraround
                     trans.state.yanchoraround = newts.yanchoraround
 
@@ -1231,34 +1609,96 @@ class Interpolation(Statement):
                     startradius = trans.state.radius
                     endradius = newts.radius
 
-                    # Make sure the revolution is in the appropriate direction,
+                    startanchorangle = trans.state.anchorangle
+                    startanchorangle_absolute = startanchorangle.absolute
+                    startanchorangle_relative = startanchorangle.relative
+                    endanchorangle = newts.anchorangle
+                    endanchorangle_absolute = endanchorangle.absolute
+                    endanchorangle_relative = endanchorangle.relative
+                    startanchorradius = trans.state.anchorradius
+                    endanchorradius = newts.anchorradius
+
+                    # Make sure the angle is in the appropriate direction,
                     # and contains an appropriate number of circles.
 
                     if revdir == "clockwise":
                         if endangle < startangle:
                             startangle -= 360
 
+                        if endanchorangle_absolute < startanchorangle_absolute:
+                            endanchorangle_absolute -= 360
+                        if endanchorangle_relative < startanchorangle_relative:
+                            endanchorangle_relative -= 360
+
                         startangle -= circles * 360
+                        startanchorangle_absolute -= circles * 360
+                        startanchorangle_relative -= circles * 360
 
                     elif revdir == "counterclockwise":
                         if endangle > startangle:
                             startangle += 360
 
-                        startangle += circles * 360
+                        if endanchorangle_absolute > startanchorangle_absolute:
+                            endanchorangle_absolute += 360
+                        if endanchorangle_relative > startanchorangle_relative:
+                            endanchorangle_relative += 360
 
-                    # Store the revolution.
-                    revolution = (startangle, endangle, startradius, endradius)
+                        startangle += circles * 360
+                        startanchorangle_absolute += circles * 360
+                        startanchorangle_relative += circles * 360
+
+                    radii = (startradius, endradius)
+                    angles = (startangle, endangle)
+                    anchorradii = (startanchorradius, endanchorradius)
+                    anchorangles = (
+                        DualAngle(startanchorangle_absolute, startanchorangle_relative),
+                        DualAngle(endanchorangle_absolute, endanchorangle_relative),
+                    )
 
                 else:
+                    if has_angle:
+                        start = trans.state.angle
+                        end = newts.last_angle
 
-                    last_angle = trans.state.last_angle or trans.state.angle
-                    revolution = (last_angle, newts.last_angle, trans.state.radius, newts.radius)
+                        if end - start > 180:
+                            start += 360
+                        if end - start < -180:
+                            start -= 360
+
+                        angles = (start, end)
+
+                    if has_radius:
+                        radii = (trans.state.radius, newts.radius)
+
+                    if has_anchorangle:
+                        start = trans.state.anchorangle
+                        start_absolute = start.absolute
+                        start_relative = start.relative
+                        end_absolute = newts.last_absolute_anchorangle
+                        end_relative = newts.last_relative_anchorangle
+
+                        if end_absolute - start_absolute > 180:
+                            start_absolute += 360
+                        if end_absolute - start_absolute < -180:
+                            start_absolute -= 360
+                        if end_relative - start_relative > 180:
+                            start_relative += 360
+                        if end_relative - start_relative < -180:
+                            start_relative -= 360
+
+                        anchorangles = (
+                            DualAngle(start_absolute, start_relative),
+                            DualAngle(end_absolute, end_relative),
+                        )
+
+                    if has_anchorradius:
+                        anchorradii = (trans.state.anchorradius, newts.anchorradius)
 
             # Figure out the splines.
             for name, values in self.splines:
-                splines.append((name, [ getattr(trans.state, name) ] + values))
+                splines.append((name, [trans.state.get(name)] + values))
 
-            state = (linear, revolution, splines)
+            state = (linear, angles, radii, anchorangles, anchorradii, splines)
 
             # Ensure that we set things, even if they don't actually
             # change from the old state.
@@ -1267,30 +1707,52 @@ class Interpolation(Statement):
                     setattr(trans.state, k, v)
 
         else:
-            linear, revolution, splines = state
+            linear, angles, radii, anchorangles, anchorradii, splines = state
 
         # Linearly interpolate between the things in linear.
         for k, (old, new) in linear.items():
-            value = interpolate(complete, old, new, PROPERTIES[k])
+            if k == "orientation":
+                if old is None:
+                    old = (0.0, 0.0, 0.0)
+                if new is not None:
+                    value = renpy.display.quaternion.euler_slerp(complete, old, new)
+                elif complete >= 1:
+                    value = None
+                else:
+                    value = old
+
+            else:
+                value = interpolate(complete, old, new, PROPERTIES[k])
 
             setattr(trans.state, k, value)
 
-        # Handle the revolution.
-        if revolution is not None:
-            startangle, endangle, startradius, endradius = revolution
+        # Handle the angle.
+        if angles is not None:
+            startangle, endangle = angles[:2]
 
             angle = interpolate(complete, startangle, endangle, float)
-            trans.state.last_angle = angle
             trans.state.angle = angle
 
-            trans.state.radius = interpolate(complete, startradius, endradius, float)
+        if radii is not None:
+            startradius, endradius = radii
+            trans.state.radius = interpolate(complete, startradius, endradius, position_or_none)
+
+        if anchorangles is not None:
+            startangle, endangle = anchorangles[:2]
+
+            anchorangle = interpolate(complete, startangle, endangle, DualAngle.from_any)
+            trans.state.anchorangle = anchorangle
+
+        if anchorradii is not None:
+            startradius, endradius = anchorradii
+            trans.state.anchorradius = interpolate(complete, startradius, endradius, position_or_none)
 
         # Handle any splines we might have.
         for name, values in splines:
-            value = interpolate_spline(complete, values)
+            value = interpolate_spline(complete, values, PROPERTIES[name])
             setattr(trans.state, name, value)
 
-        if (st >= self.duration) and ((not first_frame) or (not renpy.config.atl_one_frame)):
+        if (st >= self.duration) and (not force_frame):
             return "next", st - self.duration, None
         else:
             if not self.properties and not self.revolution and not self.splines:
@@ -1301,15 +1763,12 @@ class Interpolation(Statement):
 
 # Implementation of the repeat statement.
 class RawRepeat(RawStatement):
-
     def __init__(self, loc, repeats):
-
         super(RawRepeat, self).__init__(loc)
 
         self.repeats = repeats
 
-    def compile(self, ctx): # @ReservedAssignment
-
+    def compile(self, ctx):
         compiling(self.loc)
 
         repeats = self.repeats
@@ -1319,14 +1778,13 @@ class RawRepeat(RawStatement):
 
         return Repeat(self.loc, repeats)
 
-    def mark_constant(self):
-        self.constant = is_constant_expr(self.repeats)
+    def mark_constant(self, analysis):
+        self.constant = analysis.is_constant_expr(self.repeats)
+        self.has_child = False
 
 
 class Repeat(Statement):
-
     def __init__(self, loc, repeats):
-
         super(Repeat, self).__init__(loc)
 
         self.repeats = repeats
@@ -1334,41 +1792,60 @@ class Repeat(Statement):
     def execute(self, trans, st, state, events):
         return "repeat", (self.repeats, st), 0
 
+
 # Parallel statement.
 
 
 class RawParallel(RawStatement):
-
     def __init__(self, loc, block):
-
         super(RawParallel, self).__init__(loc)
-        self.blocks = [ block ]
+        self.blocks = [block]
 
-    def compile(self, ctx): # @ReservedAssignment
+    def compile(self, ctx):
         return Parallel(self.loc, [i.compile(ctx) for i in self.blocks])
 
     def predict(self, ctx):
         for i in self.blocks:
             i.predict(ctx)
 
-    def mark_constant(self):
+    def mark_constant(self, analysis):
         constant = GLOBAL_CONST
+        has_child = False
 
         for i in self.blocks:
-            i.mark_constant()
+            i.mark_constant(analysis)
             constant = min(constant, i.constant)
+            has_child = has_child or i.has_child
 
         self.constant = constant
+        self.has_child = has_child
 
 
 class Parallel(Statement):
-
     def __init__(self, loc, blocks):
         super(Parallel, self).__init__(loc)
         self.blocks = blocks
 
-    def _handles_event(self, event):
+    def in_current_store(self):
+        blocks = [i.in_current_store() for i in self.blocks]
+        return Parallel(self.loc, blocks)
 
+    def change_child(self, old, new, state):
+        # Maps the id of each block that is still running to its state.
+        states = {id(i): istate for i, istate in state} if state is not None else {}
+
+        # Maps the id of each block to its replacement and the replacement's state.
+        replacements = {id(i): i.change_child(old, new, states.get(id(i), None)) for i in self.blocks}
+
+        if all(replacements[id(i)][0] is i for i in self.blocks):
+            return self, state
+
+        if state is not None:
+            state = [replacements[id(i)] for i, _ in state]
+
+        return Parallel(self.loc, [replacements[id(i)][0] for i in self.blocks]), state
+
+    def _handles_event(self, event):
         for i in self.blocks:
             if i._handles_event(event):
                 return True
@@ -1376,23 +1853,21 @@ class Parallel(Statement):
         return False
 
     def execute(self, trans, st, state, events):
-
         executing(self.loc)
 
         if state is None:
-            state = [ (i, None) for i in self.blocks ]
+            state = [(i, None) for i in self.blocks]
 
         # The amount of time left after finishing this block.
-        left = [ ]
+        left = []
 
         # The duration of the pause.
-        pauses = [ ]
+        pauses = []
 
         # The new state structure.
-        newstate = [ ]
+        newstate = []
 
         for i, istate in state:
-
             action, arg, pause = i.execute(trans, st, istate, events)
 
             if pause is not None:
@@ -1411,46 +1886,78 @@ class Parallel(Statement):
             return "next", min(left), None
 
     def visit(self):
-        return [ j for i in self.blocks for j in i.visit() ]
+        return [j for i in self.blocks for j in i.visit()]
+
 
 # The choice statement.
 
 
 class RawChoice(RawStatement):
-
     def __init__(self, loc, chance, block):
         super(RawChoice, self).__init__(loc)
 
-        self.choices = [ (chance, block) ]
+        self.choices = [(chance, block)]
 
-    def compile(self, ctx): # @ReservedAssignment
+    def compile(self, ctx):
         compiling(self.loc)
-        return Choice(self.loc, [ (ctx.eval(chance), block.compile(ctx)) for chance, block in self.choices])
+        return Choice(self.loc, [(ctx.eval(chance), block.compile(ctx)) for chance, block in self.choices])
 
     def predict(self, ctx):
         for _i, j in self.choices:
             j.predict(ctx)
 
-    def mark_constant(self):
+    def mark_constant(self, analysis):
         constant = GLOBAL_CONST
+        has_child = False
 
         for _chance, block in self.choices:
-            block.mark_constant()
+            block.mark_constant(analysis)
             constant = min(constant, block.constant)
+            has_child = has_child or block.has_child
 
         self.constant = constant
+        self.has_child = has_child
 
 
 class Choice(Statement):
-
     def __init__(self, loc, choices):
-
         super(Choice, self).__init__(loc)
 
         self.choices = choices
 
-    def _handles_event(self, event):
+    def in_current_store(self):
+        choices = [(chance, block.in_current_store()) for chance, block in self.choices]
+        return Choice(self.loc, choices)
 
+    def change_child(self, old, new, state):
+        if state is not None:
+            choice, cstate = state
+        else:
+            choice = None
+            cstate = None
+
+        changed = False
+        choices = []
+
+        for chance, block in self.choices:
+            if block is choice:
+                new_block, cstate = block.change_child(old, new, cstate)
+                choice = new_block
+            else:
+                new_block, _ = block.change_child(old, new, None)
+
+            changed = changed or (new_block is not block)
+            choices.append((chance, new_block))
+
+        if not changed:
+            return self, state
+
+        if state is not None:
+            state = (choice, cstate)
+
+        return Choice(self.loc, choices), state
+
+    def _handles_event(self, event):
         for i in self.choices:
             if i[1]._handles_event(event):
                 return True
@@ -1458,20 +1965,19 @@ class Choice(Statement):
         return False
 
     def execute(self, trans, st, state, events):
-
         executing(self.loc)
 
-        if state is None:
+        choice = None  # For typing purposes.
 
+        if state is None:
             total = 0
-            for chance, _c in self.choices:
+
+            for chance, choice in self.choices:
                 total += chance
 
             n = random.uniform(0, total)
-            choice = None
 
-            for chance, c in self.choices:
-                choice = c
+            for chance, choice in self.choices:
                 if n < chance:
                     break
                 n -= chance
@@ -1481,9 +1987,6 @@ class Choice(Statement):
         else:
             choice, cstate = state
 
-        if choice is None:
-            return "next", 0, None
-
         action, arg, pause = choice.execute(trans, st, cstate, events)
 
         if action == "continue":
@@ -1492,28 +1995,27 @@ class Choice(Statement):
             return action, arg, None
 
     def visit(self):
-        return [ j for i in self.choices for j in i[1].visit() ]
+        return [j for i in self.choices for j in i[1].visit()]
+
 
 # The Time statement.
 
 
 class RawTime(RawStatement):
-
     def __init__(self, loc, time):
-
         super(RawTime, self).__init__(loc)
         self.time = time
 
-    def compile(self, ctx): # @ReservedAssignment
+    def compile(self, ctx):
         compiling(self.loc)
         return Time(self.loc, ctx.eval(self.time))
 
-    def mark_constant(self):
-        self.constant = is_constant_expr(self.time)
+    def mark_constant(self, analysis):
+        self.constant = analysis.is_constant_expr(self.time)
+        self.has_child = False
 
 
 class Time(Statement):
-
     def __init__(self, loc, time):
         super(Time, self).__init__(loc)
 
@@ -1522,23 +2024,23 @@ class Time(Statement):
     def execute(self, trans, st, state, events):
         return "continue", None, None
 
+
 # The On statement.
 
 
 class RawOn(RawStatement):
-
     def __init__(self, loc, names, block):
         super(RawOn, self).__init__(loc)
 
-        self.handlers = { }
+        self.handlers = {}
 
         for i in names:
             self.handlers[i] = block
 
-    def compile(self, ctx): # @ReservedAssignment
+    def compile(self, ctx):
         compiling(self.loc)
 
-        handlers = { }
+        handlers = {}
 
         for k, v in self.handlers.items():
             handlers[k] = v.compile(ctx)
@@ -1549,22 +2051,54 @@ class RawOn(RawStatement):
         for i in self.handlers.values():
             i.predict(ctx)
 
-    def mark_constant(self):
+    def mark_constant(self, analysis):
         constant = GLOBAL_CONST
+        has_child = False
 
         for block in self.handlers.values():
-            block.mark_constant()
+            block.mark_constant(analysis)
             constant = min(constant, block.constant)
+            has_child = has_child or block.has_child
 
         self.constant = constant
+        self.has_child = has_child
 
 
 class On(Statement):
-
     def __init__(self, loc, handlers):
         super(On, self).__init__(loc)
 
         self.handlers = handlers
+
+    def in_current_store(self):
+        handlers = {k: v.in_current_store() for k, v in self.handlers.items()}
+        return On(self.loc, handlers)
+
+    def change_child(self, old, new, state):
+        if state is not None:
+            name, start, cstate = state
+        else:
+            name = None
+            cstate = None
+
+        changed = False
+        handlers = {}
+
+        for k, v in self.handlers.items():
+            if k == name:
+                handlers[k], cstate = v.change_child(old, new, cstate)
+            else:
+                handlers[k] = v.change_child(old, new, None)[0]
+
+            changed = changed or (handlers[k] is not v)
+
+        if not changed:
+            return self, state
+
+        if state is not None:
+            state = (name, start, cstate)  # type: ignore
+
+        return On(self.loc, handlers), state
 
     def _handles_event(self, event):
         if event in self.handlers:
@@ -1573,7 +2107,6 @@ class On(Statement):
             return False
 
     def execute(self, trans, st, state, events):
-
         executing(self.loc)
 
         # If it's our first time through, start in the start state.
@@ -1585,7 +2118,6 @@ class On(Statement):
         # If we have an external event, and we have a handler for it,
         # handle it.
         for event in events:
-
             while event:
                 if event in self.handlers:
                     break
@@ -1604,7 +2136,6 @@ class On(Statement):
                 cstate = None
 
         while True:
-
             # If we don't have a handler, return until we change event.
             if name not in self.handlers:
                 return "continue", (name, start, cstate), None
@@ -1613,7 +2144,6 @@ class On(Statement):
 
             # If we get a continue, save our state.
             if action == "continue":
-
                 # If it comes from a hide block, indicate that.
                 if name == "hide" or name == "replaced":
                     trans.hide_response = False
@@ -1638,7 +2168,6 @@ class On(Statement):
             # If we get an event, then either handle it if we can, or
             # pass it up the stack if we can't.
             elif action == "event":
-
                 name, arg = arg
 
                 if name in self.handlers:
@@ -1649,27 +2178,27 @@ class On(Statement):
                 return "event", (name, arg), None
 
     def visit(self):
-        return [ j for i in self.handlers.values() for j in i.visit() ]
+        return [j for i in self.handlers.values() for j in i.visit()]
+
 
 # Event statement.
 
 
 class RawEvent(RawStatement):
-
     def __init__(self, loc, name):
         super(RawEvent, self).__init__(loc)
 
         self.name = name
 
-    def compile(self, ctx): # @ReservedAssignment
+    def compile(self, ctx):
         return Event(self.loc, self.name)
 
-    def mark_constant(self):
+    def mark_constant(self, analysis):
         self.constant = GLOBAL_CONST
+        self.has_child = False
 
 
 class Event(Statement):
-
     def __init__(self, loc, name):
         super(Event, self).__init__(loc)
 
@@ -1680,22 +2209,21 @@ class Event(Statement):
 
 
 class RawFunction(RawStatement):
-
     def __init__(self, loc, expr):
         super(RawFunction, self).__init__(loc)
 
         self.expr = expr
 
-    def compile(self, ctx): # @ReservedAssignment
+    def compile(self, ctx):
         compiling(self.loc)
         return Function(self.loc, ctx.eval(self.expr))
 
-    def mark_constant(self):
-        self.constant = is_constant_expr(self.expr)
+    def mark_constant(self, analysis):
+        self.constant = analysis.is_constant_expr(self.expr)
+        self.has_child = False
 
 
 class Function(Statement):
-
     def __init__(self, loc, function):
         super(Function, self).__init__(loc)
 
@@ -1705,85 +2233,83 @@ class Function(Statement):
         return True
 
     def execute(self, trans, st, state, events):
-        fr = self.function(trans, st, trans.at)
+        block = state or renpy.config.atl_function_always_blocks
+
+        fr = self.function(trans, st if block else 0, trans.at)
+
+        if (not block) and (fr is not None):
+            block = True
+            fr = self.function(trans, st, trans.at)
 
         if fr is not None:
-            return "continue", None, fr
+            return "continue", True, fr
         else:
-            return "next", 0, None
+            return "next", 0 if block else st, None
 
 
 # This parses an ATL block.
 def parse_atl(l):
-
     l.advance()
     block_loc = l.get_location()
 
-    statements = [ ]
+    statements = []
 
     animation = False
 
     while not l.eob:
-
         loc = l.get_location()
 
-        if l.keyword('repeat'):
-
+        if l.keyword("repeat"):
             repeats = l.simple_expression()
             statements.append(RawRepeat(loc, repeats))
 
-        elif l.keyword('block'):
-            l.require(':')
+        elif l.keyword("block"):
+            l.require(":")
             l.expect_eol()
-            l.expect_block('block')
+            l.expect_block("block")
 
             block = parse_atl(l.subblock_lexer())
             statements.append(block)
 
-        elif l.keyword('contains'):
-
+        elif l.keyword("contains"):
             expr = l.simple_expression()
 
             if expr:
-
-                l.expect_noblock('contains expression')
+                l.expect_noblock("contains expression")
                 statements.append(RawContainsExpr(loc, expr))
 
             else:
-
-                l.require(':')
+                l.require(":")
                 l.expect_eol()
-                l.expect_block('contains')
+                l.expect_block("contains")
 
                 block = parse_atl(l.subblock_lexer())
                 statements.append(RawChild(loc, block))
 
-        elif l.keyword('parallel'):
-            l.require(':')
+        elif l.keyword("parallel"):
+            l.require(":")
             l.expect_eol()
-            l.expect_block('parallel')
+            l.expect_block("parallel")
 
             block = parse_atl(l.subblock_lexer())
             statements.append(RawParallel(loc, block))
 
-        elif l.keyword('choice'):
-
+        elif l.keyword("choice"):
             chance = l.simple_expression()
             if not chance:
                 chance = "1.0"
 
-            l.require(':')
+            l.require(":")
             l.expect_eol()
-            l.expect_block('choice')
+            l.expect_block("choice")
 
             block = parse_atl(l.subblock_lexer())
             statements.append(RawChoice(loc, chance, block))
 
-        elif l.keyword('on'):
+        elif l.keyword("on"):
+            names = [l.require(l.word)]
 
-            names = [ l.require(l.word) ]
-
-            while l.match(','):
+            while l.match(","):
                 name = l.word()
 
                 if name is None:
@@ -1791,42 +2317,41 @@ def parse_atl(l):
 
                 names.append(name)
 
-            l.require(':')
+            l.require(":")
             l.expect_eol()
-            l.expect_block('on')
+            l.expect_block("on")
 
             block = parse_atl(l.subblock_lexer())
             statements.append(RawOn(loc, names, block))
 
-        elif l.keyword('time'):
+        elif l.keyword("time"):
             time = l.require(l.simple_expression)
-            l.expect_noblock('time')
+            l.expect_noblock("time")
 
             statements.append(RawTime(loc, time))
 
-        elif l.keyword('function'):
+        elif l.keyword("function"):
             expr = l.require(l.simple_expression)
-            l.expect_noblock('function')
+            l.expect_noblock("function")
 
             statements.append(RawFunction(loc, expr))
 
-        elif l.keyword('event'):
+        elif l.keyword("event"):
             name = l.require(l.word)
-            l.expect_noblock('event')
+            l.expect_noblock("event")
 
             statements.append(RawEvent(loc, name))
 
-        elif l.keyword('pass'):
-            l.expect_noblock('pass')
+        elif l.keyword("pass"):
+            l.expect_noblock("pass")
             statements.append(None)
 
-        elif l.keyword('animation'):
-            l.expect_noblock('animation')
+        elif l.keyword("animation"):
+            l.expect_noblock("animation")
             animation = True
 
         else:
-
-            # If we can't assign it it a statement more specifically,
+            # If we can't assign it to a statement more specifically,
             # we try to parse it into a RawMultipurpose. That will
             # then be turned into another statement, as appropriate.
 
@@ -1848,7 +2373,6 @@ def parse_atl(l):
                 warp_function = None
 
             elif warper == "warp":
-
                 warper = None
                 warp_function = l.require(l.simple_expression)
                 duration = l.require(l.simple_expression)
@@ -1862,78 +2386,116 @@ def parse_atl(l):
 
             rm.add_warper(warper, duration, warp_function)
 
+            ll = l
+            has_block = False
+
             # Now, look for properties and simple_expressions.
             while True:
+                if ((warper is not None) or (warp_function is not None)) and (not has_block) and ll.match(":"):
+                    ll.expect_eol()
+                    ll.expect_block("ATL")
+                    has_block = True
+                    ll = l.subblock_lexer()
+                    ll.advance()
+                    ll.expect_noblock("ATL")
+
+                if has_block and ll.eol():
+                    ll.advance()
+                    ll.expect_noblock("ATL")
 
                 # Update expression status.
                 last_expression = this_expression
                 this_expression = False
 
-                if l.keyword('pass'):
+                if ll.keyword("pass"):
                     continue
 
                 # Parse revolution keywords.
-                if l.keyword('clockwise'):
-                    rm.add_revolution('clockwise')
+                if ll.keyword("clockwise"):
+                    rm.add_revolution("clockwise")
                     continue
 
-                if l.keyword('counterclockwise'):
-                    rm.add_revolution('counterclockwise')
+                if ll.keyword("counterclockwise"):
+                    rm.add_revolution("counterclockwise")
                     continue
 
-                if l.keyword('circles'):
+                if ll.keyword("circles"):
                     expr = l.require(l.simple_expression)
                     rm.add_circles(expr)
                     continue
 
                 # Try to parse a property.
-                cp = l.checkpoint()
+                cp = ll.checkpoint()
 
-                prop = l.name()
+                prop = ll.name()
 
-                if (prop in PROPERTIES) or (prop and prop.startswith("u_")):
+                good_prop = (prop in PROPERTIES)
+                if not prop:
+                    good_prop = False
+                elif prop.startswith("u_"):
+                    good_prop = True
+                elif prop.startswith("gl_texture_wrap_"):
+                    good_prop = True
+                elif prop.startswith("gl_texture_scaling_"):
+                    good_prop = True
 
-                    expr = l.require(l.simple_expression)
+                if good_prop:
+                    expr = ll.require(ll.simple_expression)
 
                     # We either have a property or a spline. It's the
                     # presence of knots that determine which one it is.
 
-                    knots = [ ]
+                    knots = []
 
-                    while l.keyword('knot'):
-                        knots.append(l.require(l.simple_expression))
+                    while ll.keyword("knot"):
+                        knots.append(ll.require(ll.simple_expression))
 
                     if knots:
+                        if prop == "orientation":
+                            raise Exception("Orientation doesn't support spline.")
                         knots.append(expr)
                         rm.add_spline(prop, knots)
                     else:
-                        rm.add_property(prop, expr)
+                        addprop_rv = rm.add_property(prop, expr)
+                        if addprop_rv == prop:
+                            ll.deferred_error(
+                                "check_conflicting_properties",
+                                "property {!r} is given a value more than once".format(prop),
+                            )
+                        elif addprop_rv:
+                            ll.deferred_error(
+                                "check_conflicting_properties",
+                                "properties {!r} and {!r} conflict with each other".format(prop, addprop_rv),
+                            )
 
                     continue
 
                 # Otherwise, try to parse it as a simple expressoon,
                 # with an optional with clause.
 
-                l.revert(cp)
+                ll.revert(cp)
 
-                expr = l.simple_expression()
+                expr = ll.simple_expression()
 
                 if not expr:
                     break
 
                 if last_expression:
-                    l.error('ATL statement contains two expressions in a row; is one of them a misspelled property? If not, separate them with pass.')
+                    ll.error(
+                        "ATL statement contains two expressions in a row; is one of them a misspelled property? If not, separate them with pass."
+                    )
 
                 this_expression = True
 
-                if l.keyword("with"):
-                    with_expr = l.require(l.simple_expression)
+                if ll.keyword("with"):
+                    with_expr = ll.require(ll.simple_expression)
                 else:
                     with_expr = None
 
                 rm.add_expression(expr, with_expr)
 
-            l.expect_noblock('ATL')
+            if not has_block:
+                l.expect_noblock("ATL")
 
             statements.append(rm)
 
@@ -1945,11 +2507,10 @@ def parse_atl(l):
 
     # Merge together statements that need to be merged together.
 
-    merged = [ ]
+    merged = []
     old = None
 
     for new in statements:
-
         if isinstance(old, RawParallel) and isinstance(new, RawParallel):
             old.blocks.extend(new.blocks)
             continue
@@ -1976,3 +2537,29 @@ def parse_atl(l):
         old = new
 
     return RawBlock(block_loc, merged, animation)
+
+
+def deep_compare(a, b):
+    """
+    Compares two trees of ATL statements for equality.
+    """
+
+    if type(a) != type(b):
+        return False
+
+    if isinstance(a, (list, tuple)):
+        return all(deep_compare(i, j) for i, j in zip(a, b))
+
+    if isinstance(a, dict):
+        if len(a) != len(b):
+            return False
+
+        return all((k in b) and deep_compare(a[k], b[k]) for k in a)
+
+    if isinstance(a, Statement):
+        return deep_compare(a.__dict__, b.__dict__)
+
+    try:
+        return a == b
+    except Exception:
+        return True

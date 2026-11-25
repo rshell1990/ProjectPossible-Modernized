@@ -1,12 +1,355 @@
-from __future__ import print_function
-import re
-import io
-import os
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
+#
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-import renpy.display
+import collections
+import hashlib
+import json
+import os
+import re
+import struct
+import sys
+import tempfile
+
+import renpy
 
 # A map from shader part name to ShaderPart
-shader_part = { }
+shader_part = {}
+
+def _get_shader_cache():
+    draw = renpy.display.draw
+
+    if draw is None:
+        return None
+
+    return getattr(draw, "shader_cache", None)
+
+
+def predict_shader(partnames, cache=None):
+    if not renpy.config.predict_shaders:
+        return
+
+    if isinstance(partnames, str):
+        partnames = (partnames,)
+    else:
+        partnames = tuple(partnames)
+
+    if cache is None:
+        cache = _get_shader_cache()
+
+    if cache is None:
+        return
+
+    cache.predict(partnames)
+
+
+def has_predicted_shaders(cache=None):
+    if cache is None:
+        cache = _get_shader_cache()
+
+    if cache is None:
+        return False
+
+    if not renpy.config.predict_shaders:
+        cache.predicted.clear()
+
+        return False
+
+    return bool(cache.predicted)
+
+
+def preload_predicted_shader(cache=None):
+    if cache is None:
+        cache = _get_shader_cache()
+
+    if cache is None:
+        return False
+
+    if not renpy.config.predict_shaders:
+        cache.predicted.clear()
+
+        return False
+
+    return cache.preload_predicted()
+
+
+# The name of the variable a fragment shader writes its color to, when the
+# modern dialect is being emitted (for legacy support, as GLSL ES 3.00 removed
+# gl_FragColor).
+FRAGMENT_OUTPUT = "fragment_color"
+
+# The GLSL versions each dialect is emitted as.
+DIALECT_VERSIONS = {
+    100: (100, 120),
+    300: (300, 330),
+}
+
+# The GLSL dialects a shader part can be authored in, from oldest to newest.
+DIALECTS = tuple(sorted(DIALECT_VERSIONS))
+
+# A map from a GLSL version to the dialect it belongs to. A part can declare
+# either spelling.
+GLSL_DIALECTS = {version: dialect for dialect, versions in DIALECT_VERSIONS.items() for version in versions}
+
+# The GLSL versions shaders can be emitted in.
+GLSL_VERSIONS = tuple(sorted(GLSL_DIALECTS))
+
+# The names below are only rewritten when they stand alone.
+STANDALONE = r"(?<![\w.]){}\b"
+
+# Rewrites applied to a shader part authored in the legacy dialect.
+LEGACY_TO_MODERN = [
+    (re.compile(STANDALONE.format("texture2DProjLodEXT")), "textureProjLod"),
+    (re.compile(STANDALONE.format("texture2DLodEXT")), "textureLod"),
+    (re.compile(STANDALONE.format("texture2DProjLod")), "textureProjLod"),
+    (re.compile(STANDALONE.format("texture2DLod")), "textureLod"),
+    (re.compile(STANDALONE.format("texture2DProj")), "textureProj"),
+    (re.compile(STANDALONE.format("texture2D")), "texture"),
+    (re.compile(STANDALONE.format("textureCubeLod")), "textureLod"),
+    (re.compile(STANDALONE.format("textureCube")), "texture"),
+    (re.compile(STANDALONE.format("gl_FragColor")), FRAGMENT_OUTPUT),
+]
+
+# The reverse. Note that a part that uses a feature the legacy dialect lacks
+# will fail to compile with an error and source code.
+MODERN_TO_LEGACY = [
+    (re.compile(STANDALONE.format(FRAGMENT_OUTPUT)), "gl_FragColor"),
+    (re.compile(r"(?<![\w.])textureProjLod\s*\("), "texture2DProjLod("),
+    (re.compile(r"(?<![\w.])textureLod\s*\("), "texture2DLod("),
+    (re.compile(r"(?<![\w.])textureProj\s*\("), "texture2DProj("),
+    (re.compile(r"(?<![\w.])texture\s*\("), "texture2D("),
+]
+
+# Legacy fragment shaders can only get LOD sampling through an extension.
+LOD_EXTENSION = {
+    True: ("GL_EXT_shader_texture_lod", "EXT"),
+    False: ("GL_ARB_shader_texture_lod", ""),
+}
+
+LOD_FUNCTIONS = re.compile(r"(?<![\w.])(texture2DProjLod|texture2DLod)(?:EXT)?\s*\(")
+
+
+# Strip comments so they can't cause errors in parsing.
+GLSL_COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
+
+# Builtins that only exist in the legacy dialect, used to check for version
+# errors.
+LEGACY_MARKERS = [
+    (re.compile(STANDALONE.format("gl_FragColor")), "gl_FragColor", FRAGMENT_OUTPUT),
+    (re.compile(STANDALONE.format("gl_FragData")), "gl_FragData", FRAGMENT_OUTPUT),
+    (re.compile(STANDALONE.format("texture2DProjLodEXT")), "texture2DProjLodEXT", "textureProjLod"),
+    (re.compile(STANDALONE.format("texture2DLodEXT")), "texture2DLodEXT", "textureLod"),
+    (re.compile(STANDALONE.format("texture2DProjLod")), "texture2DProjLod", "textureProjLod"),
+    (re.compile(STANDALONE.format("texture2DLod")), "texture2DLod", "textureLod"),
+    (re.compile(STANDALONE.format("texture2DProj")), "texture2DProj", "textureProj"),
+    (re.compile(STANDALONE.format("texture2D")), "texture2D", "texture"),
+    (re.compile(STANDALONE.format("textureCubeLod")), "textureCubeLod", "textureLod"),
+    (re.compile(STANDALONE.format("textureCube")), "textureCube", "texture"),
+]
+
+# The modern spelling of each legacy storage qualifier.
+LEGACY_STORAGE = {
+    "attribute": "in",
+    "varying": "out",
+}
+
+# The constructs each dialect introduced that are only spelled differently in an
+# older one.
+TRANSLATED_MARKERS = {
+    300: [
+        (re.compile(STANDALONE.format(FRAGMENT_OUTPUT)), FRAGMENT_OUTPUT),
+        (re.compile(STANDALONE.format("textureLod")), "textureLod"),
+        (re.compile(STANDALONE.format("textureProjLod")), "textureProjLod"),
+        (re.compile(r"(?<![\w.])texture\s*\("), "texture"),
+    ],
+}
+
+# The constructs each dialect introduced that an older one has no equivalent
+# for, which hold a part to the dialect that introduced them.
+UNTRANSLATED_MARKERS = {
+    300: [
+        (re.compile(STANDALONE.format("textureSize")), "textureSize"),
+        (re.compile(STANDALONE.format("texelFetch")), "texelFetch"),
+        (re.compile(STANDALONE.format("textureGrad")), "textureGrad"),
+        (re.compile(STANDALONE.format("switch")), "switch"),
+        (re.compile(r"%"), "the % operator"),
+        (re.compile(r"<<|>>"), "a bitwise shift"),
+        (re.compile(r"(?<!&)&(?!&)|(?<!\|)\|(?!\|)|(?<!\^)\^(?!\^)"), "a bitwise operator"),
+    ],
+}
+
+# The variable types each dialect introduced.
+UNTRANSLATED_TYPES = {
+    300: {"int", "ivec2", "ivec3", "ivec4", "bool", "bvec2", "bvec3", "bvec4"},
+}
+
+# Varying types that GLSL ES 3.00 and GLSL 3.30 refuse to interpolate.
+FLAT_TYPES = UNTRANSLATED_TYPES[300]
+
+
+def dialect_name(dialect):
+    return "GLSL ES {}.{:02d}".format(dialect // 100, dialect % 100)
+
+
+def newer_markers(dialect):
+    for d in DIALECTS:
+        if d <= dialect:
+            continue
+
+        for pattern, name in TRANSLATED_MARKERS.get(d, []) + UNTRANSLATED_MARKERS.get(d, []):
+            yield d, pattern, name
+
+
+def config_dialect():
+    """
+    The dialect selected by config.glsl_version, used by shader parts that
+    don't declare one of their own.
+    """
+
+    version = renpy.config.glsl_version
+
+    if version not in GLSL_DIALECTS:
+        raise Exception(
+            "config.glsl_version is {!r}, which is not a known GLSL dialect. Use {}.".format(
+                version, ", or ".join("{} for {}".format(d, dialect_name(d)) for d in DIALECTS)
+            )
+        )
+
+    return GLSL_DIALECTS[version]
+
+
+def parse_glsl_version(s):
+    """
+    Parses the string returned by glGetString(GL_SHADING_LANGUAGE_VERSION).
+    """
+
+    if s is None:
+        return None
+
+    m = re.search(r"(\d+)\.(\d+)", s)
+
+    if m is None:
+        return None
+
+    return int(m.group(1)) * 100 + int(m.group(2).ljust(2, "0"))
+
+
+def dialect_version(gles, dialect):
+    gles_version, desktop_version = DIALECT_VERSIONS[dialect]
+
+    return gles_version if gles else desktop_version
+
+
+def emit_version(gles, glsl_version):
+    """
+    Given the GLSL version the current context reports supporting, returns
+    the version Ren'Py will actually emit shaders in.
+    """
+
+    if glsl_version is None:
+        glsl_version = 0
+
+    rv = dialect_version(gles, DIALECTS[0])
+
+    for dialect in DIALECTS:
+        version = dialect_version(gles, dialect)
+
+        if glsl_version >= version:
+            rv = version
+
+    return rv
+
+
+def translate(text, source_version, target_version):
+    """
+    Translates a chunk of shader source between dialects, if it wasn't authored
+    in the one being emitted.
+
+    `source_version`
+        The dialect the text was authored in, one of DIALECTS.
+
+    `target_version`
+        The GLSL version being emitted, one of GLSL_VERSIONS.
+    """
+
+    target_dialect = GLSL_DIALECTS[target_version]
+
+    if source_version == target_dialect:
+        return text
+
+    if source_version > target_dialect:
+        rules = MODERN_TO_LEGACY
+    else:
+        rules = LEGACY_TO_MODERN
+
+    for pattern, replacement in rules:
+        text = pattern.sub(replacement, text)
+
+    return text
+
+
+def merge_variables(variables):
+    merged = {}
+
+    for v in variables:
+        key = (v.storage, v.type, v.name, v.array)
+        old = merged.get(key, None)
+
+        merged[key] = v if old is None else old.merge(v)
+
+    return sorted(merged.values(), key=lambda x: (x.name, x.storage, x.type))
+
+
+def link_variables(vertex_variables, fragment_variables):
+    """
+    Merges the two stages' variables, unifying the qualifiers of each varying that
+    appears in both.
+    """
+
+    vertex = merge_variables(vertex_variables)
+    fragment = merge_variables(fragment_variables)
+
+    linked = {}
+
+    for v in vertex + fragment:
+        if v.storage != "varying":
+            continue
+
+        if v.name not in linked:
+            linked[v.name] = v
+            continue
+
+        old = linked[v.name]
+
+        # None for any name the stages disagree about
+        if old is None:
+            continue
+        elif (old.type, old.array) == (v.type, v.array):
+            linked[v.name] = old.merge(v)
+        else:
+            linked[v.name] = None
+
+    def relink(variables):
+        return [ linked.get(v.name) or v if v.storage == "varying" else v for v in variables ]
+
+    return relink(vertex), relink(fragment)
 
 
 def register_shader(name, **kwargs):
@@ -20,10 +363,45 @@ def register_shader(name, **kwargs):
         A string giving the name of the shader part. Names starting with an
         underscore or "renpy." are reserved for Ren'Py.
 
+    `glsl`
+        The GLSL dialect this shader part is written in: 300 for GLSL ES 3.00
+        or 100 for GLSL ES 1.00.
+
+        This defaults to None, meaning the part follows
+        :var:`config.glsl_version`: 300 for new games and 100 for games that
+        declare compatibility with Ren'Py 8.5 or earlier.
+
+        Ren'Py translates between the two dialects as needed, so a ``glsl=300``
+        part still runs on a device that only provides GLSL ES 1.00 unless it
+        uses a feature not present in the older version.
+
+        A part that doesn't declare a dialect, and would be treated as GLSL ES
+        3.00, is checked for constructs that only exist in GLSL ES 1.00 - such
+        as ``gl_FragColor``, ``texture2D``, ``attribute``, and ``varying``.
+        Finding one is an error, since it means the part was written for the
+        older dialect but did not declare as much.
+
+        Layout qualifiers are reserved for declaring additional fragment outputs
+        once multiple render targets are supported: location 0 is Ren'Py's
+        ``fragment_color``, and outputs declared by a shader part will start at 1.
+        A plain ``out`` will continue to mean a value passed from the vertex shader
+        to the fragment shader.
+
     `variables`
         The variables used by the shader part. These should be listed one per
-        line, a storage (uniform, attribute, or varying) followed by a type,
-        name, and semicolon. For example::
+        line, a storage class followed by a type, name, and semicolon.
+
+        With ``glsl=300``, the storage class is ``uniform``, ``in`` for a
+        value that comes from the mesh, or ``out`` for a value the vertex
+        shader passes to the fragment shader::
+
+            variables='''
+            uniform sampler2D tex0;
+            in vec2 a_tex_coord;
+            out vec2 v_tex_coord;
+            '''
+
+        With ``glsl=100``, it is ``uniform``, ``attribute``, or ``varying``::
 
             variables='''
             uniform sampler2D tex0;
@@ -45,7 +423,7 @@ def register_shader(name, **kwargs):
     with lower priority numbers inserted before higher priority numbers.
     """
 
-    ShaderPart(name, **kwargs)
+    return ShaderPart(name, **kwargs)
 
 
 class ShaderPart(object):
@@ -54,32 +432,82 @@ class ShaderPart(object):
 
     """
 
-    def __init__(self, name, variables="", vertex_functions="", fragment_functions="", **kwargs):
+    def __init__(
+        self,
+        name,
+        variables="",
+        vertex_functions="",
+        fragment_functions="",
+        private_uniforms=False,
+        glsl=None,
+        **kwargs,
+    ):
+        if not re.match(r"^[\w\.]+$", name):
+            raise Exception(
+                "The shader name {!r} contains an invalid character. Shader names are limited to ASCII alphanumeric characters, _, and .".format(
+                    name
+                )
+            )
 
-        if not re.match(r'^[\w\.]+$', name):
-            raise Exception("The shader name {!r} contains an invalid character. Shader names are limited to ASCII alphanumeric characters, _, and .".format(name))
+        if (glsl is not None) and (glsl not in GLSL_DIALECTS):
+            options = ", or ".join(
+                "glsl={} (or the equivalent glsl={}) for {}".format(gles, desktop, dialect_name(d))
+                for d, (gles, desktop) in sorted(DIALECT_VERSIONS.items())
+            )
+
+            raise Exception("In shader {}: glsl={!r} is not a known GLSL dialect. Use {}.".format(name, glsl, options))
 
         self.name = name
         shader_part[name] = self
 
-        self.vertex_functions = vertex_functions
-        self.fragment_functions = fragment_functions
+        self.declared_glsl = GLSL_DIALECTS[glsl] if (glsl is not None) else None
+
+        # True once this part has been checked for legacy constructs.
+        self.checked_glsl = False
+
+        # The dialect inferred for a part that doesn't declare one, but uses
+        # constructs that only exist in the oldest dialect.
+        self.inferred_glsl = None
+
+        # The oldest dialect this part can be emitted in and the construct that
+        # requires it.
+        self.found_dialect = None
+        self.found_feature = None
+
+        # The legacy storage qualifier this part declared a variable with, if
+        # any.
+        self.legacy_storage = None
+
+        self.vertex_functions = self.substitute_name(vertex_functions)
+        self.fragment_functions = self.substitute_name(fragment_functions)
 
         # A list of priority, text pairs for each section of the vertex and fragment shaders.
-        self.vertex_parts = [ ]
-        self.fragment_parts = [ ]
+        self.vertex_parts = []
+        self.fragment_parts = []
 
         # Sets of (storage, type, name) tuples, where storage is one of 'uniform', 'attribute', or 'varying',
         self.vertex_variables = set()
         self.fragment_variables = set()
 
+        # A map from variable name to type.
+        self.variable_types = {}
+
         # A sets of variable names used in the vertex and fragments shader.
         vertex_used = set()
         fragment_used = set()
 
-        for k, v in kwargs.items():
+        for m in re.finditer(r"\b\w+\b", self.vertex_functions):
+            vertex_used.add(m.group(0))
 
-            shader, _, priority = k.partition('_')
+        for m in re.finditer(r"\b\w+\b", self.fragment_functions):
+            fragment_used.add(m.group(0))
+
+        self.uniforms = []
+
+        for k, v in kwargs.items():
+            shader, _, priority = k.partition("_")
+
+            v = self.substitute_name(v)
 
             if not priority:
                 # Trigger error handling.
@@ -87,7 +515,7 @@ class ShaderPart(object):
 
             try:
                 priority = int(priority)
-            except:
+            except Exception:
                 shader = None
 
             if shader == "vertex":
@@ -99,84 +527,420 @@ class ShaderPart(object):
             else:
                 raise Exception("Keyword arguments to ShaderPart must be of the form {vertex,fragment}_{priority}.")
 
-            parts.append((priority, v))
+            parts.append((priority, name, v))
 
-            for m in re.finditer(r'\b\w+\b', v):
+            for m in re.finditer(r"\b\w+\b", v):
                 used.add(m.group(0))
 
-        for l in variables.split("\n"):
-            l = l.strip(' ;')
+        variables = self.substitute_name(variables)
 
-            a = l.split()
-            if not a:
+        for l in variables.split("\n"):
+            l = l.partition("//")[0]
+            l = l.strip()
+            if not l:
                 continue
 
-            a = tuple(a)
+            if self.legacy_storage is None:
+                m = re.search(r"\b(attribute|varying)\b", l)
 
-            if len(a) != 3:
-                raise Exception("{}: Unknown shader variable line {!r}. Only the form '{{uniform,attribute,vertex}} {{type}} {{name}} is allowed.".format(self.name, l))
+                if m is not None:
+                    self.legacy_storage = m.group(1)
 
-            kind = a[0]
-            name = a[2]
+            v = renpy.gl2.gl2shader.Variable(self.name, l)
 
-            if name in vertex_used:
-                self.vertex_variables.add(a)
+            if v.storage not in {"uniform", "attribute", "varying"}:
+                raise Exception(
+                    "In shader {}: Unknown shader variable line {!r}. Only the form '{{uniform,in,out}} {{type}} {{name}};' is allowed, or the equivalent '{{uniform,attribute,varying}} {{type}} {{name}};'.".format(
+                        self.name, l
+                    )
+                )
 
-            if name in fragment_used:
-                self.fragment_variables.add(a)
+            if v.array:
+                self.variable_types[v.name] = v.type + "[]"
+            else:
+                self.variable_types[v.name] = v.type
 
-            if kind == "uniform":
-                renpy.display.transform.add_uniform(name)
+            if v.name in vertex_used:
+                self.vertex_variables.add(v)
+
+            if v.name in fragment_used:
+                self.fragment_variables.add(v)
+
+            if v.storage == "uniform" and not private_uniforms:
+                renpy.display.transform.add_uniform(v.name, v.type)
+
+            if v.storage == "uniform":
+                self.uniforms.append(v.name)
 
         self.raw_variables = variables
+
+        cache_data = (
+            self.name,
+            self.declared_glsl,
+            self.raw_variables,
+            self.vertex_functions,
+            self.fragment_functions,
+            self.vertex_parts,
+            self.fragment_parts,
+        )
+
+        self.cache_digest = hashlib.sha256(
+            json.dumps(cache_data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        ).digest()
+
+    @property
+    def glsl(self):
+        """
+        The dialect this part is written in, one of DIALECTS.
+
+        A part that didn't declare one follows config.glsl_version, unless it uses a construct that only exists
+        in the oldest dialect, in which case it's treated as being written in that dialect.
+        """
+
+        if self.declared_glsl is not None:
+            return self.declared_glsl
+
+        rv = config_dialect()
+
+        if not self.checked_glsl:
+            if rv > DIALECTS[0]:
+                found = self.find_legacy_syntax()
+
+                if found is not None:
+                    legacy, modern = found
+                    oldest = DIALECTS[0]
+
+                    renpy.display.log.write(
+                        "Shader part %s uses %s, which only exists in %s, and doesn't declare a dialect. "
+                        "Treating it as %s. Pass glsl=%d to renpy.register_shader, or rewrite it for %s "
+                        "(%s becomes %s) and pass glsl=%d.",
+                        self.name,
+                        legacy,
+                        dialect_name(oldest),
+                        dialect_name(oldest),
+                        oldest,
+                        dialect_name(rv),
+                        legacy,
+                        modern,
+                        rv,
+                    )
+
+                    self.inferred_glsl = oldest
+            else:
+                # A part that says nothing is checked against the dialect it's been given.
+                self.check_modern_syntax(rv)
+
+            self.checked_glsl = True
+
+        if self.inferred_glsl is not None:
+            return self.inferred_glsl
+
+        return rv
+
+    @property
+    def minimum_dialect(self):
+        if self.found_dialect is None:
+            self.find_minimum_dialect()
+
+        return self.found_dialect
+
+    @property
+    def minimum_feature(self):
+        if self.found_dialect is None:
+            self.find_minimum_dialect()
+
+        return self.found_feature
+
+    def find_minimum_dialect(self):
+        text = self.part_source()
+
+        found = DIALECTS[0]
+        feature = None
+
+        for dialect in DIALECTS:
+            if dialect <= found:
+                continue
+
+            name = next((n for pattern, n in UNTRANSLATED_MARKERS.get(dialect, []) if pattern.search(text)), None)
+
+            if name is None:
+                name = self.untranslated_interpolation(dialect)
+
+            if name is None:
+                name = self.untranslated_type(dialect)
+
+            if name is not None:
+                found = dialect
+                feature = name
+
+        self.found_dialect = found
+        self.found_feature = feature
+
+    def untranslated_type(self, dialect):
+        types = UNTRANSLATED_TYPES.get(dialect, ())
+
+        for v in self.vertex_variables | self.fragment_variables:
+            if (v.storage != "uniform") and (v.type in types):
+                return "{} {}".format(v.type, v.name)
+
+        return None
+
+    def untranslated_interpolation(self, dialect):
+        if dialect < 300:
+            return None
+
+        for v in self.vertex_variables | self.fragment_variables:
+            interpolation = getattr(v, "interpolation", None)
+
+            if interpolation in {"flat", "noperspective"}:
+                return f"{interpolation} interpolation on {v.name}"
+
+        return None
+
+    def part_source(self):
+        """
+        Every chunk of GLSL this part supplies, with comments stripped.
+        """
+
+        sources = [self.vertex_functions, self.fragment_functions]
+        sources.extend(i[2] for i in self.vertex_parts)
+        sources.extend(i[2] for i in self.fragment_parts)
+
+        return GLSL_COMMENTS.sub(" ", "\n".join(i for i in sources if i))
+
+    def check_modern_syntax(self, dialect):
+        """
+        Raises if this part uses a construct from a dialect newer than
+        `dialect`, the one it's being treated as being written in.
+        """
+
+        # A part that also uses the legacy dialect is legacy
+        if self.legacy_storage is not None:
+            return
+
+        text = self.part_source()
+
+        for pattern, _legacy, _modern in LEGACY_MARKERS:
+            if pattern.search(text):
+                return
+
+        for newer, pattern, name in newer_markers(dialect):
+            if pattern.search(text):
+                raise Exception(
+                    f"Shader part {self.name} uses {name}, which needs {dialect_name(newer)}, but doesn't "
+                    f"declare a dialect. Pass glsl={newer} to renpy.register_shader or rewrite it for "
+                    f"{dialect_name(dialect)}."
+                )
+
+    def find_legacy_syntax(self):
+        """
+        Returns a (legacy, modern) pair naming a construct this part uses that only exists in the oldest dialect
+        and its modern spelling, or None if there isn't one.
+        """
+
+        if self.legacy_storage is not None:
+            return (self.legacy_storage, LEGACY_STORAGE[self.legacy_storage])
+
+        text = self.part_source()
+
+        for pattern, legacy, modern in LEGACY_MARKERS:
+            if pattern.search(text):
+                return (legacy, modern)
+
+        return None
+
+    def expand_name(self, s):
+        """
+        Expands names starting with u__, a__, and v__ to include the shader part name.
+        """
+
+        name = self.name.replace(".", "_")
+
+        if s.startswith("u__"):
+            return "u_" + name + "_" + s[3:]
+        elif s.startswith("a__"):
+            return "a_" + name + "_" + s[3:]
+        elif s.startswith("v__"):
+            return "v_" + name + "_" + s[3:]
+        elif s.startswith("l__"):
+            return "l_" + name + "_" + s[3:]
+        else:
+            return s
+
+    def expand_match(self, m):
+        """
+        Expands a match object using expand_name.
+        """
+
+        return self.expand_name(m.group(0))
+
+    def expand_operation(self, m):
+        """
+        Expands an operation match object using expand_name.
+        """
+
+        return "u_{}_OP_{}".format(m.group(1), m.group(2))
+
+    def substitute_name(self, s):
+        rv = re.sub(r"\b[uavl]__\w+", self.expand_match, s)
+        rv = re.sub(r"\bu_(\w+)__(\w+)", self.expand_operation, rv)
+        return rv
 
 
 # A map from a tuple giving the parts that comprise a shader, to the Shader
 # object. The same shader might appear multiple times, to optimize performance.
-cache = { }
+cache = {}
 
 
-def source(variables, parts, functions, fragment, gles):
+def source(variables, parts, functions, fragment, gles, version):
     """
     Given lists of variables and parts, converts them into textual source
     code for a shader.
 
     `fragment`
         Should be set to true to generate the code for a fragment shader.
+
+    `gles`
+        True if this is an OpenGL ES context.
+
+    `version`
+        The GLSL version to emit, one of 100, 120, 300, or 330.
     """
 
-    rv = [ ]
+    rv = []
 
-    if gles:
-        rv.append("""\
-#version 100
-""")
-
-        if fragment:
-            rv.append("""\
-precision mediump float;
-""")
-
+    # The es suffix is what distinguishes GLSL ES from desktop GLSL, and it's
+    # required from GLSL ES 3.00 on.
+    if gles and version >= 300:
+        rv.append("#version {} es\n".format(version))
     else:
-        rv.append("""\
-#version 120
+        rv.append("#version {}\n".format(version))
+
+    # Fragment shaders below GLSL ES 3.00 have to declare a default precision.
+    if fragment and gles:
+        if version >= 300:
+            rv.append("""\
+precision highp float;
+precision highp int;
+""")
+        else:
+            rv.append("""\
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+    precision highp float;
+    precision highp int;
+#else
+    precision mediump float;
+    precision mediump int;
+#endif
 """)
 
-    rv.extend(functions)
+    # gl_FragColor does not exist in the modern dialect.
+    if fragment and version >= 300:
+        rv.append("layout(location = 0) out vec4 {};\n".format(FRAGMENT_OUTPUT))
 
-    for storage, type_, name in sorted(variables):
-        rv.append("{} {} {};\n".format(storage, type_, name))
+    for v in merge_variables(variables):
+        rv.append(v.declaration(fragment, gles, version) + ";\n")
 
-    rv.append("\nvoid main() {\n")
+    body = []
+
+    for text, glsl in functions:
+        body.append(translate(text, glsl, version))
+
+    body.append("\nvoid main() {\n")
 
     parts.sort()
 
-    for _, part in parts:
-        rv.append(part)
+    for _, _, part, glsl in parts:
+        body.append(translate(part, glsl, version))
 
-    rv.append("}\n")
+    body.append("}\n")
+
+    body = "".join(body)
+
+    if fragment and version < 300:
+        extension, suffix = LOD_EXTENSION[gles]
+        body, count = LOD_FUNCTIONS.subn(r"\g<1>{}(".format(suffix), body)
+
+        if count:
+            rv.insert(1, "#extension {} : require\n".format(extension))
+
+    rv.append(body)
 
     return "".join(rv)
+
+
+shader_part_filter_cache = {}
+
+# File version changes when the record layout changes. Recipe version changes
+# whenever shader source generation changes in a way that can make an
+# old program binary incompatible with the current engine.
+PROGRAM_CACHE_MAGIC = b"renpy shader programs\x00\x00"
+PROGRAM_CACHE_RECIPE = b"renpy shader recipe\x00\x00"
+PROGRAM_CACHE_RECORD = "<32s32sIIIII"
+PROGRAM_CACHE_RECORD_SIZE = struct.calcsize(PROGRAM_CACHE_RECORD)
+MAX_PROGRAM_BINARY_SIZE = 16 * 1024 * 1024
+MAX_PROGRAM_SOURCE_SIZE = 4 * 1024 * 1024
+MAX_PROGRAM_VARIABLES_SIZE = 1024 * 1024
+MAX_PROGRAM_CACHE_SIZE = 256 * 1024 * 1024
+
+
+def shader_program_key(partnames, version):
+    rv = hashlib.sha256(struct.pack("<I", version))
+    rv.update("\x00".join(partnames).encode("utf-8"))
+    return rv.digest()
+
+
+def shader_recipe_digest(partnames, gles, version):
+    rv = hashlib.sha256(PROGRAM_CACHE_RECIPE)
+    rv.update(struct.pack("<BII", bool(gles), version, config_dialect()))
+
+    for name in partnames:
+        part = shader_part.get(name, None)
+
+        if part is None:
+            raise Exception("{!r} is not a known shader part.".format(name))
+
+        name_bytes = name.encode("utf-8")
+        rv.update(struct.pack("<I", len(name_bytes)))
+        rv.update(name_bytes)
+        rv.update(part.cache_digest)
+
+    return rv.digest()
+
+
+def program_cache_entry_size(key, entry):
+    return sys.getsizeof(key) + sys.getsizeof(entry) + sum(sys.getsizeof(value) for value in entry)
+
+
+def decode_program_variable_specs(data):
+    specs = json.loads(data.decode("utf-8"))
+
+    if not isinstance(specs, list):
+        raise ValueError("Shader variable metadata is not a list.")
+
+    rv = []
+
+    for spec in specs:
+        if not isinstance(spec, list) or len(spec) != 5:
+            raise ValueError("Shader variable metadata has an invalid entry.")
+
+        storage, variable_type, name, array, fragment = spec
+
+        if storage not in ("uniform", "attribute"):
+            raise ValueError("Shader variable metadata has an invalid storage class.")
+
+        if not isinstance(variable_type, str) or not isinstance(name, str):
+            raise ValueError("Shader variable metadata has an invalid type or name.")
+
+        if array is not None and (not isinstance(array, int) or isinstance(array, bool) or array < 1):
+            raise ValueError("Shader variable metadata has an invalid array size.")
+
+        if not isinstance(fragment, bool):
+            raise ValueError("Shader variable metadata has an invalid stage.")
+
+        rv.append((storage, variable_type, name, array, fragment))
+
+    return tuple(rv)
 
 
 class ShaderCache(object):
@@ -186,8 +950,7 @@ class ShaderCache(object):
     loading the shaders back into the cache.
     """
 
-    def __init__(self, filename, gles):
-
+    def __init__(self, filename, gles, glsl_version=None, driver=None, binary_supported=False):
         # The filename that we'll load the list of shaders from, and
         # persist it to.
         self.filename = filename
@@ -195,9 +958,37 @@ class ShaderCache(object):
         # Are we gles?
         self.gles = gles
 
+        # The GLSL version the context reports supporting, or None if it
+        # couldn't be determined.
+        self.glsl_version = glsl_version
+
+        # The version shaders are emitted in. This may be lowered later, if a
+        # shader turns out not to compile at the version we picked.
+        forced = os.environ.get("RENPY_GLSL_VERSION", None)
+
+        if forced is not None:
+            if forced.strip() not in [str(i) for i in GLSL_VERSIONS]:
+                raise Exception(
+                    "RENPY_GLSL_VERSION is {!r}, which is not one of {}.".format(
+                        forced, ", ".join(str(i) for i in GLSL_VERSIONS)
+                    )
+                )
+
+            self.version = dialect_version(gles, GLSL_DIALECTS[int(forced)])
+
+            self.pinned = True
+        else:
+            self.version = emit_version(gles, glsl_version)
+
+            self.pinned = False
+
+        # Part names that have been reported as being downgraded out of the
+        # modern dialect, so that it's only reported once per part.
+        self.downgraded = set()
+
         # A map from tuples of partnames to the shaders that have been
         # created.
-        self.cache = { }
+        self.cache = {}
 
         # A set of tuples of partnames corresponding to shaders that existed
         # in the past, but do not exist now.
@@ -206,19 +997,229 @@ class ShaderCache(object):
         # True if this is dirty, and should be saved to the cache.
         self.dirty = False
 
-    def get(self, partnames):
-        """
-        Gets a shader, creating it if necessary.
+        self.program_cache_filename = None
+        self.program_cache = {}
+        self.program_cache_loaded = False
+        self.program_cache_dirty = False
+        self.program_binary_supported = binary_supported and renpy.config.gl_program_cache
+        self.program_cache_size = 0
 
-        `partnames`
-            A tuple of strings, giving the names of the shader parts to include in
-            the cache.
-        """
+        if self.program_binary_supported and driver is not None and renpy.config.savedir is not None:
+            identity = [str(int(gles))]
+            identity.extend(str(i) for i in driver)
+            driver_digest = hashlib.sha256("\x00".join(identity).encode("utf-8")).hexdigest()
+            cache_directory = os.environ.get("RENPY_GL_PROGRAM_CACHE_DIR", renpy.config.savedir.rstrip("/\\") + "-cache")
+            self.program_cache_filename = os.path.join(cache_directory, "shaders-{}.rpyb".format(driver_digest))
 
-        rv = self.cache.get(partnames, None)
-        if rv is not None:
-            return rv
+        if self.program_cache_filename is None or os.environ.get("RENPY_GL_PROGRAM_CACHE") == "0":
+            self.program_binary_supported = False
 
+        # Shader combinations waiting to be compiled in prediction order.
+        self.predicted = collections.OrderedDict()
+
+    def load_program_cache(self):
+        if self.program_cache_loaded:
+            return
+
+        self.program_cache_loaded = True
+
+        if not self.program_binary_supported:
+            return
+
+        try:
+            program_cache = {}
+            memory_size = 0
+
+            with open(self.program_cache_filename, "rb") as f:
+                if os.fstat(f.fileno()).st_size > MAX_PROGRAM_CACHE_SIZE:
+                    return
+
+                if f.read(len(PROGRAM_CACHE_MAGIC)) != PROGRAM_CACHE_MAGIC:
+                    return
+
+                file_size = len(PROGRAM_CACHE_MAGIC)
+
+                while True:
+                    header = f.read(PROGRAM_CACHE_RECORD_SIZE)
+
+                    if not header:
+                        break
+
+                    key, recipe_digest, binary_format, binary_length, vertex_length, fragment_length, variables_length = struct.unpack(PROGRAM_CACHE_RECORD, header)
+
+                    if not 0 < binary_length <= MAX_PROGRAM_BINARY_SIZE:
+                        return
+
+                    if vertex_length > MAX_PROGRAM_SOURCE_SIZE or fragment_length > MAX_PROGRAM_SOURCE_SIZE:
+                        return
+
+                    if variables_length > MAX_PROGRAM_VARIABLES_SIZE:
+                        return
+
+                    lengths = (binary_length, vertex_length, fragment_length, variables_length)
+                    file_size += PROGRAM_CACHE_RECORD_SIZE + sum(lengths)
+
+                    if file_size > MAX_PROGRAM_CACHE_SIZE:
+                        return
+
+                    payloads = tuple(f.read(length) for length in lengths)
+
+                    if any(len(data) != length for data, length in zip(payloads, lengths)):
+                        return
+
+                    if key in program_cache:
+                        return
+
+                    entry = (recipe_digest, binary_format) + payloads
+                    entry_size = program_cache_entry_size(key, entry)
+                    program_cache[key] = entry
+
+                    if memory_size + entry_size + sys.getsizeof(program_cache) > MAX_PROGRAM_CACHE_SIZE:
+                        del program_cache[key]
+                    else:
+                        memory_size += entry_size
+
+            self.program_cache = program_cache
+            self.program_cache_size = memory_size
+        except (OSError, ValueError, struct.error):
+            return
+
+    def discard_program_binary(self, key):
+        entry = self.program_cache.pop(key, None)
+
+        if entry is not None:
+            self.program_cache_size -= program_cache_entry_size(key, entry)
+            self.program_cache_dirty = True
+
+            if not self.program_cache:
+                self.program_cache = {}
+
+    def get_program_binary(self, partnames, version, recipe_digest):
+        self.load_program_cache()
+
+        key = shader_program_key(partnames, version)
+        entry = self.program_cache.get(key, None)
+
+        if entry is None:
+            return None
+
+        cached_digest, binary_format, binary, vertex, fragment, variables = entry
+
+        if cached_digest != recipe_digest:
+            self.discard_program_binary(key)
+
+            return None
+
+        try:
+            return (binary_format, binary), vertex.decode("utf-8"), fragment.decode("utf-8"), decode_program_variable_specs(variables)
+        except (UnicodeError, ValueError, RecursionError):
+            self.discard_program_binary(key)
+
+            return None
+
+    def store_program_binary(self, partnames, version, recipe_digest, program):
+        if not self.program_binary_supported:
+            return
+
+        try:
+            binary = program.get_binary()
+
+            if binary is None:
+                return
+
+            binary_format, binary_data = binary
+            vertex = program.vertex.encode("utf-8")
+            fragment = program.fragment.encode("utf-8")
+            variables = json.dumps(program.variable_specs, separators=(",", ":")).encode("utf-8")
+
+            if not 0 < len(binary_data) <= MAX_PROGRAM_BINARY_SIZE:
+                return
+
+            if len(vertex) > MAX_PROGRAM_SOURCE_SIZE or len(fragment) > MAX_PROGRAM_SOURCE_SIZE:
+                return
+
+            if len(variables) > MAX_PROGRAM_VARIABLES_SIZE:
+                return
+
+            key = shader_program_key(partnames, version)
+            entry = (recipe_digest, binary_format, binary_data, vertex, fragment, variables)
+            entry_size = program_cache_entry_size(key, entry)
+
+            if entry_size + sys.getsizeof({key: entry}) > MAX_PROGRAM_CACHE_SIZE:
+                return
+
+            self.discard_program_binary(key)
+            self.program_cache[key] = entry
+            self.program_cache_size += entry_size
+
+            while self.program_cache_size + sys.getsizeof(self.program_cache) > MAX_PROGRAM_CACHE_SIZE:
+                self.discard_program_binary(next(iter(self.program_cache)))
+
+            self.program_cache_dirty = True
+        except Exception:
+            renpy.display.log.write("Could not cache shader program %r.", partnames)
+            renpy.display.log.exception()
+
+    def save_program_cache(self):
+        if not self.program_cache_dirty or not self.program_binary_supported:
+            return
+
+        tmp = None
+
+        try:
+            directory = os.path.dirname(self.program_cache_filename)
+            os.makedirs(directory, exist_ok=True)
+
+            with tempfile.NamedTemporaryFile(mode="wb", dir=directory, prefix="shaders-", suffix=".tmp", delete=False) as f:
+                tmp = f.name
+                f.write(PROGRAM_CACHE_MAGIC)
+
+                for key, entry in self.program_cache.items():
+                    recipe_digest, binary_format, binary, vertex, fragment, variables = entry
+
+                    f.write(struct.pack(
+                        PROGRAM_CACHE_RECORD,
+                        key,
+                        recipe_digest,
+                        binary_format,
+                        len(binary),
+                        len(vertex),
+                        len(fragment),
+                        len(variables),
+                    ))
+
+                    f.write(binary)
+                    f.write(vertex)
+                    f.write(fragment)
+                    f.write(variables)
+
+            os.replace(tmp, self.program_cache_filename)
+            tmp = None
+
+            self.program_cache_dirty = False
+        except Exception:
+            renpy.display.log.write("Saving shader program cache to {!r}:".format(self.program_cache_filename))
+            renpy.display.log.exception()
+        finally:
+            if tmp is not None:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+
+    def _filter_partnames(self, partnames):
+        if renpy.config.shader_part_filter is None:
+            return partnames
+
+        new_partnames = shader_part_filter_cache.get(partnames, None)
+
+        if new_partnames is None:
+            new_partnames = renpy.config.shader_part_filter(partnames)
+            shader_part_filter_cache[partnames] = new_partnames
+
+        return new_partnames
+
+    def _normalize_partnames(self, partnames):
         partnameset = set()
         partnamenotset = set()
 
@@ -233,49 +1234,211 @@ class ShaderCache(object):
         if "renpy.ftl" not in partnameset:
             partnameset.add(renpy.config.default_shader)
 
-        sortedpartnames = tuple(sorted(partnameset))
+        return tuple(sorted(partnameset))
+
+    def predict(self, partnames):
+        partnames = self._filter_partnames(partnames)
+
+        if partnames in self.cache:
+            return
+
+        normalized = self._normalize_partnames(partnames)
+
+        if normalized in self.cache:
+            return
+
+        self.predicted.setdefault(normalized, partnames)
+
+    def preload_predicted(self):
+        while self.predicted:
+            normalized, partnames = self.predicted.popitem(last=False)
+
+            if normalized in self.cache:
+                continue
+
+            try:
+                self._get_filtered(partnames)
+            except Exception:
+                if renpy.config.debug_prediction:
+                    raise
+
+            return True
+
+        return False
+
+    def get(self, partnames):
+        """
+        Gets a shader, creating it if necessary.
+
+        `partnames`
+            A tuple of strings, giving the names of the shader parts to include in
+            the cache.
+        """
+
+        if renpy.config.shader_part_filter is not None:
+            partnames = self._filter_partnames(partnames)
+
+        rv = self.cache.get(partnames, None)
+
+        if rv is not None:
+            return rv
+
+        return self._get_filtered(partnames)
+
+    def _get_filtered(self, partnames):
+        rv = self.cache.get(partnames, None)
+
+        if rv is not None:
+            return rv
+
+        sortedpartnames = self._normalize_partnames(partnames)
 
         rv = self.cache.get(sortedpartnames, None)
         if rv is not None:
             self.cache[partnames] = rv
             return rv
 
+        from renpy.gl2.gl2shader import Program, ShaderError
+
+        def recipe(version):
+            if self.program_binary_supported:
+                return shader_recipe_digest(sortedpartnames, self.gles, version)
+
+            return None
+
+        def cached_program(version, recipe_digest):
+            if not self.program_binary_supported:
+                return None
+
+            key = shader_program_key(sortedpartnames, version)
+
+            try:
+                entry = self.get_program_binary(sortedpartnames, version, recipe_digest)
+
+                if entry is None:
+                    return None
+
+                binary, vertex, fragment, variable_specs = entry
+                rv = Program(sortedpartnames, vertex, fragment, variable_specs)
+
+                if rv.load_binary(binary):
+                    return rv
+            except Exception:
+                renpy.display.log.write("Could not load cached shader program %r.", sortedpartnames)
+                renpy.display.log.exception()
+
+            self.discard_program_binary(key)
+
+            return None
+
+        current_recipe = recipe(self.version)
+        rv = cached_program(self.version, current_recipe)
+
+        if rv is not None:
+            self.cache[partnames] = rv
+            self.cache[sortedpartnames] = rv
+
+            self.dirty = True
+
+            return rv
+
         # If the cache missed entirely, we have to generate the source code for the
         # shaders.
 
-        vertex_variables = set()
-        vertex_parts = [ ]
-        vertex_functions = [ ]
+        vertex_variables = []
+        vertex_parts = []
+        vertex_functions = []
 
-        fragment_variables = set()
-        fragment_parts = [ ]
-        fragment_functions = [ ]
+        fragment_variables = []
+        fragment_parts = []
+        fragment_functions = []
 
         for i in sortedpartnames:
-
             p = shader_part.get(i, None)
 
             if p is None:
                 raise Exception("{!r} is not a known shader part.".format(i))
 
-            vertex_variables |= p.vertex_variables
-            vertex_parts.extend(p.vertex_parts)
-            vertex_functions.append(p.vertex_functions)
+            glsl = p.glsl
 
-            fragment_variables |= p.fragment_variables
-            fragment_parts.extend(p.fragment_parts)
-            fragment_functions.append(p.fragment_functions)
+            if p.minimum_dialect > GLSL_DIALECTS[self.version] and i not in self.downgraded:
+                self.downgraded.add(i)
 
-        vertex = source(vertex_variables, vertex_parts, vertex_functions, False, self.gles)
-        fragment = source(fragment_variables, fragment_parts, fragment_functions, True, self.gles)
+                renpy.display.log.write(
+                    "Shader part %r uses %s, which needs %s, but shaders are being emitted as GLSL %s "
+                    "(this system reports GLSL %s). It will be translated, but may not compile.",
+                    i,
+                    p.minimum_feature,
+                    dialect_name(p.minimum_dialect),
+                    self.version,
+                    self.glsl_version,
+                )
 
-        self.log_shader("vertex", sortedpartnames, vertex)
-        self.log_shader("fragment", sortedpartnames, fragment)
+            vertex_variables.extend(p.vertex_variables)
+            vertex_parts.extend((prio, nm, text, glsl) for prio, nm, text in p.vertex_parts)
+            vertex_functions.append((p.vertex_functions, glsl))
 
-        from renpy.gl2.gl2shader import Program
+            fragment_variables.extend(p.fragment_variables)
+            fragment_parts.extend((prio, nm, text, glsl) for prio, nm, text in p.fragment_parts)
+            fragment_functions.append((p.fragment_functions, glsl))
 
-        rv = Program(sortedpartnames, vertex, fragment)
-        rv.load()
+        # A varying's two halves come from different parts, so its qualifiers are only
+        # consistent once both stages have been considered together.
+        vertex_variables, fragment_variables = link_variables(vertex_variables, fragment_variables)
+
+        def build(version, recipe_digest, check_cache):
+            if check_cache:
+                cached = cached_program(version, recipe_digest)
+
+                if cached is not None:
+                    return cached
+
+            vertex = source(vertex_variables, vertex_parts, vertex_functions, False, self.gles, version)
+            fragment = source(fragment_variables, fragment_parts, fragment_functions, True, self.gles, version)
+
+            self.log_shader("vertex", sortedpartnames, vertex)
+            self.log_shader("fragment", sortedpartnames, fragment)
+
+            rv = Program(sortedpartnames, vertex, fragment)
+
+            if self.program_binary_supported:
+                rv.make_binary_retrievable()
+
+            rv.load()
+            self.store_program_binary(sortedpartnames, version, recipe_digest, rv)
+
+            return rv
+
+        try:
+            rv = build(self.version, current_recipe, False)
+
+        except ShaderError as e:
+            # The context claimed to support the version we picked, but this
+            # shader didn't survive being emitted in it. Drop back to the oldest
+            # dialect every part in it can be emitted in, for the rest of the
+            # session.
+
+            dialect = max(shader_part[i].minimum_dialect for i in sortedpartnames)
+
+            fallback = dialect_version(self.gles, dialect)
+
+            if self.pinned or (fallback >= self.version):
+                raise
+
+            failed_version = self.version
+            fallback_recipe = recipe(fallback)
+            rv = build(fallback, fallback_recipe, True)
+            self.version = fallback
+
+            renpy.display.log.write(
+                "Shader %r did not compile as GLSL %s, so shaders will be emitted as GLSL %s "
+                "for the rest of this session. This system reports supporting GLSL %s. The error was: %s",
+                sortedpartnames,
+                failed_version,
+                fallback,
+                self.glsl_version,
+                e,
+            )
 
         self.cache[partnames] = rv
         self.cache[sortedpartnames] = rv
@@ -301,6 +1464,8 @@ class ShaderCache(object):
         Saves the list of shaders to the file.
         """
 
+        self.save_program_cache()
+
         if not self.dirty:
             return
 
@@ -314,22 +1479,22 @@ class ShaderCache(object):
 
             tmp = fn + ".tmp"
 
-            with io.open(tmp, "w", encoding="utf-8") as f:
+            with open(tmp, "w", encoding="utf-8") as f:
                 shaders = set(self.cache.keys()) | self.missing
 
-                for i in shaders:
-                    f.write(u" ".join(i) + "\r\n")
+                for i in sorted(shaders):
+                    f.write(" ".join(i) + "\n")
 
             try:
                 os.unlink(fn)
-            except:
+            except Exception:
                 pass
 
             os.rename(tmp, fn)
 
             self.dirty = False
 
-        except:
+        except Exception:
             renpy.display.log.write("Saving shaders to {!r}:".format(fn))
             renpy.display.log.exception()
 
@@ -342,7 +1507,7 @@ class ShaderCache(object):
         try:
             with renpy.loader.load(self.filename) as f:
                 for l in f:
-                    l = l.strip()
+                    l = l.strip().decode("utf-8")
                     partnames = tuple(l.strip().split())
 
                     if not partnames:
@@ -354,11 +1519,11 @@ class ShaderCache(object):
 
                     try:
                         self.get(partnames)
-                    except:
+                    except Exception:
                         renpy.display.log.write("Precompiling shader {!r}:".format(partnames))
                         renpy.display.log.exception()
                         self.missing.add(partnames)
-        except:
+        except Exception:
             renpy.display.log.write("Could not open {!r}:".format(self.filename))
             return
 
@@ -369,6 +1534,7 @@ class ShaderCache(object):
 
         self.cache.clear()
         self.missing.clear()
+        self.predicted.clear()
 
     def log_shader(self, kind, partnames, text):
         """
@@ -384,4 +1550,3 @@ class ShaderCache(object):
         renpy.display.log.write("%s", name)
         renpy.display.log.write("%s", text)
         renpy.display.log.write("-" * 80)
-

@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -86,13 +86,13 @@ init python:
         pref("All Messages", "skip_unseen", True)
 
         if not main_menu:
-            ime.button("Begin Skipping", Jump("_return_skipping"), False)
+            ime.button("Begin Skipping", ui.jumps("_return_skipping"), False)
 
         pref("Stop Skipping", "skip_after_choices", False)
         pref("Keep Skipping", "skip_after_choices", True)
 
         if renpy.display.joystick.enabled or config.always_has_joystick:
-            ime.button("Joystick", Jump("joystick_preferences_screen"), False)
+            ime.button("Joystick", ui.jumps("joystick_preferences_screen"), False)
 
         def play_sound():
             renpy.music.play(config.sample_sound, channel="sound")
@@ -151,22 +151,7 @@ init python:
             ime.bar("Voice Volume", 128, int(_preferences.get_volume('voice') * 128), set_voice)
 
         ime.close()
-
-        use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
-        if ime.show_default_nav and not use_sl2_nav:
-            layout.navigation("preferences")
-
-        renpy.show_screen(
-            "_imagemap_preferences",
-            ime=ime,
-            use_sl2_nav=use_sl2_nav,
-            _transient=True)
-
         ui.interact(mouse="gamemenu")
-
-screen _imagemap_preferences(ime, use_sl2_nav=True):
-
-    use _imagemap_contents(ime, use_sl2_nav=use_sl2_nav)
 
 label preferences_screen:
 

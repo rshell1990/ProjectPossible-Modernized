@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -19,62 +19,92 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from renpy.compat import *
-
 
 # Allow pickling NoneType.
-if PY2:
-    import __builtin__
-    __builtin__.NoneType = type(None)
-else:
-    import builtins
-    builtins.NoneType = type(None)
+import builtins
+import functools
+import inspect
+from collections.abc import Callable
+from typing import Any
+
+builtins.NoneType = type(None)  # type: ignore
 
 
-class Object(object):
+class Object:
     """
     Our own base class. Contains methods to simplify serialization.
     """
 
     __version__ = 0
+    """
+    Version of the type. Setting this on instance would be silently ignored.
+    This is used when type is changed in a way that requires a some extra
+    work to be done when unpickling the object. When you only add a new field,
+    you could use class variable with a sensible default value.
+    """
 
-    nosave = [ ]
+    nosave = []
+    """
+    A list of field names that would be automatically removed from the
+    pickle data. This is used to prevent storing unpickleable, cached
+    or otherwise unnecessary data.
+
+    This is a class variable, and setting it on an instance would be
+    silently ignored.
+    """
 
     def __getstate__(self):
-        rv = vars(self).copy()
+        rv = self.__dict__.copy()
 
         for f in self.nosave:
-            if f in rv:
-                del rv[f]
+            rv.pop(f, None)
 
         rv["__version__"] = self.__version__
 
         return rv
 
-    # None, to prevent this from being called when unnecessary.
     after_setstate = None
+    """
+    If not None, this should be a method that is called with no arguments
+    after the object is unpickled.
+
+    This is mostly used to set values for `nosave` fields.
+    """
+
+    def after_upgrade(self, version):
+        """
+        This is called after the object is unpickled, and the version
+        in pickled object is different from the version of the type.
+        `version` is the version of the pickled object.
+        """
+
+        raise NotImplementedError
 
     def __setstate__(self, new_dict):
-
         version = new_dict.pop("__version__", 0)
 
         self.__dict__.update(new_dict)
 
         if version != self.__version__:
-            self.after_upgrade(version)  # E1101
+            self.after_upgrade(version)
 
         if self.after_setstate:
-            self.after_setstate()  # E1102
+            self.after_setstate()
 
-# We don't handle slots with this mechanism, since the call to vars should
-# throw an error.
+    def __init_subclass__(cls):
+        if getattr(cls, "__slots__", None):
+            raise TypeError("nonempty __slots__ not supported for subtype of 'renpy.object.Object'")
+
+        if cls.__version__ and cls.after_upgrade is Object.after_upgrade:
+            raise TypeError(f"class {cls.__name__} does not override 'after_upgrade' method")
+
+        super().__init_subclass__()
 
 
-sentinels = { }
+sentinels = {}
 
 
-class Sentinel(object):
+class Sentinel:
     """
     This is used to represent a sentinel object. There will be exactly one
     sentinel object with a name existing in the system at any time.
@@ -93,4 +123,49 @@ class Sentinel(object):
         self.name = name
 
     def __reduce__(self):
-        return (Sentinel, (self.name, ))
+        return (Sentinel, (self.name,))
+
+    def __repr__(self):
+        return f"renpy.object.Sentinel({self.name!r})"
+
+
+@functools.lru_cache(maxsize=50)
+def _takes_keyword(f: Callable[..., Any], name: str) -> bool:
+    """
+    The cached implementation of takes_keyword. The callable must be hashable.
+    """
+
+    try:
+        parameters = inspect.signature(f).parameters
+    except (TypeError, ValueError):
+        return False
+
+    parameter = parameters.get(name)
+
+    if parameter is not None and parameter.kind in (
+        inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        inspect.Parameter.KEYWORD_ONLY,
+    ):
+        return True
+
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
+
+
+def takes_keyword(f: Callable[..., Any], name: str) -> bool:
+    """
+    Returns True if `f` can be called with the keyword argument `name`, because it has a parameter with that
+    name that is not positional-only, or because it accepts ``**kwargs``.
+
+    This is meant for deciding whether to pass an optional keyword argument to a callable that may predate it,
+    such as a function a game assigns to a config variable. If the signature of `f` can't be determined (as
+    with some callables implemented in C), this returns False, so only the oldest calling convention is used.
+
+    Results are cached for the 50 most recently used callables, so `f` should be a long-lived object. An
+    unhashable `f` is supported, but is not cached.
+    """
+
+    try:
+        return _takes_keyword(f, name)
+    except TypeError:
+        # f is not hashable.
+        return _takes_keyword.__wrapped__(f, name)

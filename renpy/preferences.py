@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -20,45 +20,78 @@
 # WITH THE SOFTWARE OR THE USE
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from renpy.compat import *
+from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, round, str, tobytes, unicode  # *
 
 import copy
-import renpy.audio
+import math
+
+import renpy
 
 pad_bindings = {
-    "pad_leftshoulder_press" : [ "rollback", ],
-    "pad_lefttrigger_pos" : [ "rollback", ],
-    "pad_back_press" : [ "rollback", ],
-
-    "pad_guide_press" : [ "game_menu", ],
-    "pad_start_press" : [ "game_menu", ],
-
-    "pad_y_press" : [ "hide_windows", ],
-
-    "pad_rightshoulder_press" : [ "rollforward", ],
-
-    "pad_righttrigger_press" : [ "dismiss", "button_select" ],
-    "pad_a_press" : [ "dismiss", "button_select" ],
-    "pad_b_press" : [ "button_alternate" ],
-
-    "pad_dleft_press" : [ "focus_left", "bar_left" ],
-    "pad_leftx_neg" : [ "focus_left", "bar_left" ],
-    "pad_rightx_neg" : [ "focus_left", "bar_left" ],
-
-    "pad_dpright_press" : [ "focus_right", "bar_right" ],
-    "pad_leftx_pos" : [ "focus_right", "bar_right" ],
-    "pad_rightx_pos" : [ "focus_right", "bar_right" ],
-
-    "pad_dpup_press" : [ "focus_up", "bar_up" ],
-    "pad_lefty_neg" : [ "focus_up", "bar_up" ],
-    "pad_righty_neg" : [ "focus_up", "bar_up" ],
-
-    "pad_dpdown_press" : [ "focus_down", "bar_down" ],
-    "pad_lefty_pos" : [ "focus_down", "bar_down" ],
-    "pad_righty_pos" : [ "focus_down", "bar_down" ],
+    "pad_leftshoulder_press": [
+        "rollback",
+    ],
+    "pad_lefttrigger_pos": [
+        "rollback",
+    ],
+    "pad_back_press": [
+        "rollback",
+    ],
+    "repeat_pad_leftshoulder_press": [
+        "rollback",
+    ],
+    "repeat_pad_lefttrigger_pos": [
+        "rollback",
+    ],
+    "repeat_pad_back_press": [
+        "rollback",
+    ],
+    "pad_guide_press": [
+        "game_menu",
+    ],
+    "pad_start_press": [
+        "game_menu",
+    ],
+    "pad_y_press": [
+        "hide_windows",
+    ],
+    "pad_x_press": ["button_alternate"],
+    "pad_rightshoulder_press": [
+        "rollforward",
+    ],
+    "repeat_pad_rightshoulder_press": [
+        "rollforward",
+    ],
+    "pad_righttrigger_pos": ["dismiss", "button_select", "bar_activate", "bar_deactivate"],
+    "pad_a_press": ["dismiss", "button_select", "bar_activate", "bar_deactivate"],
+    "pad_b_press": ["game_menu"],
+    "pad_dpleft_press": ["focus_left", "bar_left", "viewport_leftarrow"],
+    "pad_leftx_neg": ["focus_left", "bar_left", "viewport_leftarrow"],
+    "pad_rightx_neg": ["focus_left", "bar_left", "viewport_leftarrow"],
+    "pad_dpright_press": ["focus_right", "bar_right", "viewport_rightarrow"],
+    "pad_leftx_pos": ["focus_right", "bar_right", "viewport_rightarrow"],
+    "pad_rightx_pos": ["focus_right", "bar_right", "viewport_rightarrow"],
+    "pad_dpup_press": ["focus_up", "bar_up", "viewport_uparrow"],
+    "pad_lefty_neg": ["focus_up", "bar_up", "viewport_uparrow"],
+    "pad_righty_neg": ["focus_up", "bar_up", "viewport_uparrow"],
+    "pad_dpdown_press": ["focus_down", "bar_down", "viewport_downarrow"],
+    "pad_lefty_pos": ["focus_down", "bar_down", "viewport_downarrow"],
+    "pad_righty_pos": ["focus_down", "bar_down", "viewport_downarrow"],
+    "repeat_pad_dpleft_press": ["focus_left", "bar_left", "viewport_leftarrow"],
+    "repeat_pad_leftx_neg": ["focus_left", "bar_left", "viewport_leftarrow"],
+    "repeat_pad_rightx_neg": ["focus_left", "bar_left", "viewport_leftarrow"],
+    "repeat_pad_dpright_press": ["focus_right", "bar_right", "viewport_rightarrow"],
+    "repeat_pad_leftx_pos": ["focus_right", "bar_right", "viewport_rightarrow"],
+    "repeat_pad_rightx_pos": ["focus_right", "bar_right", "viewport_rightarrow"],
+    "repeat_pad_dpup_press": ["focus_up", "bar_up", "viewport_uparrow"],
+    "repeat_pad_lefty_neg": ["focus_up", "bar_up", "viewport_uparrow"],
+    "repeat_pad_righty_neg": ["focus_up", "bar_up", "viewport_uparrow"],
+    "repeat_pad_dpdown_press": ["focus_down", "bar_down", "viewport_downarrow"],
+    "repeat_pad_lefty_pos": ["focus_down", "bar_down", "viewport_downarrow"],
+    "repeat_pad_righty_pos": ["focus_down", "bar_down", "viewport_downarrow"],
 }
 
-all_preferences = [ ]
+all_preferences = []
 
 
 class Preference(object):
@@ -78,10 +111,10 @@ Preference("fullscreen", False)
 Preference("skip_unseen", False)
 Preference("text_cps", 0, (int, float))
 Preference("afm_time", 0, (int, float))
-Preference("afm_enable", True)
+Preference("afm_enable", False)
 Preference("using_afm_enable", False)
 Preference("voice_sustain", False)
-Preference("mouse_move", False)
+Preference("mouse_move", True)
 Preference("show_empty_window", True)
 
 # Should we wait for the voice to stop?
@@ -101,13 +134,13 @@ Preference("video_image_fallback", False)
 Preference("skip_after_choices", False)
 
 # A map from channel name to the current volume (between 0 and 1).
-Preference("volumes", { })
+Preference("volumes", {})
 
 # Not used anymore.
-Preference("mute", { })
+Preference("mute", {})
 
 # Joystick mappings.
-Preference("joymap", { })
+Preference("joymap", {})
 
 # The size of the window, or None if we don't know it yet.
 Preference("physical_size", None, (tuple, type(None)))
@@ -124,8 +157,12 @@ Preference("performance_test", True)
 # The language we use for translations.
 Preference("language", None, (str, type(None)))
 
+# Paths to translated resources. Each key is a resource path prefix, and its
+# value is the corresponding translated path prefix.
+Preference("resource_path_translations", {}, dict)
+
 # Should we self-voice?
-Preference("self_voicing", False, (bool, str, type(None)))
+Preference("self_voicing", None, (bool, str, type(None)))
 
 # The amount to drop the volume of non-voice mixers when self voicing is
 # enabled.
@@ -135,7 +172,7 @@ Preference("self_voicing_volume_drop", 0.5)
 Preference("emphasize_audio", False)
 
 # Is the gamepad enabled?
-Preference("pad_enabled", True)
+Preference("pad_enabled", True, (bool, str))
 
 # The side of the screen used for rollback. ("left", "right", or "disable")
 Preference("mobile_rollback_side", "disable")
@@ -168,12 +205,100 @@ Preference("system_cursor", False)
 # Do we force high contrast text?
 Preference("high_contrast", False)
 
+# Should sound continue playing when the window is minimized?
+Preference("audio_when_minimized", True)
+
+# Should sound continue playing when the window is not focused?
+Preference("audio_when_unfocused", True)
+
+# Should a progressive web app preload all files into the browser cache?
+Preference("web_cache_preload", False)
+
+# Should the voice continue to play after the user enters the game menu.
+Preference("voice_after_game_menu", False)
+
+# Should the game be maximized?
+Preference("maximized", False)
+
+# The position of the window.
+Preference("window_position", None, (tuple, type(None)))
+
+# The virtual desktop layout that the window position was valid for.
+Preference("window_position_layout", None, (tuple, type(None)))
+
+# Should the window position be restored?
+Preference("restore_window_position", True)
+
+# Is the game forcing mono audio?
+Preference("mono_audio", False)
+
+# Should font kerning be adjustedt?
+Preference("font_kerning", 0.0)
+
+# The voice to use for tts.
+Preference("tts_voice", None, (str, type(None)))
+
+# The speed to use for tts.
+Preference("tts_speed", 1.0)
+
 
 class Preferences(renpy.object.Object):
     """
     Stores preferences that will one day be persisted.
     """
-    __version__ = len(all_preferences)
+
+    __version__ = len(all_preferences) + 3
+
+    fullscreen: bool
+    skip_unseen: bool
+    text_cps: int | float
+    afm_time: int | float
+    afm_enable: bool
+    using_afm_enable: bool
+    voice_sustain: bool
+    mouse_move: bool
+    show_empty_window: bool
+    wait_voice: bool
+    afm_after_click: bool
+    transitions: int
+    video_image_fallback: bool
+    skip_after_choices: bool
+    volumes: dict
+    mute: dict
+    joymap: dict
+    physical_size: tuple | None
+    virtual_size: tuple | None
+    renderer: str
+    performance_test: bool
+    language: str | None
+    resource_path_translations: dict[str, str]
+    self_voicing: bool | str | None
+    self_voicing_volume_drop: float
+    emphasize_audio: bool
+    pad_enabled: bool | str
+    mobile_rollback_side: str
+    desktop_rollback_side: str
+    gl_npot: bool
+    gl_powersave: bool
+    gl_framerate: int | None
+    gl_tearing: bool
+    font_transform: None | str
+    font_size: float
+    font_line_spacing: float
+    system_cursor: bool
+    high_contrast: bool
+    audio_when_minimized: bool
+    audio_when_unfocused: bool
+    web_cache_preload: bool
+    voice_after_game_menu: bool
+    maximized: bool
+    window_position: tuple | None
+    window_position_layout: tuple | None
+    restore_window_position: bool
+    mono_audio: bool
+    font_kerning: float
+    tts_voice: str | None
+    tts_speed: float
 
     def init(self):
         """
@@ -183,6 +308,14 @@ class Preferences(renpy.object.Object):
         for p in all_preferences:
             if not hasattr(self, p.name):
                 setattr(self, p.name, copy.copy(p.default))
+
+    def reset(self):
+        """
+        Resets the preferences to their default values.
+        """
+
+        for p in all_preferences:
+            setattr(self, p.name, copy.copy(p.default))
 
     def check(self):
         """
@@ -195,7 +328,6 @@ class Preferences(renpy.object.Object):
         error = None
 
         for p in all_preferences:
-
             v = getattr(self, p.name, None)
 
             if isinstance(v, bytes):
@@ -214,7 +346,7 @@ class Preferences(renpy.object.Object):
         self.init()
 
     def set_volume(self, mixer, volume):
-        if volume != 0:
+        if not renpy.config.preserve_volume_when_muted and volume != 0:
             self.mute[mixer] = False
 
         self.volumes[mixer] = volume
@@ -223,16 +355,35 @@ class Preferences(renpy.object.Object):
         if mixer not in self.volumes:
             return 0.0
 
-        if self.mute.get(mixer, False):
+        if not renpy.config.preserve_volume_when_muted and self.mute.get(mixer, False):
             return 0.0
 
         return self.volumes[mixer]
 
+    def set_mixer(self, mixer, volume):
+        if volume > 0:
+            volume = renpy.config.volume_db_range * volume - renpy.config.volume_db_range
+            volume = 10 ** (volume / 20)
+
+        self.set_volume(mixer, volume)
+
+    def get_mixer(self, mixer):
+        rv = self.get_volume(mixer)
+
+        if rv == 0:
+            return 0
+
+        rv = 20 * math.log10(rv)
+        rv = (rv + renpy.config.volume_db_range) / renpy.config.volume_db_range
+
+        return rv
+
     def set_mute(self, mixer, mute):
         self.mute[mixer] = mute
 
-        if (not mute) and (self.volumes.get(mixer, 1.0) == 0.0):
-            self.volumes[mixer] = 1.0
+        if not renpy.config.preserve_volume_when_muted:
+            if (not mute) and (self.volumes.get(mixer, 1.0) == 0.0):
+                self.volumes[mixer] = 1.0
 
     def get_mute(self, mixer):
         if mixer not in self.volumes:
@@ -241,7 +392,7 @@ class Preferences(renpy.object.Object):
         return self.mute[mixer]
 
     def init_mixers(self):
-        for i in renpy.audio.music.get_all_mixers():
+        for i in renpy.audio.music.get_all_mixers() + ["main", "voice"]:
             self.volumes.setdefault(i, 1.0)
             self.mute.setdefault(i, False)
 
@@ -255,5 +406,5 @@ class Preferences(renpy.object.Object):
         return not (self == other)
 
 
-renpy.game.Preferences = Preferences
+renpy.game.Preferences = Preferences  # type: ignore
 renpy.game.preferences = Preferences()

@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -53,41 +53,26 @@ init python hide:
     def yesno_prompt(screen, message):
         renpy.transition(config.intra_transition)
 
-        use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
-        if not use_sl2_nav:
-            layout.navigation(screen)
+        layout.navigation(screen)
 
-        renpy.show_screen(
-            "_classic_yesno_prompt",
-            nav_screen=screen,
-            message=message,
-            use_sl2_nav=use_sl2_nav,
-            _transient=True)
+        ui.window(style='yesno_frame')
+        ui.vbox(style='yesno_frame_vbox')
+
+        layout.prompt(message, "yesno")
+
+        ui.hbox(style='yesno_button_hbox')
+
+        # The extra nulls are because we want equal whitespace surrounding
+        # the two buttons. It should work as long as we have xfill=True
+        layout.button(u"Yes", 'yesno', clicked=ui.returns(True))
+        layout.button(u"No", 'yesno', clicked=ui.returns(False))
+
+        ui.close()
+        ui.close()
 
         rv = ui.interact(mouse="gamemenu")
         renpy.transition(config.intra_transition)
         return rv
 
     layout.yesno_prompt = yesno_prompt
-
-screen _classic_yesno_prompt(nav_screen, message, use_sl2_nav=True):
-
-    if use_sl2_nav:
-        use _layout_navigation(nav_screen)
-
-    window style "yesno_frame":
-        vbox style "yesno_frame_vbox":
-
-            window style style.yesno_prompt[message]:
-                text _(message) style style.yesno_prompt_text[message]
-
-            hbox style "yesno_button_hbox":
-                button:
-                    style style.yesno_button[u"Yes"]
-                    action Return(True)
-                    text _(u"Yes") style style.yesno_button_text[u"Yes"]
-                button:
-                    style style.yesno_button[u"No"]
-                    action Return(False)
-                    text _(u"No") style style.yesno_button_text[u"No"]
 

@@ -28,7 +28,7 @@ if [ -z "$RENPY_PLATFORM" ] ; then
 
     case "$RENPY_PLATFORM" in
         Darwin-*|mac-*)
-            RENPY_PLATFORM="mac-x86_64"
+            RENPY_PLATFORM="mac-universal"
             ;;
         *-x86_64|amd64)
             RENPY_PLATFORM="linux-x86_64"
@@ -44,12 +44,12 @@ if [ -z "$RENPY_PLATFORM" ] ; then
     esac
 fi
 
-LIB="$ROOT/lib/$RENPY_PLATFORM"
+LIB="$ROOT/lib/py3-$RENPY_PLATFORM"
 
 if ! test -d "$LIB"; then
     echo "Ren'Py platform files not found in:"
     echo
-    echo "$ROOT/lib/$RENPY_PLATFORM"
+    echo "$LIB"
     echo
     echo "Please compile the platform files using the instructions in README.md"
     echo "or point them to an existing installation using ./after_checkout.sh <path>."
@@ -58,4 +58,14 @@ if ! test -d "$LIB"; then
     exit 1
 fi
 
-exec $RENPY_GDB "$LIB/$BASEFILE" "$@"
+if [ -e "$LIB/$BASEFILE" ] ; then
+    exec $RENPY_GDB "$LIB/$BASEFILE" "$@"
+fi
+
+if [ -e "$LIB/renpy" ] ; then
+    exec $RENPY_GDB "$LIB/renpy" "$@"
+fi
+
+echo "$LIB/$BASEFILE not found."
+echo "This game may not support the $RENPY_PLATFORM platform."
+exit 1

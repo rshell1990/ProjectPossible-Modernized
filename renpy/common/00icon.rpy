@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -21,7 +21,7 @@
 
 python early in icon:
 
-    from store import Image, Color, Text, Transform
+    from store import im, Image, Color, Text
 
     # The path to the icons.
     path = [ '', 'icons/' ]
@@ -37,21 +37,20 @@ python early in icon:
 
             for p in path:
                 fn = p + prefix + self.name + ".png"
-                if renpy.loadable(fn):
+                if renpy.loadable(fn, directory="images"):
                     return fn
 
             for p in path:
                 fn = p + self.name + ".png"
 
-                if renpy.loadable(fn):
+                if renpy.loadable(fn, directory="images"):
                     c = self.style.color
 
                     if c is not None:
-                        from store import TintMatrix
                         c = Color(self.style.color)
-                        return Transform(fn, matrixcolor=TintMatrix(c))
+                        return im.Recolor(fn, c[0], c[1], c[2], c[3])
                     else:
-                        return Image(fn)
+                        c = Image(fn)
 
             return Text('icon {}'.format(self.name))
 

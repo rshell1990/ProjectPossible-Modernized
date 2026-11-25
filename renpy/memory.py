@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -23,7 +23,8 @@
 # called by default, but can be used when problems occur.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from renpy.compat import *
+from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, round, str, tobytes, unicode  # *
+
 
 import time
 import weakref
@@ -42,8 +43,7 @@ constant_containers = {
     "renpy.game.script",
     "renpy.display.image.images",
     "renpy.display.image.image_attributes",
-    "renpy.python.py_compile_cache",
-    "renpy.python.old_py_compile_cache",
+    "renpy.python.compile_cache",
     "renpy.python.store_dicts",
     "renpy.python.store_modules",
     "renpy.pyanalysis.ccache",
@@ -76,7 +76,7 @@ def print_garbage(gen):
 
         try:
             suffix = " (" + inspect.getfile(i) + ")"
-        except:
+        except Exception:
             pass
 
         print(" -", prefix + repr(i)[:160] + suffix)
@@ -88,8 +88,8 @@ def write(s):
 
 
 def cycle_finder(o, name):
-    o_repr_cache = { }
-    paths = { }
+    o_repr_cache = {}
+    paths = {}
 
     edges = set()
 
@@ -107,11 +107,17 @@ def cycle_finder(o, name):
         if isinstance(o, (int, float, type(None), types.ModuleType, type)):
             o_repr = repr(o)
 
-        elif isinstance(o, basestring):
+        elif isinstance(o, str):
             if len(o) <= 80:
-                o_repr = repr(o).encode("utf-8")
+                o_repr = repr(o)
             else:
-                o_repr = repr(o[:80] + "...").encode("utf-8")
+                o_repr = repr(o[:40] + "..." + o[-40:])
+
+        elif isinstance(o, bytes):
+            if len(o) <= 80:
+                o_repr = repr(o)
+            else:
+                o_repr = repr(o[:40] + b"..." + o[-40:])
 
         elif isinstance(o, (tuple, list)):
             o_repr = "<" + o.__class__.__name__ + ">"
@@ -120,7 +126,7 @@ def cycle_finder(o, name):
             o_repr = "<" + o.__class__.__name__ + ">"
 
         elif isinstance(o, types.MethodType):
-            o_repr = "<method {0}.{1}>".format(o.__self__.__class__.__name__, o.__func__.__name__)
+            o_repr = "<method {0}.{1}>".format(o.__self__.__class__.__name__, o.__name__)
 
         elif isinstance(o, object):
             o_repr = "<{0}>".format(type(o).__name__)
@@ -142,11 +148,10 @@ def cycle_finder(o, name):
             visit(ido, o.__self__, path + ".im_self")
 
         else:
-
             try:
-                reduction = o.__reduce_ex__(2)
-            except:
-                reduction = [ ]
+                reduction = o.__reduce_ex__(2)  # type: ignore
+            except Exception:
+                reduction = []
 
             # Gets an element from the reduction, or o if we don't have
             # such an element.
@@ -156,18 +161,17 @@ def cycle_finder(o, name):
                 else:
                     return default
 
-            state = get(2, { })
+            state = get(2, {})
             if isinstance(state, dict):
                 for k, v in state.items():
                     visit(ido, v, path + "." + k)
             else:
                 visit(ido, state, path + ".__getstate__()")
 
-            for i, oo in enumerate(get(3, [])):
+            for i, oo in enumerate(get(3, [])):  # type: ignore
                 visit(ido, oo, "{0}[{1}]".format(path, i))
 
-            for i in get(4, []):
-
+            for i in get(4, []):  # type: ignore
                 if len(i) != 2:
                     continue
 
@@ -200,7 +204,7 @@ def cycle_finder(o, name):
             print("  ", edge)
             print(" -", edge[2], "=", o_repr_cache[edge[1]])
 
-            relevant = [ i for i in edges if i[0] == edge[1] ]
+            relevant = [i for i in edges if i[0] == edge[1]]
             if not relevant:
                 break
 
@@ -224,10 +228,11 @@ def walk_memory(roots, seen=None):
 
     # A map from id(o) to the name o is accounted under.
     if seen is None:
-        seen = { }
+        seen = {}
 
-    # A list of (name, object) pairs.
-    worklist = [ ]
+    # A deque of (name, object) pairs.
+    # We use a deque because we want to pop from the left.
+    worklist = collections.deque()
 
     # A map from root_name to total_size.
     size = collections.defaultdict(int)
@@ -249,7 +254,7 @@ def walk_memory(roots, seen=None):
     ignore_types = (types.ModuleType, type, types.FunctionType)
 
     while worklist:
-        name, o = worklist.pop(0)
+        name, o = worklist.popleft()
 
         if isinstance(o, ignore_types):
             continue
@@ -268,7 +273,7 @@ def walk_memory(roots, seen=None):
     return size, seen
 
 
-def profile_memory_common(packages=[ "renpy", "store" ], skip_constants=False):
+def profile_memory_common(packages=["renpy", "store"], skip_constants=False):
     """
     Profiles object, surface, and texture memory used in the renpy and store
     packages.
@@ -278,10 +283,9 @@ def profile_memory_common(packages=[ "renpy", "store" ], skip_constants=False):
     names.
     """
 
-    roots = [ ]
+    roots = []
 
     for mod_name, mod in sorted(sys.modules.items()):
-
         if mod is None:
             continue
 
@@ -342,7 +346,7 @@ def profile_memory(fraction=1.0, minimum=0, skip_constants=False):
     write("Memory profile at " + time.ctime() + ":")
     write("")
 
-    usage = [ (v, k) for (k, v) in profile_memory_common(skip_constants=skip_constants)[0].items() ]
+    usage = [(v, k) for (k, v) in profile_memory_common(skip_constants=skip_constants)[0].items()]
     usage.sort()
 
     # The total number of bytes allocated.
@@ -352,7 +356,6 @@ def profile_memory(fraction=1.0, minimum=0, skip_constants=False):
     remaining = total
 
     for size, name in usage:
-
         if (remaining - size) < total * fraction:
             if size > minimum:
                 write("{:13,d} {}".format(size, name))
@@ -364,7 +367,7 @@ def profile_memory(fraction=1.0, minimum=0, skip_constants=False):
     write("")
 
 
-old_usage = { }
+old_usage = {}
 old_total = 0
 
 
@@ -400,12 +403,10 @@ def diff_memory(update=True, skip_constants=False):
     usage = profile_memory_common(skip_constants=skip_constants)[0]
     total = sum(usage.values())
 
-    diff = [ ]
+    diff = []
 
     for k, v in usage.items():
-        diff.append((
-            v - old_usage.get(k, 0),
-            k))
+        diff.append((v - old_usage.get(k, 0), k))
 
     diff.sort()
 
@@ -441,19 +442,18 @@ def profile_rollback():
     write("")
 
     # Profile live memory.
-    seen = profile_memory_common([ "store", "renpy.display" ])[1]
+    seen = profile_memory_common(["store", "renpy.display"])[1]
 
     # Like seen, but for objects found in rollback.
-    new_seen = { }
+    new_seen = {}
 
     log = list(renpy.game.log.log)
     log.reverse()
 
-    roots = [ ]
+    roots = []
 
     # Walk the log, finding new roots and rollback information.
     for rb in log:
-
         for store_name, store in rb.stores.items():
             for var_name, o in store.items():
                 name = store_name + "." + var_name
@@ -465,7 +465,6 @@ def profile_rollback():
                 roots.append((name, o))
 
         for o, roll in rb.objects:
-
             id_o = id(o)
 
             name = "<unknown>"
@@ -479,7 +478,7 @@ def profile_rollback():
 
     sizes = walk_memory(roots, seen)[0]
 
-    usage = [ (v, k) for (k, v) in sizes.items() ]
+    usage = [(v, k) for (k, v) in sizes.items()]
     usage.sort()
 
     write("Total Bytes".rjust(13) + " " + "Per Rollback".rjust(13))
@@ -508,28 +507,26 @@ def find_parents(cls):
     objs = gc.get_objects()
 
     def print_path(o, objs):
-
         prefix = ""
 
         seen = set()
-        queue = [ ]
-        objects = [ ]
+        queue = []
+        objects = []
 
         last = None
 
         for _i in range(30):
-
             objects.append(o)
             last = o
 
-            print(prefix + "%x" % id(o), "(%d referrers)" % len(gc.get_referrers(o)), type(o), end=' ')
+            print(prefix + "%x" % id(o), "(%d referrers)" % len(gc.get_referrers(o)), type(o), end=" ")
 
             try:
                 if isinstance(o, dict) and "__name__" in o:
                     print("with name", o["__name__"])
                 else:
                     print(repr(o))
-            except:
+            except Exception:
                 print("Bad repr.")
 
             found = False
@@ -542,14 +539,13 @@ def find_parents(cls):
                 continue
 
             if isinstance(o, weakref.WeakKeyDictionary):
-                for k, v in o.data.items():
+                for k, v in o.items():
                     if v is objects[-4]:
                         k = k()
                         seen.add(id(k))
                         queue.append((k, prefix + " (key) "))
 
             for i in gc.get_referrers(o):
-
                 if i is objs or i is objects:
                     continue
 
@@ -579,7 +575,6 @@ def find_parents(cls):
 
     for o in objs:
         if isinstance(o, cls):
-
             print()
             print("===================================================")
             print()

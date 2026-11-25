@@ -1,4 +1,4 @@
-﻿# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -31,8 +31,11 @@ init -1500 python:
 
         def get_size(self):
 
-            w = int(self.factor * config.screen_width)
-            h = int(self.factor * config.screen_height)
+            width = renpy.config.physical_width or renpy.config.screen_width
+            height = renpy.config.physical_height or renpy.config.screen_height
+
+            w = int(self.factor * width)
+            h = int(self.factor * height)
 
             rv = (w, h)
 
@@ -61,6 +64,19 @@ init -1500 python:
 
     _m1_00screen__DisplayAction = __DisplayAction
 
+
+    @renpy.pure
+    class __ResetPreferences(Action, DictEquality):
+
+        def __call__(self):
+            _preferences.reset()
+            _preferences.init_mixers()
+            persistent._preference_default = { }
+            renpy.exports.execute_default_statement()
+            _apply_default_preferences()
+            renpy.restart_interaction()
+
+
     config.always_has_joystick = False
 
     @renpy.pure
@@ -74,11 +90,10 @@ init -1500 python:
             renpy.free_memory()
             renpy.display.interface.display_reset = True
 
-
     @renpy.pure
     def Preference(name, value=None, range=None):
         """
-        :doc: preference_action
+        :doc: preference_action action
 
         This constructs the appropriate action or value from a preference.
         The preference name should be the name given in the standard
@@ -132,8 +147,8 @@ init -1500 python:
         * Preference("auto-forward after click", "disable") - Disable auto-forward mode after a click.
         * Preference("auto-forward after click", "toggle") - Toggle auto-forward after click.
 
-        * Preference("automatic move", "enable") - Enable automatic mouse mode.
-        * Preference("automatic move", "disable") - Disable automatic mouse mode.
+        * Preference("automatic move", "enable") - Allow Ren'Py to move the mouse automatically using the :func:`MouseMove` action.
+        * Preference("automatic move", "disable") - Disable the :func:`MouseMove` action.
         * Preference("automatic move", "toggle") - Toggle automatic mouse mode.
 
         * Preference("wait for voice", "enable")  - Wait for the currently playing voice to complete before auto-forwarding.
@@ -158,12 +173,13 @@ init -1500 python:
 
         * Preference("mixer <mixer> mute", "enable") - Mute the specified mixer.
         * Preference("mixer <mixer> mute", "disable") - Unmute the specified mixer.
-        * Preference("mixer <mixer> mute", "toggle") - Toggle mute of specified mixer.
+        * Preference("mixer <mixer> mute", "toggle") - Toggle mute of the specified mixer.
 
-        * Preference("all mute", "enable") - Mute all mixers.
-        * Preference("all mute", "disable") - Unmute all mixers.
-        * Preference("all mute", "toggle") - Toggle mute of all mixers.
+        * Preference("all mute", "enable") - Mute each individual mixer.
+        * Preference("all mute", "disable") - Unmute each individual mixer.
+        * Preference("all mute", "toggle") - Toggle mute of each individual mixer.
 
+        * Preference("main volume", 0.5) - Set the adjustment applied to all channels.
         * Preference("music volume", 0.5) - Set the music volume.
         * Preference("sound volume", 0.5) - Set the sound volume.
         * Preference("voice volume", 0.5) - Set the voice volume.
@@ -183,6 +199,10 @@ init -1500 python:
         * Preference("clipboard voicing", "disable") - Disable clipboard-voicing.
         * Preference("clipboard voicing", "toggle") - Toggles clipboard-voicing.
 
+        * Preference("screenreader voicing", "enable") - Enables screen reader voicing.
+        * Preference("screenreader voicing", "disable") - Disable screen reader voicing.
+        * Preference("screenreader voicing", "toggle") - Toggles screen reader voicing.
+
         * Preference("debug voicing", "enable") - Enables self-voicing debug
         * Preference("debug voicing", "disable") - Disable self-voicing debug.
         * Preference("debug voicing", "toggle") - Toggles self-voicing debug.
@@ -193,7 +213,6 @@ init -1500 python:
 
         * Preference("gl powersave", True) - Drop framerate to allow for power savings.
         * Preference("gl powersave", False) - Do not drop framerate to allow for power savings.
-        * Preference("gl powersave", "auto") - Enable powersave when running on battery.
 
         * Preference("gl framerate", None) - Runs at the display framerate.
         * Preference("gl framerate", 60) - Runs at the given framerate.
@@ -205,24 +224,51 @@ init -1500 python:
         * Preference("font transform", "dejavusans") - Sets the accessibility font transform to deja vu sans.
         * Preference("font transform", None) - Disables the accessibility font transform.
 
+        See :var:`config.font_transforms` for how to add font transforms.
+
         * Preference("font size", 1.0) - Sets the accessibility font size scaling factor.
         * Preference("font line spacing", 1.0) - Sets the accessibility font vertical spacing scaling factor.
 
-        * Preference("system cursor", "enable") - Use system cursor ignoring config.mouse.
-        * Preference("system cursor", "disable") - Use cursor defined in config.mouse.
+        * Preference("system cursor", "disable") - Use the cursor defined in :var:`config.mouse` or :var:`config.mouse_displayable`.
+        * Preference("system cursor", "enable") - Use the system cursor, ignoring :var:`config.mouse`.
         * Preference("system cursor", "toggle") - Toggle system cursor.
-
 
         * Preference("high contrast text", "enable") - Enables white text on a black background.
         * Preference("high contrast text", "disable") - Disables high contrast text.
         * Preference("high contrast text", "toggle") - Toggles high contrast text.
 
+        * Preference("audio when minimized", "enable") - Enable sounds playing when the window has been minimized.
+        * Preference("audio when minimized", "disable") - Disable sounds playing when the window has been minimized.
+        * Preference("audio when minimized", "toggle") - Toggle sounds playing when the window has been minimized.
 
+        * Preference("audio when unfocused", "enable") - Enable sounds playing when the window is not in focus.
+        * Preference("audio when unfocused", "disable") - Disable sounds playing when the window is not in focus.
+        * Preference("audio when unfocused", "toggle") - Toggle sounds playing when the window is not in focus.
+
+        * Preference("web cache preload", "enable") - Will cause the web cache to be preloaded.
+        * Preference("web cache preload", "disable") - Will cause the web cache to not be preloaded, and preloaded data to be deleted.
+        * Preference("web cache preload", "toggle") - Will toggle the web cache preload state.
+
+        * Preference("voice after game menu", "enable") - Will cause the voice to continue being played when entering the game  menu.
+        * Preference("voice after game menu", "disable") - Will cause the voice to stop being played when entering the game menu.
+        * Preference("voice after game menu", "toggle") - Will toggle the voice after game menu state.
+
+        * Preference("restore window position", "enable") - Will cause the window position to be restored when the game is started.
+        * Preference("restore window position", "disable") - Will cause the window position to not be restored when the game is started.
+        * Preference("restore window position", "toggle") - Will toggle the restore window position state.
+
+        * Preference("mono audio", "enable") - Forces audio to be downmixed to mono.
+        * Preference("mono audio", "disable") - Disables forcing audio to be downmixed to mono.
+        * Preference("mono audio", "toggles") - Toggles mono audio.
+
+        * Preference("self voicing voice", "<voice>") - Sets the voice to use for text-to-speech. The voice must be one of the voices found in renpy.get_tts_voices, or it will not be used.
+        * Preference("self voicing speed", 2.0) - Sets the speed of the text-to-speech voice. This should be between 1.0 and 3.0, and roughly represents how fast the speaking is.
 
         Values that can be used with bars are:
 
         * Preference("text speed")
         * Preference("auto-forward time")
+        * Preference("main volume")
         * Preference("music volume")
         * Preference("sound volume")
         * Preference("voice volume")
@@ -230,6 +276,8 @@ init -1500 python:
         * Preference("self voicing volume drop")
         * Preference("font size")
         * Preference("font line spacing")
+        * Preference("font kerning")
+        * Preference("self voicing speed")
 
         The `range` parameter can be given to give the range of certain bars.
         For "text speed", it defaults to 200 cps. For "auto-forward time", it
@@ -240,22 +288,31 @@ init -1500 python:
 
         * Preference("renderer menu") - Show the renderer menu.
         * Preference("accessibility menu") - Show the accessibility menu.
+        * Preference("reset") - Reset preferences to defaults.
 
         These screens are intended for internal use, and are not customizable.
         """
 
         name = name.lower()
 
-        if isinstance(value, basestring):
+        if isinstance(value, str) and name != "self voicing voice":
             value = value.lower()
 
         def get():
 
             if name == _("display"):
                 if value == "fullscreen":
-                    return SetField(_preferences, "fullscreen", True)
+                    if renpy.can_fullscreen():
+                        return SetField(_preferences, "fullscreen", True)
+                    else:
+                        return None
+
                 elif value == "window":
-                    return __DisplayAction(1.0)
+                    if renpy.variant("web"):
+                        # Only fullscreen and non-fullscreen modes for Web
+                        return SetField(_preferences, "fullscreen", False)
+                    else:
+                        return __DisplayAction(1.0)
                 elif value == "any window":
                     return SetField(_preferences, "fullscreen", False)
                 elif value == "toggle":
@@ -393,9 +450,9 @@ init -1500 python:
             elif name == _("self voicing"):
 
                 if value == "enable":
-                    return SetField(_preferences, "self_voicing", True)
+                    return SetField(_preferences, "self_voicing", True), _("self voicing enable")
                 elif value == "disable":
-                    return SetField(_preferences, "self_voicing", False)
+                    return SetField(_preferences, "self_voicing", False), _("self voicing disable")
                 elif value == "toggle":
                     return ToggleField(_preferences, "self_voicing", true_value=True, false_value=False)
 
@@ -410,18 +467,27 @@ init -1500 python:
             elif name == _("clipboard voicing"):
 
                 if value == "enable":
-                    return SetField(_preferences, "self_voicing", "clipboard")
+                    return SetField(_preferences, "self_voicing", "clipboard"), _("clipboard voicing enable")
                 elif value == "disable":
-                    return SetField(_preferences, "self_voicing", False)
+                    return SetField(_preferences, "self_voicing", False), _("clipboard voicing disable")
                 elif value == "toggle":
                     return ToggleField(_preferences, "self_voicing", true_value="clipboard", false_value=False)
+
+            elif name == _("screenreader voicing"):
+
+                if value == "enable":
+                    return SetField(_preferences, "self_voicing", "screenreader"), _("screenreader voicing enable")
+                elif value == "disable":
+                    return SetField(_preferences, "self_voicing", False), _("screenreader voicing disable")
+                elif value == "toggle":
+                    return ToggleField(_preferences, "self_voicing", true_value="screenreader", false_value=False)
 
             elif name == _("debug voicing"):
 
                 if value == "enable":
-                    return SetField(_preferences, "self_voicing", "debug")
+                    return SetField(_preferences, "self_voicing", "debug"), _("debug voicing enable")
                 elif value == "disable":
-                    return SetField(_preferences, "self_voicing", False)
+                    return SetField(_preferences, "self_voicing", False), _("debug voicing disable")
                 elif value == "toggle":
                     return ToggleField(_preferences, "self_voicing", true_value="debug", false_value=False)
 
@@ -499,19 +565,111 @@ init -1500 python:
                 elif value == "toggle":
                     return [ ToggleField(_preferences, "high_contrast"), _DisplayReset() ]
 
+            elif name == _("audio when minimized"):
+
+                if value == "enable":
+                    return SetField(_preferences, "audio_when_minimized", True)
+                elif value == "disable":
+                    return SetField(_preferences, "audio_when_minimized", False)
+                elif value == "toggle":
+                    return ToggleField(_preferences, "audio_when_minimized")
+
+            elif name == _("audio when unfocused"):
+
+                if value == "enable":
+                    return SetField(_preferences, "audio_when_unfocused", True)
+                elif value == "disable":
+                    return SetField(_preferences, "audio_when_unfocused", False)
+                elif value == "toggle":
+                    return ToggleField(_preferences, "audio_when_unfocused")
+
+            elif name == _("web cache preload"):
+
+                if not renpy.emscripten:
+                    return None
+
+                if value == "enable":
+                    return [ SetField(_preferences, "web_cache_preload", True), ExecJS("loadCache()") ]
+                elif value == "disable":
+                    return [ SetField(_preferences, "web_cache_preload", False), ExecJS("clearCache()") ]
+                elif value == "toggle":
+                    if _preferences.web_cache_preload:
+                        return Preference("web cache preload", "disable")
+                    else:
+                        return Preference("web cache preload", "enable")
+
+            elif name == _("voice after game menu"):
+
+                if value == "enable":
+                    return SetField(_preferences, "voice_after_game_menu", True)
+                elif value == "disable":
+                    return SetField(_preferences, "voice_after_game_menu", False)
+                elif value == "toggle":
+                    return ToggleField(_preferences, "voice_after_game_menu")
+
+            elif name == _("restore window position"):
+
+                if value == "enable":
+                    return SetField(_preferences, "restore_window_position", True)
+                elif value == "disable":
+                    return SetField(_preferences, "restore_window_position", False)
+                elif value == "toggle":
+                    return ToggleField(_preferences, "restore_window_position")
+
+            elif name == _("mono audio"):
+
+                if value == "enable":
+                    return SetField(_preferences, "mono_audio", True)
+                elif value == "disable":
+                    return SetField(_preferences, "mono_audio", False)
+                elif value == "toggle":
+                    return ToggleField(_preferences, "mono_audio")
+
+            elif name == _("font kerning"):
+
+                if value is None:
+                    return FieldValue(_preferences, "font_kerning", min=-2.0, max=2.0, style="slider", action=_DisplayReset())
+
+                return [ SetField(_preferences, "font_kerning", value), _DisplayReset() ]
+
+            elif name == _("self voicing voice"):
+                if value is None:
+                    alt = _("voice [text]")
+                else:
+                    language, p, voice = value.rpartition(":")
+                    alt = __("voice ")
+                    for lp in language.split("-"):
+                        alt += " ".join(lp.upper()) + ", "
+                    alt += voice
+                    alt = f"{{voice={value}}}" + alt
+
+                return (SetField(_preferences, "tts_voice", value), alt)
+
+            elif name == _("self voicing speed"):
+
+                if value is None:
+                    return FieldValue(_preferences, "tts_speed", min=1.0, max=3.0, step=.125, style="slider", action=Function(renpy.display.tts.speak, _("self-voicing speed")))
+
+                return SetField(_preferences, "tts_speed", value)
+
+            elif name == _("reset"):
+                return __ResetPreferences()
 
             mixer_names = {
+                "main" : "main",
                 "music" : "music",
                 "sound" : "sfx",
                 "voice" : "voice",
-                "all" : _preferences.get_all_mixers(),
+                "all" : _preferences.get_all_mixers() + ["main"],
             }
 
             # Make these available to the translation system
             if False:
+                _("main volume")
                 _("music volume")
                 _("sound volume")
                 _("voice volume")
+                _("mute main")
                 _("mute music")
                 _("mute sound")
                 _("mute voice")
@@ -560,9 +718,17 @@ init -1500 python:
                 alt = None
 
             if alt is not None:
-                rv.alt = __(alt)
+                alt = __(alt)
             else:
-                rv.alt = __(name) + " [text]"
+                alt = __(name) + " [text]"
+
+            if isinstance(rv, list):
+                rv[0].alt = alt
+            else:
+                rv.alt = alt
+
+
+
 
         return rv
 
@@ -575,28 +741,24 @@ init -1500 python:
         elif not _preferences.self_voicing and has_screen:
             renpy.hide_screen("_self_voicing")
 
-        if _preferences.self_voicing and config.self_voicing_stops_afm:
-            if _preferences.using_afm_enable:
-                _preferences.afm_enable = False
-            else:
-                _preferences.afm_time = 0
 
     config.interact_callbacks.append(__show_self_voicing)
 
-init -1500 python:
-
-    import os
-    config.self_voicing_stops_afm = not ("RENPY_SELF_VOICING_AFM" in os.environ)
+    # Ignored.
+    config.self_voicing_stops_afm = False
 
 
 init -1500:
 
     # The screen that we use to indicate that self-voicing is enabled.
     screen _self_voicing():
+        layer config.interface_layer
         zorder 1500
 
         if _preferences.self_voicing == "clipboard":
             $ message = _("Clipboard voicing enabled. Press 'shift+C' to disable.")
+        elif _preferences.self_voicing == "screenreader":
+            $ message = _("Screen reader voicing enabled. Press 'shift+V' to disable.")
         elif _preferences.self_voicing == "debug":
             $ message = _("Self-voicing would say \"[renpy.display.tts.last]\". Press 'alt+shift+V' to disable.")
         else:

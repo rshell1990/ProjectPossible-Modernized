@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -22,13 +22,13 @@
 # This file contains support for state-machine controlled animations.
 
 from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from renpy.compat import *
+from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, round, str, tobytes, unicode  # *
 
-import renpy.display
-import renpy.game
-import renpy.easy
 
+import copy
 import random
+
+import renpy
 
 
 class State(object):
@@ -56,7 +56,7 @@ class State(object):
         Position object, that modifies the position of the image.
         """
 
-        if image and not isinstance(image, renpy.display.core.Displayable):
+        if image and not isinstance(image, renpy.display.displayable.Displayable):
             image = renpy.easy.displayable(image)
 
         self.name = name
@@ -79,7 +79,6 @@ class State(object):
         return rv
 
     def motion_copy(self, child):
-
         if self.image is not None:
             child = self.image
 
@@ -126,7 +125,7 @@ class Edge(object):
             sma.edges.setdefault(self.old, []).append(self)
 
 
-class SMAnimation(renpy.display.core.Displayable):
+class SMAnimation(renpy.display.displayable.Displayable):
     """
     This creates a state-machine animation. Such an animation is
     created by randomly traversing the edges between states in a
@@ -155,21 +154,21 @@ class SMAnimation(renpy.display.core.Displayable):
         machine.
         """
 
-        if 'delay' in properties:
-            self.delay = properties['delay']
-            del properties['delay']
+        if "delay" in properties:
+            self.delay = properties["delay"]
+            del properties["delay"]
         else:
             self.delay = None
 
-        if 'showold' in properties:
-            self.showold = properties['showold']
-            del properties['showold']
+        if "showold" in properties:
+            self.showold = properties["showold"]
+            del properties["showold"]
         else:
             self.showold = False
 
-        if 'anim_timebase' in properties:
-            self.anim_timebase = properties['anim_timebase']
-            del properties['anim_timebase']
+        if "anim_timebase" in properties:
+            self.anim_timebase = properties["anim_timebase"]
+            del properties["anim_timebase"]
         else:
             self.anim_timebase = True
 
@@ -181,10 +180,10 @@ class SMAnimation(renpy.display.core.Displayable):
         self.initial = initial
 
         # A map from state name to State object.
-        self.states = { }
+        self.states = {}
 
         # A map from state name to list of Edge objects.
-        self.edges = { }
+        self.edges = {}
 
         for i in args:
             i.add(self)
@@ -202,8 +201,42 @@ class SMAnimation(renpy.display.core.Displayable):
         # The state we're in.
         self.state = None
 
+        for i in self.states.values():
+            if (i.image is not None) and i.image._duplicatable:
+                self._duplicatable = True
+
     def visit(self):
-        return [ i.image for i in self.states.values() ]
+        return [i.image for i in self.states.values()]
+
+    def _duplicate(self, args):
+        if not self._duplicatable:
+            return super(SMAnimation, self)._duplicate(args)
+
+        states = {}
+
+        for name, state in self.states.items():
+            if state.image is not None:
+                state = copy.copy(state)
+                state.image = state.image._duplicate(args)
+                state.image._unique()
+
+            states[name] = state
+
+        rv = self._copy(args)
+        rv.states = states
+        rv.edge_start = None
+        rv.edge_cache = None
+        rv.edge = None
+        rv.state = None
+        rv._duplicatable = False
+        return rv
+
+    def _unique(self):
+        for i in self.states.values():
+            if i.image is not None:
+                i.image._unique()
+
+        self._duplicatable = False
 
     def pick_edge(self, state):
         """
@@ -228,12 +261,10 @@ class SMAnimation(renpy.display.core.Displayable):
         the old and new states, and any transition that is present.
         """
 
-        if self.edge is None:
-            return
-
         if self.edge.trans:
-            im = self.edge.trans(old_widget=self.states[self.edge.old].get_image(),
-                                 new_widget=self.states[self.edge.new].get_image())
+            im = self.edge.trans(
+                old_widget=self.states[self.edge.old].get_image(), new_widget=self.states[self.edge.new].get_image()
+            )
         elif self.showold:
             im = self.states[self.edge.old].get_image()
         else:
@@ -242,7 +273,6 @@ class SMAnimation(renpy.display.core.Displayable):
         self.edge_cache = im
 
     def get_placement(self):
-
         if self.edge_cache:
             return self.edge_cache.get_placement()
 
@@ -252,7 +282,6 @@ class SMAnimation(renpy.display.core.Displayable):
         return super(SMAnimation, self).get_placement()
 
     def render(self, width, height, st, at):
-
         if self.anim_timebase:
             t = at
         else:
@@ -272,9 +301,9 @@ class SMAnimation(renpy.display.core.Displayable):
         # with that.
 
         if not self.edge:
-            im = renpy.display.render.render(self.states[self.state].get_image(),
-                                             width, height,
-                                             st - self.edge_start, at)
+            im = renpy.display.render.render(
+                self.states[self.state].get_image(), width, height, st - self.edge_start, at
+            )
 
         # Otherwise, we have another edge.
 
@@ -304,7 +333,7 @@ class SMAnimation(renpy.display.core.Displayable):
         if child is None:
             child = new_widget
 
-        args = [ ]
+        args = []
 
         for state in self.states.values():
             args.append(state.motion_copy(child))
@@ -312,11 +341,11 @@ class SMAnimation(renpy.display.core.Displayable):
         for edges in self.edges.values():
             args.extend(edges)
 
-        return SMAnimation(self.initial, delay=self.delay, *args, **self.properties)
+        return SMAnimation(self.initial, *args, delay=self.delay, **self.properties)
 
 
 def Animation(*args, **kwargs):
-    newargs = [ ]
+    newargs = []
 
     for i, a in enumerate(args):
         newargs.append(a)
@@ -326,7 +355,7 @@ def Animation(*args, **kwargs):
     return TransitionAnimation(*newargs, **kwargs)
 
 
-class TransitionAnimation(renpy.display.core.Displayable):
+class TransitionAnimation(renpy.display.displayable.Displayable):
     """
     A displayable that draws an animation with each frame separated
     by a transition.
@@ -354,17 +383,16 @@ class TransitionAnimation(renpy.display.core.Displayable):
         timebase. Otherwise, use the displayable timebase.
         """
 
-        properties.setdefault('style', 'animation')
-        self.anim_timebase = properties.pop('anim_timebase', True)
+        properties.setdefault("style", "animation")
+        self.anim_timebase = properties.pop("anim_timebase", True)
 
         super(TransitionAnimation, self).__init__(**properties)
 
-        images = [ ]
-        delays = [ ]
-        transitions = [ ]
+        images = []
+        delays = []
+        transitions = []
 
         for i, arg in enumerate(args):
-
             if i % 3 == 0:
                 images.append(renpy.easy.displayable(arg))
             elif i % 3 == 1:
@@ -373,17 +401,17 @@ class TransitionAnimation(renpy.display.core.Displayable):
                 transitions.append(arg)
 
         if len(images) > len(delays):
-            delays.append(365.25 * 86400.0) # One year, give or take.
+            delays.append(365.25 * 86400.0)  # One year, give or take.
         if len(images) > len(transitions):
             transitions.append(None)
 
         self.images = images
-        self.prev_images = [ images[-1] ] + images[:-1]
+        self.prev_images = [images[-1]] + images[:-1]
+        self._duplicatable = any(i._duplicatable for i in images)
         self.delays = delays
-        self.transitions = [ transitions[-1] ] + transitions[:-1]
+        self.transitions = [transitions[-1]] + transitions[:-1]
 
     def render(self, width, height, st, at):
-
         if self.anim_timebase:
             orig_t = at
         else:
@@ -412,13 +440,42 @@ class TransitionAnimation(renpy.display.core.Displayable):
     def visit(self):
         return self.images
 
+    def _duplicate(self, args):
+        if not self._duplicatable:
+            return super(TransitionAnimation, self)._duplicate(args)
 
-class Blink(renpy.display.core.Displayable):
-    """
-    """
+        images = [i._duplicate(args) for i in self.images]
 
-    def __init__(self, image, on=0.5, off=0.5, rise=0.5, set=0.5, # @ReservedAssignment
-                 high=1.0, low=0.0, offset=0.0, anim_timebase=False, **properties):
+        for i in images:
+            i._unique()
+
+        rv = self._copy(args)
+        rv.images = images
+        rv.prev_images = [images[-1]] + images[:-1]
+        rv._duplicatable = False
+        return rv
+
+    def _unique(self):
+        for i in self.images:
+            i._unique()
+
+        self._duplicatable = False
+
+
+class Blink(renpy.display.displayable.Displayable):
+    def __init__(
+        self,
+        image,
+        on=0.5,
+        off=0.5,
+        rise=0.5,
+        set=0.5,
+        high=1.0,
+        low=0.0,
+        offset=0.0,
+        anim_timebase=False,
+        **properties,
+    ):
         """
         This takes as an argument an image or widget, and blinks that image
         by varying its alpha. The sequence of phases is
@@ -448,6 +505,7 @@ class Blink(renpy.display.core.Displayable):
         super(Blink, self).__init__(**properties)
 
         self.image = renpy.easy.displayable(image)
+        self._duplicatable = self.image._duplicatable
         self.on = on
         self.off = off
         self.rise = rise
@@ -460,9 +518,30 @@ class Blink(renpy.display.core.Displayable):
         self.cycle = on + set + off + rise
 
     def visit(self):
-        return [ self.image ]
+        return [self.image]
+
+    def _duplicate(self, args):
+        image = self.image._duplicate(args)
+
+        if image is self.image:
+            return self
+
+        image._unique()
+
+        rv = self._copy(args)
+        rv.image = image
+        rv._duplicatable = False
+        return rv
+
+    def _unique(self):
+        self.image._unique()
+        self._duplicatable = False
+
+    def predict_shaders(self, shaders):
+        return shaders + ("renpy.alpha",)
 
     def render(self, height, width, st, at):
+        delay = 0
 
         if self.anim_timebase:
             t = at
@@ -471,7 +550,6 @@ class Blink(renpy.display.core.Displayable):
 
         time = (self.offset + t) % self.cycle
         alpha = self.high
-        delay = 0
 
         if 0 <= time < self.on:
             delay = self.on - time
@@ -537,7 +615,7 @@ def Filmstrip(image, framesize, gridsize, delay, frames=None, loop=True, **prope
     @param delay: The delay, in seconds, between frames.
 
     @param frames: The number of frames in this animation. If None,
-    then this defaults to colums * rows frames, that is, taking
+    then this defaults to columns * rows frames, that is, taking
     every frame in the grid.
 
     @param loop: If True, loop at the end of the animation. If False,
@@ -555,15 +633,14 @@ def Filmstrip(image, framesize, gridsize, delay, frames=None, loop=True, **prope
     i = 0
 
     # Arguments to Animation
-    args = [ ]
+    args = []
 
     for r in range(0, rows):
         for c in range(0, cols):
-
             x = c * width
             y = r * height
 
-            args.append(renpy.display.im.Crop(image, x, y, width, height))
+            args.append(renpy.display.transform.Transform(image, crop=(x, y, width, height)))
             args.append(delay)
 
             i += 1

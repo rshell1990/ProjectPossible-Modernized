@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -78,53 +78,46 @@ init python:
     __scratch.has_autosave = False
     __scratch.has_quicksave = False
 
-    def _build_savefile_slot(ime, index, name, extra_info, screenshot, mtime, newest, clicked):
+    def _render_savefile(ime, index, name, extra_info, screenshot, mtime, newest, clicked):
 
         import time
 
-        pos = ime.button(
+        (x1, y1, x2, y2) = ime.button(
             "slot_%d" % index, clicked, newest,
-            keymap={ "save_delete" : Return(("unlink", name)) })
+            keymap={ "save_delete" : ui.returns(("unlink", name)) })
 
-        if pos is None:
-            return None
+        ui.fixed(xpos=x1, ypos=y1, xmaximum=x2-x1, ymaximum=y2-y1)
 
-        x1, y1, x2, y2 = pos
+        if not config.disable_thumbnails:
+            ui.window(style=style.file_picker_ss_window[index])
+            ui.add(screenshot)
 
         s = name + ". " + config.file_entry_format % dict(
             time=time.strftime(config.time_format,
-                            time.localtime(mtime)),
+                               time.localtime(mtime)),
             save_name=extra_info)
 
-        return {
-            "saved" : True,
-            "index" : index,
-            "x1" : x1,
-            "y1" : y1,
-            "w" : x2 - x1,
-            "h" : y2 - y1,
-            "screenshot" : screenshot,
-            "text" : s,
-            }
+        ui.window(style=style.file_picker_text_window[index])
+        ui.text(s, style=style.file_picker_text[index])
 
-    def _build_new_slot(ime, index, name, clicked):
+        ui.close()
 
-        pos = ime.button("slot_%d" % index, clicked, False)
+    def _render_new_slot(ime, index, name, clicked):
 
-        if pos is None:
-            return None
+        (x1, y1, x2, y2) = ime.button("slot_%d" % index, clicked, False)
 
-        x1, y1, x2, y2 = pos
+        ui.fixed(xpos=x1, ypos=y1, xmaximum=x2-x1, ymaximum=y2-y1)
 
-        return {
-            "saved" : False,
-            "index" : index,
-            "x1" : x1,
-            "y1" : y1,
-            "w" : x2 - x1,
-            "h" : y2 - y1,
-            "name" : name,
-            }
+        if not config.disable_thumbnails:
+
+            if config.load_save_empty_thumbnail:
+                ui.window(style=style.file_picker_ss_window[index])
+                ui.add(config.load_save_empty_thumbnail)
+
+        ui.window(style=style.file_picker_text_window[index])
+        ui.text(name + ". " + _(u"Empty Slot.") + "\n", style=style.file_picker_empty_slot[index])
+
+        ui.close()
 
 
     # This function is given a page, and should map it to the names
@@ -178,7 +171,7 @@ init python:
 
         try:
             return base + int((int(filename) - 1) / per_page)
-        except:
+        except Exception:
             return base
 
     # Processes a screenshot.
@@ -297,55 +290,43 @@ init python:
                 ime.button(label, clicked, selected)
 
             # Previous
-            tb(fpp > 0, 'previous', Return(("fppdelta", -1)), selected=False)
+            tb(fpp > 0, 'previous', ui.returns(("fppdelta", -1)), selected=False)
 
             # Quick Access
             for i, name in enumerate(_file_picker_pages()):
-                tb(True, name, Return(("fppset", i)), fpp == i)
+                tb(True, name, ui.returns(("fppset", i)), fpp == i)
 
             # Next
-            tb(True, 'next', Return(("fppdelta", +1)), False)
+            tb(True, 'next', ui.returns(("fppdelta", +1)), False)
 
-            slots = [ ]
-
-            for i, (filename, name, ro) in enumerate(_file_picker_page_files(fpp)):
-                clicked = Return(("return", filename))
+            # This draws a single slot.
+            def entry(name, filename, offset, ro):
+                clicked = ui.returns(("return", filename))
 
                 if filename not in save_info:
                     if (not save) or ro:
                         clicked = None
 
-                    slot = _build_new_slot(ime, i, name, clicked)
+                    _render_new_slot(ime, offset, name, clicked)
+
                 else:
                     if save and ro:
                         clicked = None
 
                     extra_info, screenshot, mtime = save_info[filename]
-                    slot = _build_savefile_slot(
-                        ime,
-                        i,
-                        name,
-                        extra_info,
-                        screenshot,
-                        mtime,
-                        newest == filename,
-                        clicked)
+                    _render_savefile(ime,
+                                     offset,
+                                     name,
+                                     extra_info,
+                                     screenshot,
+                                     mtime,
+                                     newest == filename,
+                                     clicked)
 
-                if slot is not None:
-                    slots.append(slot)
+            for i, (filename, name, ro) in enumerate(_file_picker_page_files(fpp)):
+                entry(name, filename, i, ro)
 
             ime.close()
-
-            use_sl2_nav = getattr(layout.navigation, "_is_sl2", False)
-            if ime.show_default_nav and not use_sl2_nav:
-                layout.navigation(screen)
-
-            renpy.show_screen(
-                "_imagemap_load_save",
-                ime=ime,
-                slots=slots,
-                use_sl2_nav=use_sl2_nav,
-                _transient=True)
 
             result = ui.interact(mouse="gamemenu")
             type, value = result
@@ -363,29 +344,6 @@ init python:
 
             if type == "fppset":
                 fpp = value
-
-screen _imagemap_load_save(ime, slots, use_sl2_nav=True):
-
-    use _imagemap_contents(ime, use_sl2_nav=use_sl2_nav)
-
-    for slot in slots:
-        $ idx = slot["index"]
-
-        fixed xpos slot["x1"] ypos slot["y1"] xmaximum slot["w"] ymaximum slot["h"]:
-            if slot["saved"]:
-                if not config.disable_thumbnails:
-                    window style style.file_picker_ss_window[idx]:
-                        add slot["screenshot"]
-
-                window style style.file_picker_text_window[idx]:
-                    text slot["text"] style style.file_picker_text[idx]
-            else:
-                if not config.disable_thumbnails and config.load_save_empty_thumbnail:
-                    window style style.file_picker_ss_window[idx]:
-                        add config.load_save_empty_thumbnail
-
-                window style style.file_picker_text_window[idx]:
-                    text (slot["name"] + ". " + _(u"Empty Slot.") + "\n") style style.file_picker_empty_slot[idx]
 
 
 label save_screen:

@@ -1,4 +1,4 @@
-# Copyright 2004-2021 Tom Rothamel <pytom@bishoujo.us>
+# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -19,25 +19,26 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-# Functions that make the user's life easier.
+"""Functions that make the user's life easier."""
 
-from __future__ import division, absolute_import, with_statement, print_function, unicode_literals
-from renpy.compat import *
+from typing import Any, Callable
+from collections.abc import Iterable
 
-
-import renpy.display
-import renpy.styledata
 import contextlib
 import time
 
-Color = renpy.color.Color
-color = renpy.color.Color
+import renpy
+
+from renpy.types import Displayable, DisplayableLike
+
+# Kept for backwards compatibility.
+from renpy.color import Color as Color, Color as color  # noqa: F401
 
 
-def lookup_displayable_prefix(d):
+def lookup_displayable_prefix(d: str) -> Displayable | None:
     """
-    Given `d`, a string given a displayable, returns the displayale it
-    corresponds to or None if it it does not correspond to one.
+    Given `d`, a string given a displayable, returns the displayable it
+    corresponds to or None if it does not correspond to one.
     """
 
     prefix, colon, arg = d.partition(":")
@@ -52,15 +53,18 @@ def lookup_displayable_prefix(d):
     return displayable(fn(arg))
 
 
-def displayable_or_none(d, scope=None, dynamic=True):
-
-    if isinstance(d, renpy.display.core.Displayable):
+def displayable_or_none(
+    d: DisplayableLike | None,
+    scope: dict[str, Any] | None = None,
+    dynamic: bool = True,
+) -> Displayable | None:
+    if isinstance(d, renpy.display.displayable.Displayable):
         return d
 
     if d is None:
         return d
 
-    if isinstance(d, basestring):
+    if isinstance(d, str):
         if not d:
             raise Exception("An empty string cannot be used as a displayable.")
         elif ("[" in d) and renpy.config.dynamic_images and dynamic:
@@ -70,7 +74,7 @@ def displayable_or_none(d, scope=None, dynamic=True):
 
         if rv is not None:
             return rv
-        elif d[0] == '#':
+        elif d[0] == "#":
             return renpy.store.Solid(d)
         elif "." in d:
             return renpy.store.Image(d)
@@ -84,16 +88,16 @@ def displayable_or_none(d, scope=None, dynamic=True):
         return renpy.display.image.DynamicImage(d, scope=scope)
 
     # We assume the user knows what he's doing in this case.
-    if hasattr(d, '_duplicate'):
+    if hasattr(d, "_duplicate"):
         return d
 
     if d is True or d is False:
-        return d
+        return d  # type: ignore
 
-    raise Exception("Not a displayable: %r" % (d,))
+    raise Exception(f"Not a displayable: {d!r}")
 
 
-def displayable(d, scope=None):
+def displayable(d: DisplayableLike, scope: dict[str, Any] | None = None) -> Displayable:
     """
     :doc: udd_utility
     :name: renpy.displayable
@@ -103,10 +107,10 @@ def displayable(d, scope=None):
     rules.
     """
 
-    if isinstance(d, renpy.display.core.Displayable):
+    if isinstance(d, renpy.display.displayable.Displayable):
         return d
 
-    if isinstance(d, basestring):
+    if isinstance(d, str):
         if not d:
             raise Exception("An empty string cannot be used as a displayable.")
         elif ("[" in d) and renpy.config.dynamic_images:
@@ -116,7 +120,7 @@ def displayable(d, scope=None):
 
         if rv is not None:
             return rv
-        elif d[0] == '#':
+        elif d[0] == "#":
             return renpy.store.Solid(d)
         elif "." in d:
             return renpy.store.Image(d)
@@ -130,16 +134,21 @@ def displayable(d, scope=None):
         return renpy.display.image.DynamicImage(d, scope=scope)
 
     # We assume the user knows what he's doing in this case.
-    if hasattr(d, '_duplicate'):
+    if hasattr(d, "_duplicate"):
         return d
 
     if d is True or d is False:
-        return d
+        return d  # type: ignore
 
     raise Exception("Not a displayable: %r" % (d,))
 
 
-def dynamic_image(d, scope=None, prefix=None, search=None):
+def dynamic_image(
+    d: Any,
+    scope: dict[str, Any] | None = None,
+    prefix: str | None = None,
+    search: list[str] | None = None,
+) -> Displayable | None:
     """
     Substitutes a scope into `d`, then returns a displayable.
 
@@ -148,14 +157,13 @@ def dynamic_image(d, scope=None, prefix=None, search=None):
     """
 
     if not isinstance(d, list):
-        d = [ d ]
+        d = [d]
 
     def find(name):
-
         if renpy.exports.image_exists(name):
             return True
 
-        if renpy.loader.loadable(name):
+        if renpy.loader.loadable(name, directory="images"):
             return True
 
         if lookup_displayable_prefix(name):
@@ -165,19 +173,19 @@ def dynamic_image(d, scope=None, prefix=None, search=None):
             if renpy.config.missing_image_callback(name):
                 return True
 
-    for i in d:
+        return False
 
-        if not isinstance(i, basestring):
+    for i in d:
+        if not isinstance(i, str):
             continue
 
         if (prefix is not None) and ("[prefix_" in i):
-
             if scope:
                 scope = dict(scope)
             else:
-                scope = { }
+                scope = {}
 
-            for p in renpy.styledata.stylesets.prefix_search[prefix]:  # @UndefinedVariable
+            for p in renpy.styledata.stylesets.prefix_search[prefix]:
                 scope["prefix_"] = p
 
                 rv = renpy.substitutions.substitute(i, scope=scope, force=True, translate=False)[0]
@@ -189,7 +197,6 @@ def dynamic_image(d, scope=None, prefix=None, search=None):
                     search.append(rv)
 
         else:
-
             rv = renpy.substitutions.substitute(i, scope=scope, force=True, translate=False)[0]
 
             if find(rv):
@@ -198,17 +205,15 @@ def dynamic_image(d, scope=None, prefix=None, search=None):
             if search is not None:
                 search.append(rv)
 
-    else:
+    rv = d[-1]
 
-        rv = d[-1]
+    if find(rv):
+        return displayable_or_none(rv, dynamic=False)
 
-        if find(rv):
-            return displayable_or_none(rv, dynamic=False)
-
-        return None
+    return None
 
 
-def predict(d):
+def predict(d: Any):
     d = renpy.easy.displayable_or_none(d)
 
     if d is not None:
@@ -216,13 +221,13 @@ def predict(d):
 
 
 @contextlib.contextmanager
-def timed(name):
+def timed(name: str):
     start = time.time()
     yield
-    print("{0}: {1:.2f} ms".format(name, (time.time() - start) * 1000.0))
+    print(f"{name}: {(time.time() - start) * 1000.0:.2f} ms")
 
 
-def split_properties(properties, *prefixes):
+def split_properties(properties: dict[str, Any], *prefixes: str) -> list[dict[str, Any]]:
     """
     :doc: other
 
@@ -240,11 +245,7 @@ def split_properties(properties, *prefixes):
         text_properties, button_properties = renpy.split_properties(properties, "text_", "")
     """
 
-    rv = [ ]
-
-    for _i in prefixes:
-        rv.append({})
-
+    rv = [{} for _ in prefixes]
     if not properties:
         return rv
 
@@ -253,9 +254,74 @@ def split_properties(properties, *prefixes):
     for k, v in properties.items():
         for prefix, d in prefix_d:
             if k.startswith(prefix):
-                d[k[len(prefix):]] = v
+                d[k.removeprefix(prefix)] = v
                 break
         else:
-            raise Exception("Property {} begins with an unknown prefix.".format(k))
+            raise Exception(f"Property {k} begins with an unknown prefix.")
+
+    return rv
+
+
+def to_list[T](value: T | Iterable[T], copy: bool = False) -> list[T]:
+    """
+    If the value is an iterable, turns it into a list, otherwise wraps it into one.
+    If a list is provided and `copy` is True, a new list will be returned.
+    """
+
+    if isinstance(value, list):
+        return list(value) if copy else value
+
+    elif isinstance(value, str):
+        return [value]  # type: ignore
+
+    elif isinstance(value, Iterable):
+        return list(value)
+
+    else:
+        return [value]
+
+
+def to_tuple[T](value: T | Iterable[T]) -> tuple[T, ...]:
+    """
+    Same as to_list, but with tuples.
+    """
+
+    if isinstance(value, tuple):
+        return value
+
+    elif isinstance(value, str):
+        return (value,)  # type: ignore
+
+    elif isinstance(value, Iterable):
+        return tuple(value)
+
+    else:
+        return (value,)
+
+
+def run_callbacks[**P, R](
+    cb: Callable[P, R] | list[Callable[P, R]] | None,
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> R | None:
+    """
+    Runs a callback or list of callbacks applying the arguments.
+
+    Returns the result of the last callback that returns a value, or None if
+    no callback returns a value.
+    """
+
+    if cb is None:
+        return None
+
+    if not isinstance(cb, (list, tuple)):
+        cb = [cb]
+
+    rv = None
+
+    for i in cb:
+        new_rv = i(*args, **kwargs)
+        if new_rv is not None:
+            rv = new_rv
 
     return rv
