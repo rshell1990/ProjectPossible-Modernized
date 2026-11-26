@@ -1,4 +1,4 @@
-﻿# This is an implementation of NVL-mode, which can be used to show
+# This is an implementation of NVL-mode, which can be used to show
 # dialogue in a fullscreen way, like NVL-style games. Multiple lines
 # of dialogue are shown on the screen at once, whenever a line of
 # dialogue is said by a NVLCharacter. Calling the nvl_clear function
@@ -97,9 +97,9 @@ init -1500 python:
 
     def __nvl_screen_dialogue():
         """
-         Returns widget_properties and dialogue for the current NVL
-         mode screen.
-         """
+        Returns widget_properties and dialogue for the current NVL
+        mode screen.
+        """
 
         dialogue = [ ]
         kwargs = { }
@@ -168,8 +168,8 @@ init -1500 python:
 
     def __nvl_show_screen(screen_name, **scope):
         """
-         Shows an nvl-mode screen. Returns the "what" widget.
-         """
+        Shows an nvl-mode screen. Returns the "what" widget.
+        """
 
         widget_properties, dialogue, show_args = __nvl_screen_dialogue()
         scope.update(show_args)

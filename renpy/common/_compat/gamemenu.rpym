@@ -1,4 +1,4 @@
-﻿init python:
+init python:
 
     ######################################################################
     # First up, we define a bunch of configuration variable, which the
@@ -424,7 +424,7 @@
     def _quit_prompt(screen="quit"):
 
         def prompt():
-           return _yesno_prompt(screen, u"Are you sure you want to quit?")
+            return _yesno_prompt(screen, u"Are you sure you want to quit?")
 
         if renpy.invoke_in_new_context(prompt):
             renpy.quit()
@@ -436,7 +436,7 @@
     def _mainmenu_prompt(screen="mainmenu"):
 
         def prompt():
-           return _yesno_prompt(screen, u"Are you sure you want to return to the main menu?\nThis will lose unsaved progress.")
+            return _yesno_prompt(screen, u"Are you sure you want to return to the main menu?\nThis will lose unsaved progress.")
 
         if renpy.invoke_in_new_context(prompt):
             renpy.full_restart(transition=config.game_main_transition)

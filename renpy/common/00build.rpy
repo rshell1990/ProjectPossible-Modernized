@@ -1,4 +1,4 @@
-﻿# Contains functions and variables that control the building of
+# Contains functions and variables that control the building of
 # distributions.
 
 init -1500 python in build:
@@ -136,7 +136,7 @@ init -1500 python in build:
         ("*.dll", None),
         ("*.manifest", None),
         ("*.keystore", None),
-        ( "**.rpe.py", None),
+        ("**.rpe.py", None),
 
         ("update.pem", None),
 
@@ -510,10 +510,10 @@ init -1500 python in build:
     game_only_update = False
 
     # The time at which the game was built.
-    time = store.renpy.game.build_info.get("time", None)
+    time = renpy.game.build_info.get("time", None)
 
     # Information about the game that is stored in cache/build_info.json.
-    info = store.renpy.game.build_info.get("info", { })
+    info = renpy.game.build_info.get("info", { })
 
     # This function is called by the json_dump command to dump the build data
     # into the json file.
@@ -602,8 +602,8 @@ init -1500 python in build:
         rv["merge"] = list(merge)
 
         if include_i686:
-           rv['merge'].append(("linux_i686", "linux"))
-           rv['merge'].append(("windows_i686", "windows"))
+            rv['merge'].append(("linux_i686", "linux"))
+            rv['merge'].append(("windows_i686", "windows"))
 
         rv["include_i686"] = include_i686
         rv["change_icon_i686"] = change_icon_i686

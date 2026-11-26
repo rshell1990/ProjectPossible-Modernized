@@ -1,4 +1,4 @@
-﻿#
+#
 # Please see the LICENSE.txt distributed with Ren'Py for permission to
 # copy and modify.
 
@@ -93,42 +93,42 @@ init -1100:
             ):
 
             """This enables the use of the roundrect theme. By
-               default, this theme styles the game in a blue color
-               scheme. However, by supplying one or more of the
-               parameters given below, the color scheme can be
-               changed.
+            default, this theme styles the game in a blue color
+            scheme. However, by supplying one or more of the
+            parameters given below, the color scheme can be
+            changed.
 
-               @param widget: The background color of non-focued
-               buttons and sliders.
+            @param widget: The background color of non-focued
+            buttons and sliders.
 
-               @param widget_hover: The background color of focused
-               buttons and sliders.
+            @param widget_hover: The background color of focused
+            buttons and sliders.
 
-               @param widget_text: The text color of non-selected buttons.
+            @param widget_text: The text color of non-selected buttons.
 
-               @param widget_selected: The text color of selected buttons.
+            @param widget_selected: The text color of selected buttons.
 
-               @param disabled: The background color of disabled buttons.
+            @param disabled: The background color of disabled buttons.
 
-               @param disabled_text: The text color of disabled buttons.
+            @param disabled_text: The text color of disabled buttons.
 
-               @param label: The text color of non-selected labels.
+            @param label: The text color of non-selected labels.
 
-               @param frame: The background color of frames.
+            @param frame: The background color of frames.
 
-               @param mm_root: A displayable (such as
-               an Image or Solid) that will be used as
-               the background for the main menu.
+            @param mm_root: A displayable (such as
+            an Image or Solid) that will be used as
+            the background for the main menu.
 
-               @param gm_root: A displayable (such as
-               an Image or Solid) that will be used as
-               the background for the game menu.
+            @param gm_root: A displayable (such as
+            an Image or Solid) that will be used as
+            the background for the game menu.
 
-               @param centered: If True, the buttons and sliders will
-               be centered in the frames or windows that contain
-               them. If False, the default, they will be pushed to the
-               right side.
-               """
+            @param centered: If True, the buttons and sliders will
+            be centered in the frames or windows that contain
+            them. If False, the default, they will be pushed to the
+            right side.
+            """
 
             if config.screen_width <= 640:
                 size = 18

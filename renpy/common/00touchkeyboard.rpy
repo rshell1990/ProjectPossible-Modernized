@@ -1,4 +1,4 @@
-﻿# Copyright 2020 Sylvain Beucler
+# Copyright 2020 Sylvain Beucler
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -38,8 +38,8 @@ init -1500 python:
     @renpy.pure
     class _TouchKeyboardBackspace(Action, DictEquality):
         """
-         Simulate backspace
-         """
+        Simulate backspace
+        """
 
         def __call__(self):
             renpy.pygame.event.post(renpy.pygame.event.Event(
@@ -58,8 +58,8 @@ init -1500 python:
     @renpy.pure
     class _TouchKeyboardReturn(Action, DictEquality):
         """
-         Simulate return
-         """
+        Simulate return
+        """
 
         def __call__(self):
 

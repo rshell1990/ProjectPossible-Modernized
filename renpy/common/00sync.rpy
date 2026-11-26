@@ -1,4 +1,4 @@
-﻿# Protocol:
+# Protocol:
 #
 # This currently requires one endpoint on the server, and makes
 # PUT and GET requests.
@@ -159,7 +159,7 @@ init -1100 python in _sync:
         renpy.display.log.exception()
 
         if renpy.emscripten:
-           return e.args[0]
+            return e.args[0]
 
         import requests
 
