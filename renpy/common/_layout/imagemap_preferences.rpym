@@ -37,7 +37,7 @@
     __curried_set = renpy.curry(__set)
 
 
-    def __show_preferences():
+    def _preferences_imagemap():
 
         ime = _ImageMapper(
             "preferences",
@@ -65,13 +65,13 @@
         pref("All Messages", "skip_unseen", True)
 
         if not main_menu:
-            ime.button("Begin Skipping", ui.jumps("_return_skipping"), False)
+            ime.button("Begin Skipping", Jump("_return_skipping"), False)
 
         pref("Stop Skipping", "skip_after_choices", False)
         pref("Keep Skipping", "skip_after_choices", True)
 
         if renpy.display.joystick.enabled or config.always_has_joystick:
-            ime.button("Joystick", ui.jumps("joystick_preferences_screen"), False)
+            ime.button("Joystick", Jump("joystick_preferences_screen"), False)
 
         def play_sound():
             renpy.music.play(config.sample_sound, channel="sound")
@@ -129,10 +129,18 @@
         if config.has_voice:
             ime.bar("Voice Volume", 128, int(_preferences.get_volume('voice') * 128), set_voice)
 
-        ime.close()
-        ui.interact(mouse="gamemenu")
+        return ime
+
+screen _imagemap_preferences(ime):
+
+    modal True
+
+    if ime.navigation:
+        $ layout.navigation(ime.screen)
+
+    use _imagemap_fixed(ime)
 
 label preferences_screen:
 
     while True:
-        $ __show_preferences()
+        $ renpy.call_screen("_imagemap_preferences", _preferences_imagemap(), _mode="gamemenu")

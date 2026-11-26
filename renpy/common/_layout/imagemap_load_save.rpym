@@ -63,40 +63,31 @@
 
         (x1, y1, x2, y2) = ime.button(
             "slot_%d" % index, clicked, newest,
-            keymap={ "save_delete" : ui.returns(("unlink", name)) })
-
-        ui.fixed(xpos=x1, ypos=y1, xmaximum=x2-x1, ymaximum=y2-y1)
-
-        if not config.disable_thumbnails:
-            ui.window(style=style.file_picker_ss_window[index])
-            ui.add(screenshot)
+            keymap={ "save_delete" : Return(("unlink", name)) })
 
         s = name + ". " + config.file_entry_format % dict(
             time=time.strftime(config.time_format,
                                time.localtime(mtime)),
             save_name=extra_info)
 
-        ui.window(style=style.file_picker_text_window[index])
-        ui.text(s, style=style.file_picker_text[index])
-
-        ui.close()
+        thumbnail = None if config.disable_thumbnails else screenshot
+        ime.overlay((x1, y1, x2, y2), "save",
+                    index=index,
+                    thumbnail=thumbnail,
+                    text=s)
 
     def _render_new_slot(ime, index, name, clicked):
 
         (x1, y1, x2, y2) = ime.button("slot_%d" % index, clicked, False)
 
-        ui.fixed(xpos=x1, ypos=y1, xmaximum=x2-x1, ymaximum=y2-y1)
+        thumbnail = None
+        if not config.disable_thumbnails and config.load_save_empty_thumbnail:
+            thumbnail = config.load_save_empty_thumbnail
 
-        if not config.disable_thumbnails:
-
-            if config.load_save_empty_thumbnail:
-                ui.window(style=style.file_picker_ss_window[index])
-                ui.add(config.load_save_empty_thumbnail)
-
-        ui.window(style=style.file_picker_text_window[index])
-        ui.text(name + ". " + _(u"Empty Slot.") + "\n", style=style.file_picker_empty_slot[index])
-
-        ui.close()
+        ime.overlay((x1, y1, x2, y2), "empty",
+                    index=index,
+                    thumbnail=thumbnail,
+                    text=name + ". " + _(u"Empty Slot.") + "\n")
 
 
     # This function is given a page, and should map it to the names
@@ -200,6 +191,55 @@
 
         return rv
 
+    def _file_picker_imagemap(screen, save, fpp, newest, save_info):
+
+        ime = _ImageMapper(
+            screen,
+            config.load_save_ground,
+            config.load_save_idle,
+            config.load_save_hover,
+            config.load_save_selected_idle,
+            config.load_save_selected_hover,
+            config.load_save_hotspots,
+            variant=screen)
+
+        def tb(enabled, label, clicked, selected):
+            if enabled:
+                ime.button(label, clicked, selected)
+
+        tb(fpp > 0, 'previous', Return(("fppdelta", -1)), selected=False)
+
+        for i, name in enumerate(_file_picker_pages()):
+            tb(True, name, Return(("fppset", i)), fpp == i)
+
+        tb(True, 'next', Return(("fppdelta", +1)), False)
+
+        for offset, (filename, name, ro) in enumerate(_file_picker_page_files(fpp)):
+            clicked = Return(("return", filename))
+
+            if filename not in save_info:
+                if (not save) or ro:
+                    clicked = None
+
+                _render_new_slot(ime, offset, name, clicked)
+
+            else:
+                if save and ro:
+                    clicked = None
+
+                extra_info, screenshot, mtime = save_info[filename]
+                _render_savefile(
+                    ime,
+                    offset,
+                    name,
+                    extra_info,
+                    screenshot,
+                    mtime,
+                    newest == filename,
+                    clicked)
+
+        return ime
+
 
     # This displays a file picker that can chose a save file from
     # the list of save files.
@@ -250,64 +290,10 @@
 
             __scratch.file_picker_page = fpp
 
-            ime = _ImageMapper(
-                screen,
-                config.load_save_ground,
-                config.load_save_idle,
-                config.load_save_hover,
-                config.load_save_selected_idle,
-                config.load_save_selected_hover,
-                config.load_save_hotspots,
-                variant=screen)
-
-
-            def tb(enabled, label, clicked, selected):
-
-                if not enabled:
-                    return
-
-                ime.button(label, clicked, selected)
-
-            # Previous
-            tb(fpp > 0, 'previous', ui.returns(("fppdelta", -1)), selected=False)
-
-            # Quick Access
-            for i, name in enumerate(_file_picker_pages()):
-                tb(True, name, ui.returns(("fppset", i)), fpp == i)
-
-            # Next
-            tb(True, 'next', ui.returns(("fppdelta", +1)), False)
-
-            # This draws a single slot.
-            def entry(name, filename, offset, ro):
-                clicked = ui.returns(("return", filename))
-
-                if filename not in save_info:
-                    if (not save) or ro:
-                        clicked = None
-
-                    _render_new_slot(ime, offset, name, clicked)
-
-                else:
-                    if save and ro:
-                        clicked = None
-
-                    extra_info, screenshot, mtime = save_info[filename]
-                    _render_savefile(ime,
-                                     offset,
-                                     name,
-                                     extra_info,
-                                     screenshot,
-                                     mtime,
-                                     newest == filename,
-                                     clicked)
-
-            for i, (filename, name, ro) in enumerate(_file_picker_page_files(fpp)):
-                entry(name, filename, i, ro)
-
-            ime.close()
-
-            result = ui.interact(mouse="gamemenu")
+            result = renpy.call_screen(
+                "_imagemap_file_picker",
+                _file_picker_imagemap(screen, save, fpp, newest, save_info),
+                _mode="gamemenu")
             type, value = result
 
             if type == "unlink":
@@ -323,6 +309,15 @@
 
             if type == "fppset":
                 fpp = value
+
+screen _imagemap_file_picker(ime):
+
+    modal True
+
+    if ime.navigation:
+        $ layout.navigation(ime.screen)
+
+    use _imagemap_fixed(ime)
 
 
 label save_screen:

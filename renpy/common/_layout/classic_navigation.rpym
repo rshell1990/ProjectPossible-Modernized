@@ -16,35 +16,47 @@
     style.gm_nav_frame.yanchor = 1.0
 
     def _navigation(screen=None):
-
-        # Display the game menu background
-        ui.window(style=style.gm_root[screen])
-        ui.null()
-
-        if screen is None:
-            return
-
-        # Display the navigation frame.
-        ui.frame(style='gm_nav_frame')
-        ui.vbox(focus='gm_nav', style='gm_nav_box')
+        navigation = [ ]
 
         for e in config.game_menu:
-
             if len(e) == 4:
-                 key, label, clicked, enabled = e
-                 shown = "True"
+                key, label, clicked, enabled = e
+                shown = "True"
             else:
-                 key, label, clicked, enabled, shown = e
+                key, label, clicked, enabled, shown = e
 
-            if not eval(shown):
-                continue
+            if eval(shown):
+                navigation.append((key, label, clicked, eval(enabled)))
 
-            layout.button(label,
-                          "gm_nav",
-                          selected=(screen==key),
-                          enabled=eval(enabled),
-                          clicked=clicked)
-
-        ui.close()
+        renpy.show_screen(
+            "_classic_navigation",
+            screen=screen,
+            navigation=navigation,
+            _transient=True)
 
     layout.navigation = _navigation
+
+screen _classic_navigation(screen, navigation):
+
+    window:
+        style style.gm_root[screen]
+
+        fixed:
+            null
+
+            if screen is not None:
+                frame:
+                    style "gm_nav_frame"
+
+                    vbox:
+                        style "gm_nav_box"
+                        focus "gm_nav"
+
+                        for key, label, clicked, enabled in navigation:
+                            button:
+                                style style.gm_nav_button[label]
+                                action (clicked if enabled else None)
+                                selected screen == key
+
+                                text _(label):
+                                    style style.gm_nav_button_text[label]

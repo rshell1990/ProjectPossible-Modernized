@@ -25,16 +25,8 @@
     # - The name of the game menu button this is equivalent to.
     config.navigation_hotspots = None
 
-    def _navigation(screen=None):
+    def _navigation_items(screen):
 
-        # Display the game menu background
-        ui.window(style=style.gm_root[screen])
-        ui.null()
-
-        if screen is None:
-            return
-
-        # A map from button name to game menu information.
         gm = dict()
 
         for e in config.game_menu:
@@ -45,8 +37,7 @@
 
             gm[name_] = (screen_, act, enable)
 
-        ui.fixed(style='imagemap')
-        ui.image(config.navigation_ground)
+        items = [ ]
 
         for (x0, y0, x1, y1, name) in config.navigation_hotspots:
 
@@ -65,18 +56,44 @@
                 idle = config.navigation_idle
                 hover = config.navigation_hover
 
-            ui.imagebutton(
-                LiveCrop((x0, y0, x1-x0, y1-y0), idle),
-                LiveCrop((x0, y0, x1-x0, y1-y0), hover),
-                clicked=act,
-                style='imagemap_button',
-                xpos=x0,
-                ypos=y0,
-                xanchor=0,
-                yanchor=0,
-                focus_mask=True,
-                )
+            items.append({
+                "idle": LiveCrop((x0, y0, x1-x0, y1-y0), idle),
+                "hover": LiveCrop((x0, y0, x1-x0, y1-y0), hover),
+                "x": x0,
+                "y": y0,
+                "action": act,
+                })
 
-        ui.close()
+        return items
+
+    def _navigation(screen=None):
+        items = [ ] if screen is None else _navigation_items(screen)
+        renpy.use_screen("_imagemap_navigation", screen, items)
 
     layout.navigation = _navigation
+
+screen _imagemap_navigation(screen, items):
+
+    window:
+        style style.gm_root[screen]
+
+        fixed:
+            null
+
+            if screen is not None:
+                fixed:
+                    style "imagemap"
+
+                    add config.navigation_ground
+
+                    for item in items:
+                        imagebutton:
+                            idle item["idle"]
+                            hover item["hover"]
+                            action item["action"]
+                            style "imagemap_button"
+                            xpos item["x"]
+                            ypos item["y"]
+                            xanchor 0
+                            yanchor 0
+                            focus_mask True

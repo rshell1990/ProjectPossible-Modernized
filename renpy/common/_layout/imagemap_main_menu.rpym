@@ -25,16 +25,7 @@
     # This can be set from user code to define the main menu variant to use.
     _main_menu_variant = None
 
-label main_menu_screen:
-
-    python hide:
-
-        # Ignore right-click while at the main menu.
-        ui.keymap(game_menu=ui.returns(None))
-
-        # Show the background.
-        ui.window(style='mm_root')
-        ui.null()
+    def _build_imagemap_main_menu():
 
         ime = _ImageMapper(
             None,
@@ -61,14 +52,31 @@ label main_menu_screen:
                 act = None
 
             if isinstance(act, str):
-                act = ui.jumpsoutofcontext(act)
+                act = Start(act)
 
             ime.button(name, act, False)
 
         for i in list(ime.remaining_hotspots):
-            ime.button(i, ui.jumpsoutofcontext(i), None)
+            ime.button(i, Start(i), None)
 
-        ime.close()
-        ui.interact(mouse='mainmenu')
+        return ime
+
+screen _imagemap_main_menu(ime):
+
+    modal True
+
+    key "game_menu" action Return(None)
+
+    window:
+        style "mm_root"
+        null
+
+    use _imagemap_fixed(ime)
+
+label main_menu_screen:
+
+    python hide:
+        ime = _build_imagemap_main_menu()
+        renpy.call_screen("_imagemap_main_menu", ime, _mode="mainmenu")
 
     jump main_menu_screen

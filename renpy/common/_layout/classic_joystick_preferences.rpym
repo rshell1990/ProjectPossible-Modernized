@@ -51,8 +51,10 @@
             layout.button(_(label) + " - " + _(_preferences.joymap.get(key, u"Not Assigned")), "prefs_js", clicked=my_clicked, index=label)
 
     def _joystick_get_binding():
-        ui.saybehavior()
-        ui.add(renpy.display.joystick.JoyBehavior())
+        return [
+            renpy.display.behavior.SayBehavior(),
+            renpy.display.joystick.JoyBehavior(),
+            ]
 
     def _joystick_take_binding(binding, key):
 
@@ -67,32 +69,30 @@
 
             def set_binding(label, key):
                 layout.navigation(None)
-
-                ui.window(style='js_frame')
-                ui.vbox(style='js_frame_box')
-                layout.prompt(_(u"Joystick Mapping") + " - " + _(label), "js_function")
-                layout.prompt(u'Move the joystick or press a joystick button to create the mapping. Click the mouse to remove the mapping.', 'js_action')
-                ui.close()
-
-                _joystick_get_binding()
-                binding = ui.interact(mouse="gamemenu")
+                binding = renpy.call_screen(
+                    "_classic_joystick_binding",
+                    label,
+                    _mode="gamemenu")
                 _joystick_take_binding(binding, key)
 
                 return True
 
-            ui.window(style='js_prefs_frame')
-            ui.vbox(style='js_prefs_box')
-
-            layout.label("Joystick Configuration", "js_prefs")
+            bindings = [ ]
 
             for label, key in config.joystick_keys:
-
                 def clicked(label=label, key=key):
                     return renpy.invoke_in_new_context(set_binding, label, key)
 
-                layout.button(_(label) + " - " + _(_preferences.joymap.get(key, u"Not Assigned")), "js_prefs", clicked=clicked, index=label)
+                bindings.append((
+                    label,
+                    _(label) + " - " + _(_preferences.joymap.get(key, u"Not Assigned")),
+                    clicked,
+                    ))
 
-            ui.close()
+            renpy.call_screen(
+                "_classic_joystick_preferences",
+                bindings,
+                _mode="gamemenu")
 
 label joystick_preferences_screen:
 
@@ -100,4 +100,55 @@ label joystick_preferences_screen:
         python:
             layout.navigation("joystick_preferences")
             _joystick_preferences()
-            ui.interact(mouse="gamemenu")
+
+screen _classic_joystick_binding(label):
+
+    modal True
+
+    fixed:
+        for behavior in _joystick_get_binding():
+            add behavior
+
+        window:
+            style "js_frame"
+
+            vbox:
+                style "js_frame_box"
+
+                $ prompt = _(u"Joystick Mapping") + " - " + _(label)
+
+                window:
+                    style style.js_function_prompt[prompt]
+
+                    text prompt:
+                        style style.js_function_prompt_text[prompt]
+
+                $ action_prompt = _(u"Move the joystick or press a joystick button to create the mapping. Click the mouse to remove the mapping.")
+
+                window:
+                    style style.js_action_prompt[action_prompt]
+
+                    text action_prompt:
+                        style style.js_action_prompt_text[action_prompt]
+
+screen _classic_joystick_preferences(bindings):
+
+    window:
+        style "js_prefs_frame"
+
+        vbox:
+            style "js_prefs_box"
+
+            window:
+                style style.js_prefs_label["Joystick Configuration"]
+
+                text _(u"Joystick Configuration"):
+                    style style.js_prefs_label_text["Joystick Configuration"]
+
+            for label, text, clicked in bindings:
+                button:
+                    style style.js_prefs_button[label]
+                    action Function(clicked)
+
+                    text text:
+                        style style.js_prefs_button_text[label]

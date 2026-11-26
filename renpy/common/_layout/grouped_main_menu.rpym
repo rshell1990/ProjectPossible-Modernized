@@ -15,21 +15,9 @@
 
     config.main_menu_per_group = 2
 
-
-label main_menu_screen:
-
-    python hide:
-        # Ignore right-click while at the main menu.
-        ui.keymap(game_menu=ui.returns(None))
-
-        # Show the background.
-        ui.window(style='mm_root')
-        ui.null()
-
-        ui.frame(style='mm_menu_frame')
-        ui.vbox(style='mm_outer_box')
-
-        inner_open = False
+    def _grouped_main_menu_items():
+        blocks = [ ]
+        group = None
 
         for i, e in enumerate(config.main_menu):
 
@@ -43,25 +31,71 @@ label main_menu_screen:
                 continue
 
             if i % config.main_menu_per_group == 0:
-                if inner_open:
-                    ui.close()
+                if group is not None:
+                    blocks.append((True, group))
+                group = [ ]
 
-                ui.hbox(style='mm_inner_box')
-                inner_open = True
-
-            # This checks to see if clicked is a string. If so, we want clicked
-            # to jump us out of the current context.
             if isinstance(clicked, str):
-                clicked=ui.jumpsoutofcontext(clicked)
+                clicked = Start(clicked)
 
-            # Create each button.
-            layout.button(label, "mm", enabled=eval(enabled), clicked=clicked)
+            item = (label, clicked, eval(enabled))
 
-        if inner_open:
-            ui.close() # inner box
+            if group is None:
+                blocks.append((False, [ item ]))
+            else:
+                group.append(item)
 
-        ui.close() # outer box
+        if group is not None:
+            blocks.append((True, group))
 
-        ui.interact(mouse="mainmenu")
+        return blocks
+
+
+screen _grouped_main_menu(groups):
+
+    modal True
+
+    key "game_menu" action NullAction()
+
+    window:
+        style "mm_root"
+
+        fixed:
+            null
+
+            frame:
+                style "mm_menu_frame"
+
+                vbox:
+                    style "mm_outer_box"
+
+                    for grouped, items in groups:
+                        if grouped:
+                            hbox:
+                                style "mm_inner_box"
+
+                                for label, clicked, enabled in items:
+                                    button:
+                                        style style.mm_button[label]
+                                        action clicked
+                                        sensitive enabled
+
+                                        text _(label):
+                                            style style.mm_button_text[label]
+                        else:
+                            for label, clicked, enabled in items:
+                                button:
+                                    style style.mm_button[label]
+                                    action clicked
+                                    sensitive enabled
+
+                                    text _(label):
+                                        style style.mm_button_text[label]
+
+
+label main_menu_screen:
+
+    python hide:
+        renpy.call_screen("_grouped_main_menu", _grouped_main_menu_items())
 
     return

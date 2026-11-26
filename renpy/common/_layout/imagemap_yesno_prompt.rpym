@@ -29,22 +29,37 @@
             config.yesno_prompt_hover,
             config.yesno_prompt_hotspots)
 
-        ime.button("Yes", ui.returns(True), False)
-        ime.button("No", ui.returns(False), False)
-
-        ime.close()
+        ime.button("Yes", Return(True), False)
+        ime.button("No", Return(False), False)
 
         default = config.yesno_prompt_message_images.get(layout.ARE_YOU_SURE, None)
         message_image = config.yesno_prompt_message_images.get(message, default)
 
-        if message_image:
-            ui.add(message_image)
-        else:
-            layout.prompt(message, "yesno")
-
-        rv = ui.interact(mouse="gamemenu")
+        rv = renpy.call_screen(
+            "_imagemap_yesno_prompt",
+            ime,
+            message,
+            message_image,
+            _mode="gamemenu")
         renpy.transition(config.intra_transition)
         return rv
 
     layout.yesno_prompt = yesno_prompt
+
+screen _imagemap_yesno_prompt(ime, message, message_image):
+
+    modal True
+
+    if ime.navigation:
+        $ layout.navigation(ime.screen)
+
+    use _imagemap_fixed(ime)
+
+    if message_image:
+        add message_image
+    else:
+        window:
+            style style.yesno_prompt[message]
+            text _(message):
+                style style.yesno_prompt_text[message]
 

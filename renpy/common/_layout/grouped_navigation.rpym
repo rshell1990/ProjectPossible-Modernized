@@ -19,48 +19,87 @@
 
     config.navigation_per_group = 4
 
-    def navigation(screen=None):
-
-        # Display the game menu background
-        ui.window(style=style.gm_root[screen])
-        ui.null()
-
+    def _grouped_navigation_items(screen):
         if screen is None:
-            return
+            return [ ]
 
-        # Display the navigation frame.
-        ui.frame(style='gm_nav_frame')
-        ui.vbox(focus='gm_nav', style='gm_nav_outer_box')
-
-        box_open = False
+        blocks = [ ]
+        group = None
 
         for i, e in enumerate(config.game_menu):
 
             if len(e) == 4:
-                 key, label, clicked, enabled = e
-                 shown = "True"
+                key, label, clicked, enabled = e
+                shown = "True"
             else:
-                 key, label, clicked, enabled, shown = e
+                key, label, clicked, enabled, shown = e
 
             if not eval(shown):
                 continue
 
             if i % config.navigation_per_group == 0:
-                if box_open:
-                    ui.close()
+                if group is not None:
+                    blocks.append((True, group))
+                group = [ ]
 
-                ui.hbox(style='gm_nav_inner_box')
-                box_open = True
+            item = (key, label, clicked, eval(enabled))
 
-            layout.button(label,
-                          "gm_nav",
-                          selected=(screen==key),
-                          enabled=eval(enabled),
-                          clicked=clicked)
+            if group is None:
+                blocks.append((False, [ item ]))
+            else:
+                group.append(item)
 
-        if box_open:
-            ui.close() # inner box.
+        if group is not None:
+            blocks.append((True, group))
 
-        ui.close() # outer box.
+        return blocks
+
+    def navigation(screen=None):
+        renpy.use_screen(
+            "_grouped_navigation",
+            screen,
+            _grouped_navigation_items(screen))
 
     layout.navigation = navigation
+
+
+screen _grouped_navigation(screen, groups):
+
+    window:
+        style style.gm_root[screen]
+
+        fixed:
+            null
+
+            if screen is not None:
+                frame:
+                    style "gm_nav_frame"
+
+                    vbox:
+                        focus "gm_nav"
+                        style "gm_nav_outer_box"
+
+                        for grouped, items in groups:
+                            if grouped:
+                                hbox:
+                                    style "gm_nav_inner_box"
+
+                                    for key, label, clicked, enabled in items:
+                                        button:
+                                            style style.gm_nav_button[label]
+                                            action clicked
+                                            selected screen == key
+                                            sensitive enabled
+
+                                            text _(label):
+                                                style style.gm_nav_button_text[label]
+                            else:
+                                for key, label, clicked, enabled in items:
+                                    button:
+                                        style style.gm_nav_button[label]
+                                        action clicked
+                                        selected screen == key
+                                        sensitive enabled
+
+                                        text _(label):
+                                            style style.gm_nav_button_text[label]

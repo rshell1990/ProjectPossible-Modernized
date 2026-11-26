@@ -15,22 +15,10 @@
     style.mm_menu_frame.ypos = 0.9
     style.mm_menu_frame.yanchor = 1.0
 
-label main_menu_screen:
-
-    python hide:
-
-        # Ignore right-click while at the main menu.
-        ui.keymap(game_menu=ui.returns(None))
-
-        # Show the background.
-        ui.window(style='mm_root')
-        ui.null()
-
-        ui.frame(style='mm_menu_frame')
-        ui.vbox(style='mm_menu_frame_box')
+    def _classic_main_menu_entries():
+        entries = [ ]
 
         for e in config.main_menu:
-
             if len(e) == 3:
                 label, clicked, enabled = e
                 shown = "True"
@@ -40,16 +28,42 @@ label main_menu_screen:
             if not eval(shown):
                 continue
 
-            # This checks to see if clicked is a string. If so, we want clicked
-            # to jump us out of the current context.
             if isinstance(clicked, str):
-                clicked=ui.jumpsoutofcontext(clicked)
+                clicked = Function(renpy.jump_out_of_context, clicked)
 
-            # Create each button.
-            layout.button(label, "mm", enabled=eval(enabled), clicked=clicked)
+            entries.append((label, clicked, eval(enabled)))
 
-        ui.close()
+        return entries
 
-        ui.interact(mouse="mainmenu")
+label main_menu_screen:
+
+    $ renpy.call_screen("_classic_main_menu", _mode="mainmenu")
 
     return
+
+screen _classic_main_menu():
+
+    modal True
+
+    key "game_menu" action NullAction()
+
+    window:
+        style "mm_root"
+
+        fixed:
+            null
+
+            frame:
+                style "mm_menu_frame"
+
+                vbox:
+                    style "mm_menu_frame_box"
+
+                    for label, clicked, enabled in _classic_main_menu_entries():
+                        button:
+                            style style.mm_button[label]
+                            action clicked
+                            sensitive enabled
+
+                            text _(label):
+                                style style.mm_button_text[label]

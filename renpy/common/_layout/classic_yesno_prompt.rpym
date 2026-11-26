@@ -34,24 +34,40 @@
 
         layout.navigation(screen)
 
-        ui.window(style='yesno_frame')
-        ui.vbox(style='yesno_frame_vbox')
-
-        layout.prompt(message, "yesno")
-
-        ui.hbox(style='yesno_button_hbox')
-
-        # The extra nulls are because we want equal whitespace surrounding
-        # the two buttons. It should work as long as we have xfill=True
-        layout.button(u"Yes", 'yesno', clicked=ui.returns(True))
-        layout.button(u"No", 'yesno', clicked=ui.returns(False))
-
-        ui.close()
-        ui.close()
-
-        rv = ui.interact(mouse="gamemenu")
+        rv = renpy.call_screen("_classic_yesno_prompt", message, _mode="gamemenu")
         renpy.transition(config.intra_transition)
         return rv
 
     layout.yesno_prompt = yesno_prompt
+
+screen _classic_yesno_prompt(message):
+
+    window:
+        style "yesno_frame"
+
+        vbox:
+            style "yesno_frame_vbox"
+
+            window:
+                style style.yesno_prompt[message]
+
+                text _(message):
+                    style style.yesno_prompt_text[message]
+
+            hbox:
+                style "yesno_button_hbox"
+
+                button:
+                    style style.yesno_button["Yes"]
+                    action Return(True)
+
+                    text _(u"Yes"):
+                        style style.yesno_button_text["Yes"]
+
+                button:
+                    style style.yesno_button["No"]
+                    action Return(False)
+
+                    text _(u"No"):
+                        style style.yesno_button_text["No"]
 

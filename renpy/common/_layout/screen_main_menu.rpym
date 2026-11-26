@@ -8,10 +8,9 @@ label main_menu_screen:
         name = renpy.session.pop("_main_menu_screen", "main_menu")
         args = renpy.session.pop("_main_menu_screen_args", tuple())
         kwargs = renpy.session.pop("_main_menu_screen_kwargs", { })
+        kwargs.setdefault("_mode", "mainmenu")
 
-        renpy.show_screen(name, *args, **kwargs)
-
-        ui.interact()
+        renpy.call_screen(name, *args, **kwargs)
 
     return
 

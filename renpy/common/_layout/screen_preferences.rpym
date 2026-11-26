@@ -4,7 +4,6 @@
 
 label preferences_screen:
 
-    $ renpy.show_screen('preferences')
-    $ ui.interact()
+    $ renpy.call_screen('preferences', _mode="gamemenu")
 
     jump _noisy_return

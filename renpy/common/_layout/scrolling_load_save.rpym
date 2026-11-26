@@ -33,7 +33,7 @@
 
     # Styles.
     style.file_picker_frame = Style(style.frame, help="frame containing the file picker")
-    style.file_picker_side = Style(style.default, help="ui.side containing the file picker and the scrollbars")
+    style.file_picker_side = Style(style.default, help="side containing the file picker and the scrollbars")
     style.file_picker_viewport = Style(style.viewport, help="viewport containing the file picker entries")
     style.file_picker_box = Style(style.vbox, help="box containing the file picker entries")
     style.file_picker_entry = Style(style.large_button, help="the buttons containing information about each file")
@@ -85,8 +85,6 @@
 
             __session.thumbnail = None
 
-            layout.navigation(screen)
-
             newest = None
             newest_time = None
 
@@ -99,7 +97,7 @@
                 if not name[0] in "0123456789":
                     continue
 
-                if time > newest_time:
+                if newest_time is None or time > newest_time:
                     newest = name
                     newest_time = time
 
@@ -116,11 +114,6 @@
                 for i in range(1, config.load_save_auto_slots + 1):
                     slots.append(('auto-' + str(i), _(u'a') + str(i)))
 
-            ui.frame(style=style.file_picker_frame)
-            ui.side(['c', 'r'], style=style.file_picker_side)
-
-
-
             if __session.scrollbar_position is None:
                 if newest is None:
                     yoffset = 0
@@ -132,61 +125,19 @@
                 value = __session.scrollbar_position
                 yoffset = None
 
-            adj = ui.adjustment(value=value)
-            ui.viewport(yadjustment=adj, offsets=(0, yoffset), style=style.file_picker_viewport, mousewheel=True)
-
-            ui.vbox(style=style.file_picker_box, focus=renpy.time.time())
-
-
-            for i, (fn, n) in enumerate(slots):
-
-                clicked = ui.returns(("select", fn))
-
-                if screen == "save" and fn.startswith("auto-"):
-                    clicked = None
-
-                if screen == "load" and fn not in info:
-                    clicked = None
-
-                if fn in info:
-                    extra_info, thumbnail, time = info[fn]
-
-                    ui.button(style=style.file_picker_entry[i],
-                              clicked=clicked,
-                              hovered=hovered(thumbnail),
-                              unhovered=unhovered(thumbnail),
-                              role = "selected_" if (fn == newest) else "",
-                              keymap = { "save_delete" : ui.returns(("unlink", fn)) },
-                              )
-
-                    s = config.file_entry_format % dict(
-                        time=renpy.time.strftime(
-                            config.time_format,
-                            renpy.time.localtime(time)),
-                        save_name=extra_info)
-
-                    ui.text(n + ". " + s, style=style.file_picker_text[i])
-
-                else:
-                    ui.button(style=style.file_picker_entry[i],
-                              clicked=clicked,
-                              role = "selected_" if (fn == newest) else "")
-
-                    ui.text(n + ". " + _(u"Empty Slot."),
-                            style=style.file_picker_text[i])
-
-            ui.close() # vbox/viewport
-
-            ui.bar(adjustment=adj, style=style.file_picker_scrollbar)
-
-            ui.close() # side/window
-
-            # Thumbnail.
-            ui.frame(style=style.thumbnail_frame)
-            ui.add(DynamicDisplayable(_file_picker_thumbnail))
-
+            adj = renpy.display.behavior.Adjustment(value=value)
             try:
-                action, arg = ui.interact(mouse="gamemenu")
+                action, arg = renpy.call_screen(
+                    "_scrolling_file_picker",
+                    screen,
+                    slots,
+                    info,
+                    newest,
+                    adj,
+                    yoffset,
+                    hovered,
+                    unhovered,
+                    _mode="gamemenu")
             finally:
                 __session.scrollbar_position = adj.value
                 __session.thumbnail = None
@@ -197,6 +148,75 @@
             elif action == "unlink":
                 if layout.yesno_prompt("save", layout.DELETE_SAVE):
                     renpy.unlink_save(arg)
+
+
+screen _scrolling_file_picker(screen, slots, info, newest, adjustment, yinitial, hovered, unhovered):
+
+    modal True
+
+    fixed:
+        $ layout.navigation(screen)
+
+        frame:
+            style style.file_picker_frame
+
+            side "c r":
+                style style.file_picker_side
+
+                viewport:
+                    style style.file_picker_viewport
+                    yadjustment adjustment
+                    yinitial yinitial
+                    mousewheel True
+
+                    vbox:
+                        style style.file_picker_box
+                        focus renpy.time.time()
+
+                        for i, (fn, n) in enumerate(slots):
+                            $ filename_info = info.get(fn)
+                            $ clicked = None
+
+                            if screen == "save" and not fn.startswith("auto-"):
+                                $ clicked = Return(("select", fn))
+                            elif screen == "load" and fn in info:
+                                $ clicked = Return(("select", fn))
+
+                            if filename_info is not None:
+                                $ extra_info, thumbnail, mtime = filename_info
+                                $ entry_text = config.file_entry_format % dict(
+                                    time=renpy.time.strftime(
+                                        config.time_format,
+                                        renpy.time.localtime(mtime)),
+                                    save_name=extra_info)
+
+                                button:
+                                    style style.file_picker_entry[i]
+                                    action clicked
+                                    hovered Function(hovered(thumbnail))
+                                    unhovered Function(unhovered(thumbnail))
+                                    selected fn == newest
+                                    key "save_delete" action Return(("unlink", fn))
+
+                                    text n + ". " + entry_text:
+                                        style style.file_picker_text[i]
+                            else:
+                                button:
+                                    style style.file_picker_entry[i]
+                                    action clicked
+                                    selected fn == newest
+
+                                    text n + ". " + _(u"Empty Slot."):
+                                        style style.file_picker_text[i]
+
+                vbar:
+                    adjustment adjustment
+                    style style.file_picker_scrollbar
+
+        frame:
+            style style.thumbnail_frame
+
+            add DynamicDisplayable(_file_picker_thumbnail)
 
 
 label save_screen:

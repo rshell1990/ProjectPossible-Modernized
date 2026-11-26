@@ -4,13 +4,11 @@
 
 label load_screen:
 
-    $ renpy.show_screen('load')
-    $ ui.interact()
+    $ renpy.call_screen('load', _mode="gamemenu")
     jump _noisy_return
 
 label save_screen:
 
-    $ renpy.show_screen('save')
-    $ ui.interact()
+    $ renpy.call_screen('save', _mode="gamemenu")
     jump _noisy_return
 

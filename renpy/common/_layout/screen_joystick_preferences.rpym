@@ -4,7 +4,6 @@
 
 label joystick_preferences_screen:
 
-    $ renpy.show_screen('joystick_preferences')
-    $ ui.interact()
+    $ renpy.call_screen('joystick_preferences', _mode="gamemenu")
 
     jump _noisy_return
