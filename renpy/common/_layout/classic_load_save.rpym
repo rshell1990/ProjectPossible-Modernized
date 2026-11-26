@@ -1,25 +1,4 @@
-﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-init python:
+﻿init python:
 
     layout.provides('load_save')
 
@@ -88,62 +67,38 @@ init python:
     __scratch = object()
     __scratch.file_picker_page = None
 
-    def _render_savefile(index, name, extra_info, screenshot, mtime, newest, clicked):
-
+    def _file_picker_entry_text(extra_info, mtime):
         import time
 
-        ui.button(style=style.file_picker_entry[index],
-                  clicked=clicked,
-                  role=("selected_" if newest else ""),
-                  keymap={ "save_delete" : ui.returns(("unlink", name)) }
-                  )
+        return config.file_entry_format % dict(
+            time=time.strftime(
+                config.time_format,
+                time.localtime(mtime)
+            ),
+            save_name=extra_info
+        )
 
-        ui.hbox(style=style.file_picker_entry_box[index])
+    def _file_picker_navigation(screen):
+        rv = []
 
-        if not config.disable_thumbnails:
-            ui.add(screenshot)
-
-        if newest:
-            ui.text(name + ". ", style=style.file_picker_new[index])
-        else:
-            ui.text(name + ". ", style=style.file_picker_old[index])
-
-        s = config.file_entry_format % dict(
-            time=time.strftime(config.time_format,
-                               time.localtime(mtime)),
-            save_name=extra_info)
-
-        ui.text(s, style=style.file_picker_extra_info[index])
-
-        ui.close()
-
-    def _render_new_slot(index, name, clicked):
-
-        ui.button(style=style.file_picker_entry[index],
-                  clicked=clicked)
-
-
-        ui.hbox(style=style.file_picker_entry_box[index])
-
-        if not config.disable_thumbnails:
-
-            if config.load_save_empty_thumbnail:
-                ui.add(config.load_save_empty_thumbnail)
+        for entry in config.game_menu:
+            if len(entry) == 4:
+                key, label, clicked, enabled = entry
+                shown = "True"
             else:
-                ui.null(width=config.thumbnail_width,
-                        height=config.thumbnail_height)
+                key, label, clicked, enabled, shown = entry
 
-        ui.text(name + ". ", style=style.file_picker_old[index])
+            if eval(shown):
+                rv.append((key, label, clicked, eval(enabled)))
 
-        ui.text(_(u"Empty Slot."), style=style.file_picker_empty_slot[index])
-        ui.close()
+        return rv
 
 
     # Returns the names of the various pages that the file picker knows
     # about.
     def _file_picker_pages():
 
-        rv = [ ]
+        rv = []
 
         if config.has_autosave:
             rv.append(u"Auto")
@@ -162,7 +117,7 @@ init python:
     def _file_picker_page_files(page):
 
         per_page = config.file_page_cols * config.file_page_rows
-        rv = [ ]
+        rv = []
 
         if config.has_autosave:
             if page == 0:
@@ -223,10 +178,7 @@ init python:
         update = True
 
         while True:
-
-
             if update:
-
                 update = False
 
                 # The number of slots in a page.
@@ -238,7 +190,7 @@ init python:
                 # Figure out which game is the newest and so on.
                 newest = None
                 newest_mtime = 0
-                save_info = { }
+                save_info = {}
 
                 for fn, extra_info, screenshot, mtime in saved_games:
                     screenshot = _file_picker_process_screenshot(screenshot)
@@ -257,76 +209,22 @@ init python:
                     else:
                         fpp = _file_picker_file_page("1")
 
-
             if fpp < 0:
                 fpp = 0
 
             __scratch.file_picker_page = fpp
 
-            # Show navigation
-            layout.navigation(screen)
-
-            ui.window(style='file_picker_frame')
-            ui.vbox(style='file_picker_frame_box') # whole thing.
-
-            if not config.disable_file_pager:
-
-                # Draw the navigation.
-                ui.hbox(style='file_picker_navbox') # nav buttons.
-
-                def tb(cond, label, clicked, selected):
-                    layout.button(label,
-                                  "file_picker_nav",
-                                  enabled=cond,
-                                  clicked=clicked,
-                                  selected=selected)
-
-                # Previous
-                tb(fpp > 0, u'Previous', ui.returns(("fppdelta", -1)), selected=False)
-
-                # Quick Access
-                for i, name in enumerate(_file_picker_pages()):
-                    tb(True, name, ui.returns(("fppset", i)), fpp == i)
-
-                # Next
-                tb(True, u'Next', ui.returns(("fppdelta", +1)), False)
-
-                ui.close()
-
-            # This draws a single slot.
-            def entry(name, filename, offset, ro):
-                clicked = ui.returns(("return", filename))
-
-                if filename not in save_info:
-                    if (not save) or ro:
-                        clicked = None
-
-                    _render_new_slot(offset, name, clicked)
-                else:
-                    if save and ro:
-                        clicked = None
-
-                    extra_info, screenshot, mtime = save_info[filename]
-                    _render_savefile(offset,
-                                     name,
-                                     extra_info,
-                                     screenshot,
-                                     mtime,
-                                     newest == filename,
-                                     clicked)
-
-            ui.grid(config.file_page_cols,
-                    config.file_page_rows,
-                    style='file_picker_grid',
-                    transpose=True) # slots
-
-            for i, (filename, name, ro) in enumerate(_file_picker_page_files(fpp)):
-                entry(name, filename, i, ro)
-
-            ui.close() # slots
-            ui.close() # whole thing
-
-            result = ui.interact(mouse="gamemenu")
+            result = renpy.call_screen(
+                "_classic_file_picker",
+                screen,
+                save,
+                fpp,
+                newest,
+                save_info,
+                _file_picker_pages(),
+                _file_picker_page_files(fpp),
+                _file_picker_navigation(screen)
+            )
             type, value = result
 
             if type == "unlink":
@@ -342,6 +240,113 @@ init python:
 
             if type == "fppset":
                 fpp = value
+
+
+screen _classic_file_picker(screen_name, save, fpp, newest, save_info, pages, page_files, navigation):
+
+    modal True
+
+    window:
+        style style.gm_root[screen_name]
+
+        fixed:
+            null
+
+            frame:
+                style "gm_nav_frame"
+
+                vbox:
+                    style "gm_nav_box"
+                    focus "gm_nav"
+
+                    for key, label, clicked, enabled in navigation:
+                        button:
+                            style style.gm_nav_button[label]
+                            action clicked if enabled else None
+                            selected screen_name == key
+
+                            text _(label):
+                                style style.gm_nav_button_text[label]
+
+            window:
+                style "file_picker_frame"
+
+                vbox:
+                    style "file_picker_frame_box"
+
+                    if not config.disable_file_pager:
+                        hbox:
+                            style "file_picker_navbox"
+
+                            textbutton _("Previous"):
+                                style style.file_picker_nav_button["Previous"]
+                                text_style style.file_picker_nav_button_text["Previous"]
+                                action Return(("fppdelta", -1))
+                                sensitive fpp > 0
+
+                            for i, name in enumerate(pages):
+                                textbutton name:
+                                    style style.file_picker_nav_button[name]
+                                    text_style style.file_picker_nav_button_text[name]
+                                    action Return(("fppset", i))
+                                    selected fpp == i
+
+                            textbutton _("Next"):
+                                style style.file_picker_nav_button["Next"]
+                                text_style style.file_picker_nav_button_text["Next"]
+                                action Return(("fppdelta", 1))
+
+                    grid config.file_page_cols config.file_page_rows:
+                        style "file_picker_grid"
+                        transpose True
+
+                        for index, (filename, name, ro) in enumerate(page_files):
+                            if filename in save_info:
+                                $ extra_info, screenshot, mtime = save_info[filename]
+
+                                button:
+                                    style style.file_picker_entry[index]
+                                    action None if save and ro else Return(("return", filename))
+                                    selected newest == filename
+                                    key "save_delete" action Return(("unlink", name))
+
+                                    hbox:
+                                        style style.file_picker_entry_box[index]
+
+                                        if not config.disable_thumbnails:
+                                            add screenshot
+
+                                        if newest == filename:
+                                            text name + ". ":
+                                                style style.file_picker_new[index]
+                                        else:
+                                            text name + ". ":
+                                                style style.file_picker_old[index]
+
+                                        text _file_picker_entry_text(extra_info, mtime):
+                                            style style.file_picker_extra_info[index]
+
+                            else:
+                                button:
+                                    style style.file_picker_entry[index]
+                                    action None if (not save) or ro else Return(("return", filename))
+
+                                    hbox:
+                                        style style.file_picker_entry_box[index]
+
+                                        if not config.disable_thumbnails:
+                                            if config.load_save_empty_thumbnail:
+                                                add config.load_save_empty_thumbnail
+                                            else:
+                                                null:
+                                                    width config.thumbnail_width
+                                                    height config.thumbnail_height
+
+                                        text name + ". ":
+                                            style style.file_picker_old[index]
+
+                                        text _("Empty Slot."):
+                                            style style.file_picker_empty_slot[index]
 
 
 label save_screen:
@@ -360,7 +365,6 @@ label save_screen:
 label load_screen:
 
     python hide:
-
         while True:
             fn = _file_picker("load", False)
 

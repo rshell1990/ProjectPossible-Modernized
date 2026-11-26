@@ -1,24 +1,3 @@
-# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 from collections.abc import Callable
 from textwrap import dedent
 from typing import Any
@@ -359,6 +338,53 @@ def setup_global_test_suite() -> TestSuite:
     global_test_suite = root
 
     return root
+
+
+def collect_test_paths(test_filter: ExecutionFilter) -> list[str]:
+    """
+    Returns the parameterized paths of the test suites and test cases that `test_filter` matches, in the order a
+    test run would reach them, without running anything. This implements `test --list`.
+
+    Each parameter set of a test gets its own path, and a suite's path comes before those of its children. The
+    `enabled` and `only` flags are not consulted, so disabled tests are listed too. A leading "global." is removed,
+    as filters do not need it. Hooks are not listed.
+
+    The parameter indices of the tests are stepped through as a run would, and are reset afterward.
+    """
+
+    root = setup_global_test_suite()
+    rv: list[str] = []
+    visited: list[TestCase] = [root]
+
+    prefix = global_testsuite_name + "."
+
+    def visit(suite: TestSuite) -> None:
+        for test in suite.subtests:
+            visited.append(test)
+
+            for index in range(max(1, len(test.parameters))):
+                test.parameter_index = index
+
+                if not test_filter.matches(test):
+                    continue
+
+                path = test.current_full_parameterized_path
+                rv.append(path.removeprefix(prefix))
+
+                if isinstance(test, TestSuite):
+                    visit(test)
+
+            test.parameter_index = -1
+
+    try:
+        for index in range(max(1, len(root.parameters))):
+            root.parameter_index = index
+            visit(root)
+    finally:
+        for test in visited:
+            test.parameter_index = -1
+
+    return rv
 
 
 def get_testcase_by_id(id: str) -> TestCase:

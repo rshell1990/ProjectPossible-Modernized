@@ -1,24 +1,3 @@
-# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 # This is the config module, where game configuration settings are stored.
 # This includes both simple settings (like the screen dimensions) and
 # methods that perform standard tasks, like the say and menu methods.
@@ -1076,6 +1055,9 @@ context_copy_remove_screens = ["notify"]
 # An exception handling callback.
 exception_handler: Callable[[renpy.error.TracebackException], bool] | None = None
 
+# If True, the exception screen offers the Ignore button for exceptions that occur during the init phase.
+init_exception_ignore: bool = False
+
 # A label to jump to if return fails.
 return_not_found_label = None
 
@@ -1611,6 +1593,12 @@ If not None, the time in seconds before the music is unloaded when downloaded as
 mesh_pad_compat: bool = False
 """
 Should mesh pad work the way it did before 8.4? (That is, it shifts things to the right/down by pad_left/pad_top.)
+"""
+
+blur_virtual_pixels: bool = True
+"""
+If True, the blur transform property is measured in virtual pixels, so it keeps its strength relative to the game when
+the window is resized. If False, it's measured in drawable pixels, as it was in Ren'Py 8.5 and earlier.
 """
 
 mesh_oversample: float = 8.0

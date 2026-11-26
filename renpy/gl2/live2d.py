@@ -1,24 +1,3 @@
-# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 from typing import Any
 
 
@@ -155,7 +134,7 @@ def init():
         uniform vec2 u_model_size;
         uniform float u_live2d_ppu;
         uniform vec2 u_live2d_offset;
-        uniform vec4 u_live2d_mask_bounds;
+        uniform vec4 tex1__to_crop;
         in vec4 a_position;
         in vec2 a_tex_coord;
         out vec2 v_tex_coord;
@@ -166,9 +145,7 @@ def init():
         v_mask_coord = vec2(
             a_position.x * u_live2d_ppu + u_live2d_offset.x,
             u_live2d_offset.y - a_position.y * u_live2d_ppu) / u_model_size;
-        if (u_live2d_mask_bounds.z > 0.0) {
-            v_mask_coord = (v_mask_coord - u_live2d_mask_bounds.xy) / u_live2d_mask_bounds.zw;
-        }
+        v_mask_coord = tex1__to_crop.xy + v_mask_coord * tex1__to_crop.zw;
     """,
         fragment_200="""
         vec2 inside = step(vec2(0.0), v_mask_coord) * step(v_mask_coord, vec2(1.0));
@@ -186,7 +163,7 @@ def init():
         uniform vec2 u_model_size;
         uniform float u_live2d_ppu;
         uniform vec2 u_live2d_offset;
-        uniform vec4 u_live2d_mask_bounds;
+        uniform vec4 tex1__to_crop;
         in vec4 a_position;
         in vec2 a_tex_coord;
         out vec2 v_tex_coord;
@@ -197,9 +174,7 @@ def init():
         v_mask_coord = vec2(
             a_position.x * u_live2d_ppu + u_live2d_offset.x,
             u_live2d_offset.y - a_position.y * u_live2d_ppu) / u_model_size;
-        if (u_live2d_mask_bounds.z > 0.0) {
-            v_mask_coord = (v_mask_coord - u_live2d_mask_bounds.xy) / u_live2d_mask_bounds.zw;
-        }
+        v_mask_coord = tex1__to_crop.xy + v_mask_coord * tex1__to_crop.zw;
     """,
         fragment_200="""
         vec2 inside = step(vec2(0.0), v_mask_coord) * step(v_mask_coord, vec2(1.0));

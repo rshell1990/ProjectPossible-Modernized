@@ -1,24 +1,3 @@
-# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 # This file contains code to handle GUI-based error reporting.
 
 import os
@@ -125,8 +104,13 @@ def report_exception(traceback_exception: renpy.error.TracebackException) -> boo
         else:
             reload_action = renpy.exports.utter_restart
 
-        # If next node is known, allow to advance to it.
-        if renpy.game.context().next_node is not None:
+        # If next node is known, allow to advance to it. Ignoring an exception during init leaves the game partly
+        # initialized, so this is only offered there when the creator opts in. Every context is checked, as a
+        # context created by renpy.call_in_new_context during init isn't marked as being in the init phase, while
+        # renpy.load_string runs init code in a new context on top of the game.
+        in_init = any(c.init_phase for c in renpy.game.contexts)
+
+        if renpy.game.context().next_node is not None and (not in_init or renpy.config.init_exception_ignore):
             ignore_action = renpy.ui.returns(False)
 
     except Exception:

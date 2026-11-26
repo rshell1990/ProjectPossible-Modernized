@@ -1,25 +1,4 @@
-﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-# This file contains code that creates a few new statements.
+﻿# This file contains code that creates a few new statements.
 
 init -1200 python in audio:
 
@@ -179,7 +158,8 @@ python early hide:
         execute=execute_play_music,
         predict=predict_play_music,
         lint=lint_play_music,
-        warp=warp_audio)
+        warp=warp_audio,
+        strict_expression=True)
 
     # From here on, we'll steal bits of other statements when defining other
     # statements.
@@ -247,7 +227,8 @@ python early hide:
         parse=parse_queue_music,
         execute=execute_queue_music,
         lint=lint_play_music,
-        warp=warp_audio)
+        warp=warp_audio,
+        strict_expression=True)
 
     def parse_stop_music(l):
         channel = None
@@ -285,7 +266,8 @@ python early hide:
         'stop music',
         parse=parse_stop_music,
         execute=execute_stop_music,
-        warp=warp_audio)
+        warp=warp_audio,
+        strict_expression=True)
 
 
     # Sound statements. They share alot with the equivalent music
@@ -333,7 +315,8 @@ python early hide:
         parse=parse_play_music,
         execute=execute_play_sound,
         lint=lint_play_sound,
-        warp=warp_sound)
+        warp=warp_sound,
+        strict_expression=True)
 
     def execute_queue_sound(p):
         if p["channel"] is not None:
@@ -360,7 +343,8 @@ python early hide:
         parse=parse_queue_music,
         execute=execute_queue_sound,
         lint=lint_play_sound,
-        warp=warp_sound)
+        warp=warp_sound,
+        strict_expression=True)
 
     def execute_stop_sound(p):
         if p["channel"] is not None:
@@ -376,7 +360,8 @@ python early hide:
         'stop sound',
         parse=parse_stop_music,
         execute=execute_stop_sound,
-        warp=warp_sound)
+        warp=warp_sound,
+        strict_expression=True)
 
 
     # Generic play/queue/stop statements. These take a channel name as
@@ -438,21 +423,24 @@ python early hide:
         execute=execute_play_music,
         predict=predict_play_music,
         lint=lint_play_generic,
-        warp=warp_audio)
+        warp=warp_audio,
+        strict_expression=True)
 
     renpy.register_statement(
         'queue',
         parse=parse_queue_generic,
         execute=execute_queue_music,
         lint=lint_play_generic,
-        warp=warp_audio)
+        warp=warp_audio,
+        strict_expression=True)
 
     renpy.register_statement(
         'stop',
         parse=parse_stop_generic,
         execute=execute_stop_music,
         lint=lint_stop_generic,
-        warp=warp_audio)
+        warp=warp_audio,
+        strict_expression=True)
 
 
 
@@ -491,7 +479,8 @@ python early hide:
         'pause',
         parse=parse_pause,
         lint=lint_pause,
-        execute=execute_pause)
+        execute=execute_pause,
+        strict_expression=True)
 
 
 ##############################################################################
@@ -741,7 +730,8 @@ python early hide:
         execute=execute_show_screen,
         predict=predict_screen,
         lint=lint_show_call_screen,
-        warp=warp_true)
+        warp=warp_true,
+        strict_expression=True)
 
     renpy.register_statement(
         "call screen",
@@ -749,11 +739,13 @@ python early hide:
         execute=execute_call_screen,
         predict=predict_screen,
         lint=lint_show_call_screen,
-        force_begin_rollback=True)
+        force_begin_rollback=True,
+        strict_expression=True)
 
     renpy.register_statement(
         "hide screen",
         parse=parse_hide_screen,
         execute=execute_hide_screen,
         lint=lint_hide_screen,
-        warp=warp_true)
+        warp=warp_true,
+        strict_expression=True)

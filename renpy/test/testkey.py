@@ -1,24 +1,3 @@
-# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 import renpy
 from renpy import pygame
 
@@ -337,10 +316,13 @@ def queue_keysym(name: str) -> None:
     """
     Trigger a keysym event, which is a string like "ctrl_K_a" or "mouseup_1"
     or an event name in `config.keymap` like "skip" or "dismiss".
+
+    Every event posted is marked as a test event, so the test executor waits for the game to handle it before
+    running the next test statement.
     """
 
     if name in renpy.config.keymap:
-        renpy.exports.queue_event(name)
+        renpy.exports.queue_event(name, test=True)
         return
 
     elif "pad_" in name:
@@ -350,7 +332,7 @@ def queue_keysym(name: str) -> None:
         state = parts[-1]
         repeat = parts[0] == "repeat"
 
-        renpy.display.controller.post_event(control, state, repeat)
+        renpy.display.controller.post_event(control, state, repeat, test=True)
         return
 
     down(name)

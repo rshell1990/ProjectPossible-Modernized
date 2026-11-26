@@ -1,29 +1,38 @@
-# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 from renpy.arguments import ArgumentParser, register_command
 from renpy.test import testexecution, testreporter
 from renpy.test.testexecution import setup_global_test_suite
-from renpy.test.testfilter import ExecutionFilter
+from renpy.test.testfilter import ExecutionFilter, get_node_filter
 from renpy.test.testsettings import _test, global_testsuite_name
+
+INVALID_NAME_WARNING = (
+    "* Names marked with an asterisk have a parameter value that is not a Python literal, so they can't be used "
+    "as filters. These tests are skipped when filters are given."
+)
+"Printed at the end of the output of `test --list` when a listed name is marked with an asterisk."
+
+
+def format_test_list(paths: list[str]) -> list[str]:
+    """
+    Returns the lines `test --list` prints for the test `paths`. A path that can't be used as a filter, because a
+    parameter value isn't a Python literal, is followed by an asterisk, and a warning explaining the asterisk is
+    added at the end.
+    """
+
+    rv: list[str] = []
+    invalid = False
+
+    for path in paths:
+        if get_node_filter(path) is None:
+            rv.append(f"{path} *")
+            invalid = True
+        else:
+            rv.append(path)
+
+    if invalid:
+        rv.append("")
+        rv.append(INVALID_NAME_WARNING)
+
+    return rv
 
 
 def test_command() -> bool:
@@ -53,6 +62,14 @@ def test_command() -> bool:
         default=False,
         help="Run all test cases and test suites, even if they are disabled. "
         "Does not work if a specific test case or suite is specified.",
+    )
+    group.add_argument(
+        "--list",
+        dest="list",
+        action="store_true",
+        default=False,
+        help="List the test suites and test cases that match the filters, including disabled ones, "
+        "without running them.",
     )
     group.add_argument(
         "--overwrite-screenshots",
@@ -118,6 +135,14 @@ def test_command() -> bool:
             setattr(obj, key_parts[-1], value)
         else:
             raise AttributeError(f"Unknown test setting: {key}")
+
+    if args.list:
+        setup_global_test_suite()
+
+        for line in format_test_list(testexecution.collect_test_paths(ExecutionFilter(args.filters))):
+            print(line)
+
+        return False
 
     testreporter.reporter.add_reporter(testreporter.ConsoleReporter())
 

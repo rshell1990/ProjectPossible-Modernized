@@ -1,25 +1,4 @@
-﻿# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-# Protocol:
+﻿# Protocol:
 #
 # This currently requires one endpoint on the server, and makes
 # PUT and GET requests.
@@ -74,10 +53,14 @@ init -1100 python:
 
 init 1100 python:
 
-    if config.savedir is not None:
-        config.extra_savedirs.append(config.savedir + "/sync")
-    else:
+    import os
+
+    # An existing sync directory is used even when sync is disabled, so saves
+    # downloaded while it was enabled stay available.
+    if config.savedir is None:
         config.has_sync = None
+    elif config.has_sync or os.path.isdir(config.savedir + "/sync"):
+        config.extra_savedirs.append(config.savedir + "/sync")
 
 init -1100 python in _sync:
 

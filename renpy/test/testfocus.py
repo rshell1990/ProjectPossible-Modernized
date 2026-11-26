@@ -1,24 +1,3 @@
-# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 import random
 
 import renpy
@@ -50,18 +29,59 @@ def find_focus(pattern: str, raw: bool) -> Focus | None:
 
 def _get_default_focus_text(raw: bool) -> str:
     """
-    Searches for the current say node, and if found, uses its text.
-    If not found, falls back to using TTS text from the root widget.
-    """
-    current_node = renpy.game.script.lookup(renpy.game.context().current)
+    Returns the text that a text selector matches against the default focus.
 
-    if not isinstance(current_node, renpy.ast.TranslateSay):
+    When the current statement is a translatable say statement and `raw` is true, this is its dialogue as written
+    in the original-language script. When `raw` is false, it is text being displayed, in the current language and
+    with substitutions applied: the dialogue of a say statement that is translated by itself, and otherwise the TTS
+    text of the root widget.
+    """
+    context = renpy.game.context()
+    current_node = renpy.game.script.lookup(context.current)
+
+    if isinstance(current_node, renpy.ast.TranslateSay):
+        if not raw:
+            # The current node is the one being run, so when the line is translated, it is the translation.
+            return renpy.substitutions.substitute(current_node.what, None)[0]
+
+        identifier = current_node.identifier
+
+    elif raw and isinstance(current_node, renpy.ast.Say):
+        # A say statement inside a translate block, which is how it is stored when it is grouped with another
+        # translatable statement, such as nvl clear or voice.
+        identifier = context.translate_identifier
+
+    else:
+        identifier = None
+
+    if identifier is None:
+        # This is already the displayed text, and so only wrong for raw.
         return renpy.display.tts.root._tts_all(raw)
 
-    untranslated_node: renpy.ast.TranslateSay = renpy.game.script.translator.default_translates[current_node.identifier]
-    if raw:
-        return untranslated_node.what
-    return renpy.substitutions.substitute(untranslated_node.what, None)[0]
+    original_node = _get_original_say(identifier)
+
+    if original_node is None:
+        return current_node.what
+
+    return original_node.what
+
+
+def _get_original_say(identifier: str) -> "renpy.ast.Say | None":
+    """
+    Returns the original-language say statement of the translation `identifier`, or None if there isn't one.
+    """
+    node = renpy.game.script.translator.default_translates.get(identifier, None)
+
+    if isinstance(node, renpy.ast.Say):
+        return node
+
+    if isinstance(node, renpy.ast.Translate):
+        # A say statement ends the group of statements that makes up a block, so a block has at most one.
+        for i in reversed(node.block):
+            if isinstance(i, renpy.ast.Say):
+                return i
+
+    return None
 
 
 def relative_to_absolute(posx: int | float, width: int) -> int:

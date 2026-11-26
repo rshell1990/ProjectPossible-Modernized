@@ -1,24 +1,3 @@
-# Copyright 2004-2026 Tom Rothamel <pytom@bishoujo.us>
-#
-# Permission is hereby granted, free of charge, to any person
-# obtaining a copy of this software and associated documentation files
-# (the "Software"), to deal in the Software without restriction,
-# including without limitation the rights to use, copy, modify, merge,
-# publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 from typing import TYPE_CHECKING, NotRequired, TypedDict, Any
 
 import sys
@@ -67,6 +46,7 @@ ALL_EVENTS.discard(pygame.MOUSEMOTION)
 ALL_EVENTS.add(PERIODIC)
 ALL_EVENTS.add(EVENTNAME)
 
+# sphinx/source/pygame_events.rst lists which events are enabled by default; update it when changing this set.
 enabled_events: set[int] = {
     pygame.QUIT,
     pygame.TERMINATING,
@@ -199,6 +179,63 @@ def get_size() -> tuple[int, int]:
     return (max(size[0], 256), max(size[1], 256))
 
 
+WINDOW_GEOMETRY_STABLE_TIME: float = 2.0
+"""
+The number of seconds the window's size and position must stay the same before they are saved in the
+preferences. This keeps the intermediate geometry of window animations, like the asynchronous fullscreen
+transition on macOS, from being saved as the windowed size.
+"""
+
+
+class WindowGeometryDebouncer:
+    """
+    Tracks the window's geometry, and reports it once it has been unchanged for
+    `WINDOW_GEOMETRY_STABLE_TIME` seconds. The renderer uses this to decide when to save the window
+    size and position in the preferences.
+    """
+
+    pending: object | None
+    "The geometry most recently passed to `check`, or None if the window wasn't eligible to be saved."
+
+    pending_since: float
+    "The time `pending` was first seen."
+
+    reported: bool
+    "True if `pending` has already been returned by `check`."
+
+    def __init__(self) -> None:
+        self.pending = None
+        self.pending_since = 0.0
+        self.reported = False
+
+    def check(self, geometry: object | None, now: float) -> object | None:
+        """
+        Called with the current window geometry, a value compared by equality, or None if the window
+        shouldn't be saved (because it's fullscreen, maximized, minimized, or hidden). `now` is the
+        current time, in seconds.
+
+        Returns `geometry` once it has been passed in unchanged for `WINDOW_GEOMETRY_STABLE_TIME`
+        seconds, and None otherwise. Each stable geometry is returned only once, so the caller saves it
+        once rather than on every call.
+        """
+
+        if geometry is None:
+            self.pending = None
+            return None
+
+        if geometry != self.pending:
+            self.pending = geometry
+            self.pending_since = now
+            self.reported = False
+            return None
+
+        if self.reported or now - self.pending_since < WINDOW_GEOMETRY_STABLE_TIME:
+            return None
+
+        self.reported = True
+        return geometry
+
+
 def displayable_by_tag(layer: str, tag: str) -> Displayable | None:
     """
     Get the displayable on the given layer with the given tag.
@@ -312,7 +349,9 @@ class Renderer:
 
     A Renderer is responsible for updating the renpy.game.preferences.fullscreen
     and renpy.game.preferences.physical_size preferences, when these are
-    changed from outside the game.
+    changed from outside the game. The GL2 renderer also saves the window
+    position, and saves the size and position only once they have stayed the
+    same for WINDOW_GEOMETRY_STABLE_TIME seconds.
 
     A renderer has an info dict, that contains the keys from pygame.display.Info(),
     and then:
@@ -868,22 +907,6 @@ class Interface:
         """
 
         return tuple(pygame.display.get_display_bounds())
-
-    def on_move(self):
-        """
-        Called when the player moves the window.
-        """
-
-        if not (renpy.windows or renpy.macintosh or renpy.linux):
-            return
-
-        if renpy.game.preferences.fullscreen or renpy.game.preferences.maximized:
-            return
-
-        pos = pygame.display.get_position()
-
-        renpy.game.preferences.window_position = pos
-        renpy.game.preferences.window_position_layout = self.get_display_layout()
 
     def start(self):
         """
@@ -3290,9 +3313,9 @@ class Interface:
 
                     continue
 
-                # Handle window moves.
+                # Window moves are handled by the renderer, which saves the position once the window
+                # stops moving.
                 if ev.type == pygame.WINDOWMOVED:
-                    self.on_move()
                     continue
 
                 # If we're ignoring touch events, and get a mouse up, stop
